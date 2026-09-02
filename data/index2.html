@@ -486,7 +486,10 @@
 
         <form
           id="message-form"
-          onsubmit="handleSendConfig(event)"
+          onsubmit="
+            event.preventDefault();
+            handleSendConfig(event);
+          "
           class="space-y-5 text-xs"
         >
           <!-- Top Parameter Row: Zone, Message Type, Bold Toggle -->
@@ -872,10 +875,62 @@
             </div>
           </div>
 
+          <!-- NEW: Add Scene Management -->
+          <div class="mt-6 pt-5 border-t border-slate-800">
+            <div
+              class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-3"
+            >
+              Scene Management (Add to Sequence)
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-4">
+              <div class="sm:col-span-2">
+                <label
+                  for="scene-name"
+                  class="block text-slate-300 mb-1 font-medium"
+                  >Scene Name</label
+                >
+                <input
+                  type="text"
+                  id="scene-name"
+                  onkeydown="
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleAddScene();
+                    }
+                  "
+                  placeholder="e.g. Welcome Animation"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-cyan-400 transition"
+                />
+              </div>
+              <div class="flex items-end">
+                <button
+                  type="button"
+                  onclick="handleAddScene()"
+                  class="w-full py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition"
+                >
+                  + Add / Update Scene
+                </button>
+              </div>
+            </div>
+
+            <!-- Scene Chips List -->
+            <div>
+              <div
+                id="scenes-container"
+                class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
+              >
+                <!-- Dynamically Populated Scene Chips -->
+              </div>
+            </div>
+          </div>
+
           <!-- Submit & JSON Export Actions -->
-          <div class="flex flex-col sm:flex-row gap-3 pt-3">
+          <div
+            class="flex flex-col sm:flex-row gap-3 pt-3 border-t border-slate-800 mt-5"
+          >
             <button
-              type="submit"
+              type="button"
+              onclick="handleSendConfig(event)"
               class="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 hover:from-sky-400 hover:to-teal-300 text-slate-950 font-extrabold text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(0,242,254,0.4)] transition transform active:scale-[0.99] flex items-center justify-center gap-2"
             >
               <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -979,7 +1034,7 @@
 
     <!-- Footer -->
     <footer
-      class="mt-12 text-center text-xs font-medium text-slate-500 tracking-wider"
+      class="mt-12 mb-6 text-center text-xs font-medium text-slate-500 tracking-wider"
     >
       ESP32 LED Matrix Configuration | Developer © M.Maity
     </footer>
@@ -1079,8 +1134,9 @@
       let lastFpsTime = performance.now();
       let frameCount = 0;
 
-      // Zones Registry
+      // Zones and Scenes Registry
       let zones = [{ id: "zone_0", name: "Zone 1", start: 0, end: 31 }];
+      let scenes = [];
 
       function updateLiveClock() {
         const now = new Date();
@@ -1275,15 +1331,6 @@
 
         let alpha = 1.0;
 
-        // =========================================================
-        // COMMON ALIGNMENT
-        // =========================================================
-        //
-        // This MUST be the same alignment used by the HOLD phase.
-        //
-        // If text is wider than the zone, offset = 0.
-        // This prevents the animation from suddenly jumping.
-        //
         function getAlignedX() {
           const align =
             document.getElementById("font-align")?.value || "center";
@@ -1306,10 +1353,6 @@
 
         const alignedX = getAlignedX();
 
-        // =========================================================
-        // DRAW COMPLETE VIRTUAL TEXT
-        // =========================================================
-
         function drawVirtual(virtualX, virtualY = 0) {
           for (let r = 0; r < 8; r++) {
             const physicalY = virtualY + r;
@@ -1331,10 +1374,6 @@
           }
         }
 
-        // =========================================================
-        // PA_PRINT
-        // =========================================================
-
         if (effectType === "PA_PRINT") {
           drawVirtual(alignedX);
 
@@ -1344,27 +1383,12 @@
           };
         }
 
-        // =========================================================
-        // PA_SCROLL_LEFT
-        // =========================================================
-        //
-        // Entrance:
-        //     completely outside right -> aligned position
-        //
-        // Exit:
-        //     aligned position -> completely outside left
-        //
-        // ONE FRAME = ONE MATRIX COLUMN
-        // =========================================================
-
         if (effectType === "PA_SCROLL_LEFT") {
           let x;
 
           if (!isExit) {
-            // Right -> aligned
             x = zWidth - step;
           } else {
-            // Aligned -> left
             x = alignedX - step;
           }
 
@@ -1376,27 +1400,12 @@
           };
         }
 
-        // =========================================================
-        // PA_SCROLL_RIGHT
-        // =========================================================
-        //
-        // Entrance:
-        //     completely outside left -> aligned position
-        //
-        // Exit:
-        //     aligned position -> completely outside right
-        //
-        // ONE FRAME = ONE MATRIX COLUMN
-        // =========================================================
-
         if (effectType === "PA_SCROLL_RIGHT") {
           let x;
 
           if (!isExit) {
-            // Left -> aligned
             x = -textWidth + step;
           } else {
-            // Aligned -> right
             x = alignedX + step;
           }
 
@@ -1408,224 +1417,129 @@
           };
         }
 
-        // =========================================================
-        // PA_SCROLL_UP
-        // =========================================================
-
         if (effectType === "PA_SCROLL_UP") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           let y;
-
           if (!isExit) {
-            // Bottom -> normal position
             y = Math.round(8 - 8 * progress);
           } else {
-            // Normal position -> top
             y = -Math.round(8 * progress);
           }
-
-          // IMPORTANT:
-          // Horizontal alignment is preserved.
           drawVirtual(alignedX, y);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_SCROLL_DOWN
-        // =========================================================
 
         if (effectType === "PA_SCROLL_DOWN") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           let y;
-
           if (!isExit) {
-            // Top -> normal position
             y = -8 + Math.round(8 * progress);
           } else {
-            // Normal position -> bottom
             y = Math.round(8 * progress);
           }
-
           drawVirtual(alignedX, y);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_FADE
-        // =========================================================
 
         if (effectType === "PA_FADE") {
           drawVirtual(alignedX);
-
           alpha = isExit
             ? Math.max(0, 1 - step / Math.max(1, maxSteps))
             : Math.min(1, step / Math.max(1, maxSteps));
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_WIPE
-        // =========================================================
 
         if (effectType === "PA_WIPE" || effectType === "PA_WIPE_CURSOR") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const revealWidth = Math.ceil(zWidth * progress);
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               let visible;
-
               if (!isExit) {
                 visible = c < revealWidth;
               } else {
                 visible = c >= revealWidth;
               }
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_OPENING
-        // =========================================================
 
         if (effectType === "PA_OPENING" || effectType === "PA_OPENING_CURSOR") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const halfWidth = Math.ceil((zWidth / 2) * progress);
-
           const center = zWidth / 2;
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const distance = Math.abs(screenCol - center);
-
               const visible = isExit
                 ? distance > halfWidth
                 : distance <= halfWidth;
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_CLOSING
-        // =========================================================
 
         if (effectType === "PA_CLOSING" || effectType === "PA_CLOSING_CURSOR") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const halfWidth = Math.ceil((zWidth / 2) * progress);
-
           const center = zWidth / 2;
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const distance = Math.abs(screenCol - center);
-
               const visible = isExit
                 ? distance >= halfWidth
                 : distance <= halfWidth;
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_BLINDS
-        // =========================================================
 
         if (effectType === "PA_BLINDS") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const blindWidth = 4;
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const local = screenCol % blindWidth;
-
               const visible = isExit
                 ? local >= progress * blindWidth
                 : local < progress * blindWidth;
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // DISSOLVE / RANDOM / MESH
-        // =========================================================
 
         if (
           effectType === "PA_DISSOLVE" ||
@@ -1633,220 +1547,133 @@
           effectType === "PA_MESH"
         ) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const threshold = isExit ? 1 - progress : progress;
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const pseudoRand =
                 (((Math.sin(r * 12.9898 + c * 78.233 + step * 43.123) *
                   43758.5453) %
                   1) +
                   1) /
                 2;
-
               if (pseudoRand <= threshold) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_SCAN_HORIZ
-        // =========================================================
 
         if (effectType === "PA_SCAN_HORIZ" || effectType === "PA_SCAN_HORIZX") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const rowLimit = Math.floor(8 * progress);
 
           for (let r = 0; r < 8; r++) {
             const visible = isExit ? r >= rowLimit : r <= rowLimit;
-
             if (!visible) continue;
-
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol >= 0 && screenCol < zWidth) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_SCAN_VERT
-        // =========================================================
 
         if (effectType === "PA_SCAN_VERT" || effectType === "PA_SCAN_VERTX") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           const colLimit = Math.floor(zWidth * progress);
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const visible = isExit
                 ? screenCol >= colLimit
                 : screenCol <= colLimit;
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_GROW_UP
-        // =========================================================
 
         if (effectType === "PA_GROW_UP") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           let y;
-
           if (!isExit) {
             y = 8 - Math.round(8 * progress);
           } else {
             y = Math.round(8 * progress);
           }
-
           drawVirtual(alignedX, y);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_GROW_DOWN
-        // =========================================================
 
         if (effectType === "PA_GROW_DOWN") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           let y;
-
           if (!isExit) {
             y = -8 + Math.round(8 * progress);
           } else {
             y = -Math.round(8 * progress);
           }
-
           drawVirtual(alignedX, y);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_SPRITE
-        // =========================================================
 
         if (effectType === "PA_SPRITE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               const visible = (r + c + step) % 3 !== 0;
-
               if (visible) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
-
-        // =========================================================
-        // PA_SLICE
-        // =========================================================
 
         if (effectType === "PA_SLICE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
           for (let r = 0; r < 8; r++) {
             const direction = r % 2 === 0 ? 1 : -1;
-
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-
               if (screenCol < 0 || screenCol >= zWidth) {
                 continue;
               }
-
               let src;
-
               if (!isExit) {
                 src = c - direction * Math.round(textWidth * (1 - progress));
               } else {
                 src = c + direction * Math.round(textWidth * progress);
               }
-
               if (src >= 0 && src < textWidth) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][src];
               }
             }
           }
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
+          return { buffer: outBuffer, alpha };
         }
 
-        // =========================================================
         // FALLBACK
-        // =========================================================
-
         drawVirtual(alignedX);
-
-        return {
-          buffer: outBuffer,
-          alpha,
-        };
+        return { buffer: outBuffer, alpha };
       }
 
       function restartSimAnimation() {
@@ -1861,12 +1688,7 @@
           parseInt(document.getElementById("anim-speed").value) || 35;
         const speed = Math.max(8, rawSpeed);
 
-        // ---------------------------------------------------------
-        // TARGET ZONE
-        // ---------------------------------------------------------
-
         const targetZoneName = document.getElementById("target-zone").value;
-
         const activeZone = zones.find((z) => z.name === targetZoneName) ||
           zones[0] || {
             start: 0,
@@ -1875,37 +1697,18 @@
           };
 
         const zStart = Math.max(0, Math.min(activeZone.start, matrixWidth - 1));
-
         const zEnd = Math.max(
           zStart,
           Math.min(activeZone.end, matrixWidth - 1),
         );
-
         const zWidth = zEnd - zStart + 1;
 
-        // ---------------------------------------------------------
-        // MESSAGE
-        // ---------------------------------------------------------
-
         const messageText = getProcessedMessageText();
-
         const isBold = document.getElementById("text-bold").checked;
-
         const { grid: textGrid, width: textCols } = renderTextToBitmap(
           messageText,
           isBold,
         );
-
-        // IMPORTANT:
-        // Do NOT create a physical baseBuffer containing the complete
-        // message. That was the source of the cropping problem.
-        //
-        // textGrid remains the complete virtual message bitmap.
-        // Every animation renders this virtual bitmap into the zone.
-
-        // ---------------------------------------------------------
-        // ALIGNMENT
-        // ---------------------------------------------------------
 
         const fontAlign =
           document.getElementById("font-align")?.value || "center";
@@ -1914,29 +1717,16 @@
           if (textCols >= zWidth) {
             return 0;
           }
-
           switch (fontAlign) {
             case "left":
               return 0;
-
             case "right":
               return zWidth - textCols;
-
             case "center":
             default:
               return Math.floor((zWidth - textCols) / 2);
           }
         }
-
-        // ---------------------------------------------------------
-        // SCROLL DISTANCES
-        // ---------------------------------------------------------
-        //
-        // One animation frame = exactly one matrix column.
-        //
-        // This keeps entrance and exit at the same physical speed,
-        // regardless of message length.
-        //
 
         const scrollAlignedX = getStaticTextOffset();
 
@@ -1944,17 +1734,11 @@
           if (effect === "PA_SCROLL_LEFT") {
             return isExit ? scrollAlignedX + textCols : zWidth - scrollAlignedX;
           }
-
           if (effect === "PA_SCROLL_RIGHT") {
             return isExit ? zWidth - scrollAlignedX : scrollAlignedX + textCols;
           }
-
           return null;
         }
-
-        // ---------------------------------------------------------
-        // CREATE EMPTY MATRIX
-        // ---------------------------------------------------------
 
         function emptyBuffer() {
           return Array(8)
@@ -1962,21 +1746,13 @@
             .map(() => Array(matrixWidth).fill(0));
         }
 
-        // ---------------------------------------------------------
-        // STATIC / HOLD BUFFER
-        // ---------------------------------------------------------
-
         function createStaticBuffer() {
           const buffer = emptyBuffer();
-
           const offset = getStaticTextOffset();
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textCols; c++) {
               const physicalCol = zStart + offset + c;
-
-              // Clip ONLY at the actual zone boundary.
-              // The original textGrid is never modified.
               if (
                 physicalCol >= zStart &&
                 physicalCol <= zEnd &&
@@ -1987,40 +1763,25 @@
               }
             }
           }
-
           return buffer;
         }
 
-        // ---------------------------------------------------------
-        // ANIMATIONS
-        // ---------------------------------------------------------
-
         const animInType = document.getElementById("animation-in").value;
-
         const animOutType = document.getElementById("animation-out").value;
-
         const startDelayMs =
           parseInt(document.getElementById("start-delay").value) || 0;
-
         const endDelayInput = parseInt(
           document.getElementById("end-delay").value,
           10,
         );
-
         const endDelayMs = Number.isFinite(endDelayInput)
           ? Math.max(0, endDelayInput)
           : 1200;
-
         const loopMode = document.getElementById("loop-mode").value;
-
         const targetLoops =
           loopMode === "num"
             ? parseInt(document.getElementById("loop-count").value) || 1
             : Infinity;
-
-        // ---------------------------------------------------------
-        // CORRECT NUMBER OF ANIMATION STEPS
-        // ---------------------------------------------------------
 
         function getAnimationSteps(effect, isExit = false) {
           switch (effect) {
@@ -2029,13 +1790,11 @@
               const steps = getScrollSteps(effect, isExit);
               return Math.max(1, steps);
             }
-
             case "PA_SCROLL_UP":
             case "PA_SCROLL_DOWN":
             case "PA_GROW_UP":
             case "PA_GROW_DOWN":
               return 8;
-
             case "PA_WIPE":
             case "PA_WIPE_CURSOR":
             case "PA_CLOSING":
@@ -2046,21 +1805,17 @@
             case "PA_SCAN_VERT":
             case "PA_SCAN_VERTX":
               return zWidth;
-
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
               return 8;
-
             case "PA_FADE":
             case "PA_DISSOLVE":
             case "PA_RANDOM":
             case "PA_MESH":
             case "PA_SPRITE":
               return 20;
-
             case "PA_SLICE":
               return textCols;
-
             default:
               return 1;
           }
@@ -2068,66 +1823,36 @@
 
         const maxInSteps = getAnimationSteps(animInType, false);
         const maxOutSteps = getAnimationSteps(animOutType, true);
-
-        // ---------------------------------------------------------
-        // STATIC BUFFER
-        // ---------------------------------------------------------
-
         const staticBuffer = createStaticBuffer();
-
-        // ---------------------------------------------------------
-        // MAIN ANIMATION ENGINE
-        // ---------------------------------------------------------
 
         animInterval = setInterval(() => {
           if (!isPlaying) return;
 
-          // FPS
           frameCount++;
-
           const now = performance.now();
-
           if (now - lastFpsTime >= 1000) {
             document.getElementById("sim-fps-label").innerText = frameCount;
-
             frameCount = 0;
             lastFpsTime = now;
           }
 
           let stageLabel = "IN_ANIMATION";
-
           let renderResult = {
             buffer: staticBuffer,
             alpha: 1,
           };
 
-          // -------------------------------------------------------
-          // PHASE 0 - START DELAY
-          // -------------------------------------------------------
-
           if (animPhase === 0) {
             stageLabel = "START_DELAY";
-
-            renderResult = {
-              buffer: emptyBuffer(),
-              alpha: 0,
-            };
-
+            renderResult = { buffer: emptyBuffer(), alpha: 0 };
             phaseHoldCounter += speed;
-
             if (phaseHoldCounter >= startDelayMs) {
               phaseHoldCounter = 0;
               phaseStep = 0;
               animPhase = 1;
             }
-          }
-
-          // -------------------------------------------------------
-          // PHASE 1 - ENTRANCE
-          // -------------------------------------------------------
-          else if (animPhase === 1) {
+          } else if (animPhase === 1) {
             stageLabel = `IN: ${animInType}`;
-
             renderResult = computeEffectBuffer(
               animInType,
               phaseStep,
@@ -2137,29 +1862,18 @@
               zEnd,
               false,
             );
-
             phaseStep++;
-
             if (phaseStep >= maxInSteps) {
               phaseStep = 0;
               phaseHoldCounter = 0;
               animPhase = 2;
             }
-          }
-
-          // -------------------------------------------------------
-          // PHASE 2 - HOLD
-          // -------------------------------------------------------
-          else if (animPhase === 2) {
+          } else if (animPhase === 2) {
             stageLabel = "HOLD_PAUSE";
-
-            // If hold is zero, immediately begin exit.
             if (endDelayMs <= 0) {
               phaseHoldCounter = 0;
               phaseStep = 0;
               animPhase = 3;
-
-              // Render the first exit frame immediately.
               renderResult = computeEffectBuffer(
                 animOutType,
                 phaseStep,
@@ -2169,30 +1883,18 @@
                 zEnd,
                 true,
               );
-
               phaseStep++;
             } else {
-              renderResult = {
-                buffer: staticBuffer,
-                alpha: 1,
-              };
-
+              renderResult = { buffer: staticBuffer, alpha: 1 };
               phaseHoldCounter += speed;
-
               if (phaseHoldCounter >= endDelayMs) {
                 phaseHoldCounter = 0;
                 phaseStep = 0;
                 animPhase = 3;
               }
             }
-          }
-
-          // -------------------------------------------------------
-          // PHASE 3 - EXIT
-          // -------------------------------------------------------
-          else if (animPhase === 3) {
+          } else if (animPhase === 3) {
             stageLabel = `OUT: ${animOutType}`;
-
             renderResult = computeEffectBuffer(
               animOutType,
               phaseStep,
@@ -2202,15 +1904,11 @@
               zEnd,
               true,
             );
-
             phaseStep++;
-
             if (phaseStep >= maxOutSteps) {
               phaseStep = 0;
               phaseHoldCounter = 0;
-
               currentLoopCount++;
-
               if (currentLoopCount >= targetLoops) {
                 animPhase = 2;
                 stageLabel = "COMPLETE";
@@ -2221,10 +1919,8 @@
           }
 
           document.getElementById("sim-stage-label").innerText = stageLabel;
-
           document.getElementById("sim-zone-label").innerText =
             activeZone.name || "Zone 1";
-
           drawMatrixFrame(renderResult.buffer, renderResult.alpha, activeZone);
         }, speed);
       }
@@ -2232,11 +1928,10 @@
       function handleMatrixWidthChange() {
         let width =
           parseInt(document.getElementById("matrix-width").value) || 32;
-        width = Math.max(8, Math.round(width / 8) * 8); // Force multiple of 8
+        width = Math.max(8, Math.round(width / 8) * 8);
         document.getElementById("matrix-width").value = width;
         matrixWidth = width;
 
-        // Adjust default zones to fit inside bounds
         if (zones.length > 0 && zones[0].end >= matrixWidth) {
           zones[0].end = matrixWidth - 1;
         }
@@ -2251,7 +1946,7 @@
       }
 
       function handleAddZone(e) {
-        e.preventDefault();
+        if (e) e.preventDefault();
         const name = document.getElementById("zone-name").value.trim();
         const start = parseInt(document.getElementById("zone-start").value);
         const end = parseInt(document.getElementById("zone-end").value);
@@ -2263,7 +1958,6 @@
           return;
         }
 
-        // Check if existing zone with name
         const existingIdx = zones.findIndex(
           (z) => z.name.toLowerCase() === name.toLowerCase(),
         );
@@ -2299,7 +1993,6 @@
         targetSelect.innerHTML = "";
 
         zones.forEach((z) => {
-          // Chip UI
           const chip = document.createElement("div");
           chip.className =
             "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm";
@@ -2309,7 +2002,6 @@
         `;
           container.appendChild(chip);
 
-          // Select Options
           const opt = document.createElement("option");
           opt.value = z.name;
           opt.innerText = `${z.name} (Cols: ${z.start} → ${z.end})`;
@@ -2386,20 +2078,15 @@
         phaseStep++;
       }
 
-      function generatePayload() {
+      // --- Scene Management Features --- //
+
+      function getFormConfig() {
         const msgType = document.getElementById("msg-type").value;
         const targetZoneName = document.getElementById("target-zone").value;
         const activeZone =
           zones.find((z) => z.name === targetZoneName) || zones[0];
 
         return {
-          timestamp: new Date().toISOString(),
-          device: "ESP_LED_MATRIX_MD_PAROLA",
-          matrix: {
-            height: 8,
-            width: matrixWidth,
-            modules: Math.floor(matrixWidth / 8),
-          },
           zone: {
             name: activeZone.name,
             startCol: activeZone.start,
@@ -2411,9 +2098,7 @@
               msgType === "plain"
                 ? document.getElementById("plain-text-val").value
                 : document.getElementById("custom-text-val").value,
-
             bold: document.getElementById("text-bold").checked,
-
             align: document.getElementById("font-align").value,
           },
           animation: {
@@ -2436,8 +2121,79 @@
         };
       }
 
+      function handleAddScene() {
+        const name = document.getElementById("scene-name").value.trim();
+        if (!name) {
+          showToast("Please enter a scene name.");
+          return;
+        }
+
+        const existingIdx = scenes.findIndex(
+          (s) => s.name.toLowerCase() === name.toLowerCase(),
+        );
+        const config = getFormConfig();
+
+        if (existingIdx >= 0) {
+          scenes[existingIdx] = { id: scenes[existingIdx].id, name, config };
+          showToast(`Scene "${name}" updated.`);
+        } else {
+          scenes.push({ id: `scene_${Date.now()}`, name, config });
+          showToast(`Scene "${name}" added.`);
+        }
+
+        renderScenesUI();
+        document.getElementById("scene-name").value = "";
+      }
+
+      function removeScene(id) {
+        scenes = scenes.filter((s) => s.id !== id);
+        renderScenesUI();
+        showToast("Scene removed.");
+      }
+
+      function renderScenesUI() {
+        const container = document.getElementById("scenes-container");
+        container.innerHTML = "";
+
+        if (scenes.length === 0) {
+          container.innerHTML =
+            '<span class="text-[11px] text-slate-500 italic mt-2.5">No scenes added yet. Form acts as single scene.</span>';
+          return;
+        }
+
+        scenes.forEach((s) => {
+          const chip = document.createElement("div");
+          chip.className =
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm";
+          chip.innerHTML = `
+            <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
+            <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+          `;
+          container.appendChild(chip);
+        });
+      }
+
+      function generatePayload() {
+        // If there are user defined scenes, use them. Otherwise default fallback to currently active parameters
+        const finalScenes =
+          scenes.length > 0
+            ? scenes.map((s) => ({ sceneName: s.name, ...s.config }))
+            : [{ sceneName: "Default Live Scene", ...getFormConfig() }];
+
+        return {
+          timestamp: new Date().toISOString(),
+          device: "ESP_LED_MATRIX_MD_PAROLA",
+          matrix: {
+            height: 8,
+            width: matrixWidth,
+            modules: Math.floor(matrixWidth / 8),
+          },
+          scenes: finalScenes,
+        };
+      }
+
       function handleSendConfig(e) {
-        e.preventDefault();
+        if (e) e.preventDefault();
         const payload = generatePayload();
 
         // REST API Post to ESP Server
@@ -2447,7 +2203,8 @@
           body: JSON.stringify(payload),
         })
           .then((res) => {
-            if (res.ok) showToast("Config uploaded directly to ESP Hardware!");
+            if (res.ok)
+              showToast("Sequence/Config uploaded directly to ESP Hardware!");
             else showToast("Simulated offline: Payload formatted.");
           })
           .catch(() => {
@@ -2495,6 +2252,7 @@
       window.onload = function () {
         initCanvas();
         renderZonesUI();
+        renderScenesUI();
         restartSimAnimation();
       };
     </script>
