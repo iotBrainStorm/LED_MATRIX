@@ -595,11 +595,98 @@
 
           <div id="custom-text-box" class="hidden space-y-2">
             <div class="flex justify-between items-center">
-              <label
-                for="custom-text-val"
-                class="block text-slate-300 font-medium"
-                >Custom Dynamic Template Format</label
-              >
+              <div class="flex items-center">
+                <label
+                  for="custom-text-val"
+                  class="block text-slate-300 font-medium"
+                  >Custom Dynamic Template Format</label
+                >
+                <!-- Interactive Info Icon & Tooltip -->
+                <div
+                  class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-700 text-slate-300 text-[10px] font-bold cursor-help hover:bg-cyan-500 hover:text-slate-950 transition-colors ml-2"
+                >
+                  i
+                  <div
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-[340px] bg-slate-800 border border-slate-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 p-3 pointer-events-none"
+                  >
+                    <h4
+                      class="text-cyan-400 text-xs font-bold mb-2 border-b border-slate-700 pb-1"
+                    >
+                      Dynamic Template Tags
+                    </h4>
+                    <div
+                      class="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] font-mono-code text-slate-300 text-left"
+                    >
+                      <div>
+                        <span class="text-cyan-300 font-bold">{HH}</span> 24-hr
+                        (00-23)
+                      </div>
+                      <div>
+                        <span class="text-cyan-300 font-bold">{hh}</span> 12-hr
+                        (01-12)
+                      </div>
+                      <div>
+                        <span class="text-cyan-300 font-bold">{mm}</span> Minute
+                        (00-59)
+                      </div>
+                      <div>
+                        <span class="text-cyan-300 font-bold">{ss}</span> Second
+                        (00-59)
+                      </div>
+                      <div
+                        class="col-span-2 border-b border-slate-700/50 pb-1 mb-1"
+                      >
+                        <span class="text-cyan-300 font-bold">{AMPM}</span> AM /
+                        PM
+                      </div>
+
+                      <div>
+                        <span class="text-emerald-300 font-bold">{DD}</span> Day
+                        (01-31)
+                      </div>
+                      <div>
+                        <span class="text-emerald-300 font-bold">{dd}</span> Day
+                        (1-31)
+                      </div>
+                      <div>
+                        <span class="text-emerald-300 font-bold">{MM}</span>
+                        Month (01-12)
+                      </div>
+                      <div>
+                        <span class="text-emerald-300 font-bold">{MMM}</span>
+                        Mon (Jan)
+                      </div>
+                      <div>
+                        <span class="text-emerald-300 font-bold">{MMMM}</span>
+                        Month (January)
+                      </div>
+                      <div>
+                        <span class="text-emerald-300 font-bold">{YY}</span>
+                        Year (26)
+                      </div>
+                      <div class="col-span-2">
+                        <span class="text-emerald-300 font-bold">{YYYY}</span>
+                        Year (2026)
+                      </div>
+
+                      <div
+                        class="col-span-2 border-t border-slate-700/50 pt-1 mt-1"
+                      >
+                        <span class="text-purple-300 font-bold">{WWW}</span> Day
+                        (Wed) |
+                        <span class="text-purple-300 font-bold">{WWWW}</span>
+                        (Wednesday)
+                      </div>
+                      <div class="col-span-2">
+                        <span class="text-amber-300 font-bold">{TEMP}</span>
+                        Temperature |
+                        <span class="text-amber-300 font-bold">{HUM}</span>
+                        Humidity
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <span class="text-[10px] text-cyan-400 font-mono-code"
                 >Real-Time Substitution Enabled</span
               >
@@ -607,7 +694,7 @@
             <input
               type="text"
               id="custom-text-val"
-              value="{HH}:{MM}:{SS} | {TEMP}°C {HUM}% | {DD}-{MM}-{YYYY}"
+              value="{hh}:{mm}:{ss} {AMPM} | {TEMP}°C {HUM}% | {DD}-{MMM}-{YYYY}"
               oninput="restartSimAnimation()"
               class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-cyan-300 font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
             />
@@ -617,6 +704,7 @@
               <span class="text-[11px] text-slate-400 self-center mr-1"
                 >Click tag to insert:</span
               >
+              <!-- Time Tags -->
               <button
                 type="button"
                 onclick="insertTag('{HH}')"
@@ -626,18 +714,33 @@
               </button>
               <button
                 type="button"
-                onclick="insertTag('{MM}')"
+                onclick="insertTag('{hh}')"
                 class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
               >
-                {MM}
+                {hh}
               </button>
               <button
                 type="button"
-                onclick="insertTag('{SS}')"
+                onclick="insertTag('{mm}')"
                 class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
               >
-                {SS}
+                {mm}
               </button>
+              <button
+                type="button"
+                onclick="insertTag('{ss}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {ss}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{AMPM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {AMPM}
+              </button>
+              <!-- Date Tags -->
               <button
                 type="button"
                 onclick="insertTag('{DD}')"
@@ -647,11 +750,62 @@
               </button>
               <button
                 type="button"
+                onclick="insertTag('{dd}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {dd}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{MM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {MM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{MMM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {MMM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{MMMM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {MMMM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{YY}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {YY}
+              </button>
+              <button
+                type="button"
                 onclick="insertTag('{YYYY}')"
                 class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
               >
                 {YYYY}
               </button>
+              <!-- Weekday Tags -->
+              <button
+                type="button"
+                onclick="insertTag('{WWW}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-purple-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {WWW}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{WWWW}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-purple-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {WWWW}
+              </button>
+              <!-- Sensor Tags -->
               <button
                 type="button"
                 onclick="insertTag('{TEMP}')"
@@ -1161,19 +1315,73 @@
           return document.getElementById("plain-text-val").value || " ";
         }
 
-        // Dynamic Tag Replacement
+        // Dynamic Tag Replacement Engine
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
         let template = document.getElementById("custom-text-val").value;
 
+        // Parse comprehensive Time formatting
+        const h24 = now.getHours();
+        const h12 = h24 % 12 || 12;
+        const ampm = h24 >= 12 ? "PM" : "AM";
+
+        // Parse comprehensive Date formatting
+        const monthNamesShort = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const monthNamesLong = [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ];
+        const dayNamesShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const dayNamesLong = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+
         template = template
-          .replace(/{HH}/g, pad(now.getHours()))
-          .replace(/{MM}/g, pad(now.getMinutes()))
-          .replace(/{SS}/g, pad(now.getSeconds()))
+          .replace(/{HH}/g, pad(h24))
+          .replace(/{hh}/g, pad(h12))
+          .replace(/{mm}/g, pad(now.getMinutes()))
+          .replace(/{ss}/g, pad(now.getSeconds()))
+          .replace(/{AMPM}/g, ampm)
           .replace(/{DD}/g, pad(now.getDate()))
+          .replace(/{dd}/g, now.getDate().toString())
+          .replace(/{MMMM}/g, monthNamesLong[now.getMonth()])
+          .replace(/{MMM}/g, monthNamesShort[now.getMonth()])
+          .replace(/{MM}/g, pad(now.getMonth() + 1))
           .replace(/{YYYY}/g, now.getFullYear())
-          .replace(/{TEMP}/g, "26")
-          .replace(/{HUM}/g, "62");
+          .replace(/{YY}/g, now.getFullYear().toString().slice(-2))
+          .replace(/{WWWW}/g, dayNamesLong[now.getDay()])
+          .replace(/{WWW}/g, dayNamesShort[now.getDay()])
+          .replace(/{TEMP}/g, "26") // Simulated Temp Value
+          .replace(/{HUM}/g, "62"); // Simulated Hum Value
 
         return template || " ";
       }
