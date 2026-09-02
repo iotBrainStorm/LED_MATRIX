@@ -1,0 +1,2502 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESP LED Matrix Studio & Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        --bg-main: #07090e;
+        --panel-bg: rgba(15, 20, 29, 0.75);
+        --panel-border: rgba(255, 255, 255, 0.07);
+        --led-color: #00f2fe;
+        --led-glow: rgba(0, 242, 254, 0.65);
+        --led-off: #111622;
+        --led-bezel: #090c12;
+        --accent-gradient: linear-gradient(
+          135deg,
+          #38bdf8 0%,
+          #00f2fe 50%,
+          #4facfe 100%
+        );
+      }
+
+      * {
+        font-family: "Inter", sans-serif;
+      }
+
+      .font-mono-code {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Custom Glassmorphic Card */
+      .glass-panel {
+        background: var(--panel-bg);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--panel-border);
+        box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.65);
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        height: 7px;
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0b0f19;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1f293d;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #334155;
+      }
+
+      /* Glowing Matrix Canvas Wrapper */
+      .matrix-display-container {
+        background: #020305;
+        border: 2px solid #192231;
+        box-shadow:
+          inset 0 0 30px rgba(0, 0, 0, 0.95),
+          0 0 20px rgba(0, 242, 254, 0.05);
+        position: relative;
+      }
+
+      /* Range Slider Styling */
+      input[type="range"] {
+        -webkit-appearance: none;
+        background: #192231;
+        height: 6px;
+        border-radius: 3px;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 18px;
+        width: 18px;
+        border-radius: 50%;
+        background: #00f2fe;
+        cursor: pointer;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.8);
+        border: 2px solid #07090e;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-[#07090e] text-slate-100 min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 antialiased selection:bg-cyan-500 selection:text-black"
+  >
+    <div class="w-full max-w-6xl space-y-6">
+      <!-- Top Header & Real-Time Clock -->
+      <header class="text-center pt-2 pb-1 relative">
+        <h1
+          class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-wider bg-gradient-to-r from-sky-400 via-cyan-300 to-teal-400 bg-clip-text text-transparent uppercase drop-shadow-[0_0_25px_rgba(0,242,254,0.3)]"
+        >
+          ESP LED MATRIX
+        </h1>
+        <!-- Live Realtime Clock & Date -->
+        <div
+          id="realtime-clock"
+          class="text-xs sm:text-sm font-mono-code text-slate-400 mt-1 tracking-wider flex items-center justify-center gap-2"
+        >
+          <span>SYNCING TIME...</span>
+        </div>
+      </header>
+
+      <!-- 8xN Live Interactive LED Matrix Canvas -->
+      <section
+        class="glass-panel rounded-2xl p-4 sm:p-6 border border-slate-800"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-2">
+            <div
+              class="w-3 h-3 rounded-sm bg-cyan-400 shadow-[0_0_8px_#00f2fe]"
+            ></div>
+            <h2 class="text-base sm:text-lg font-bold text-white tracking-wide">
+              Live Hardware Matrix Emulation
+            </h2>
+            <span
+              id="matrix-spec-badge"
+              class="text-xs font-mono-code px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700"
+              >8 × 32 PX (4 Modules)</span
+            >
+          </div>
+
+          <!-- Quick Simulator Controls & LED Theme Selector -->
+          <div class="flex items-center gap-2 text-xs">
+            <!-- LED Color Picker -->
+            <div
+              class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
+            >
+              <span class="text-slate-400 font-medium">Color:</span>
+              <button
+                onclick="setLedTheme('#00f2fe', 'rgba(0, 242, 254, 0.7)')"
+                title="Cyan"
+                class="w-4 h-4 rounded-full bg-cyan-400 ring-2 ring-transparent hover:ring-white transition-all"
+              ></button>
+              <button
+                onclick="setLedTheme('#10b981', 'rgba(16, 185, 129, 0.7)')"
+                title="Emerald"
+                class="w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-transparent hover:ring-white transition-all"
+              ></button>
+              <button
+                onclick="setLedTheme('#f59e0b', 'rgba(245, 158, 11, 0.7)')"
+                title="Amber"
+                class="w-4 h-4 rounded-full bg-amber-500 ring-2 ring-transparent hover:ring-white transition-all"
+              ></button>
+              <button
+                onclick="setLedTheme('#ef4444', 'rgba(239, 68, 68, 0.7)')"
+                title="Ruby"
+                class="w-4 h-4 rounded-full bg-red-500 ring-2 ring-transparent hover:ring-white transition-all"
+              ></button>
+              <button
+                onclick="setLedTheme('#f8fafc', 'rgba(248, 250, 252, 0.8)')"
+                title="White"
+                class="w-4 h-4 rounded-full bg-slate-100 ring-2 ring-transparent hover:ring-white transition-all"
+              ></button>
+            </div>
+
+            <!-- Zoom Toggle -->
+            <button
+              id="btn-zoom"
+              onclick="toggleCanvasScale()"
+              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            >
+              Zoom 1x
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Scrollable Container with Module Boundary Guides -->
+        <div
+          class="matrix-display-container rounded-xl p-3 sm:p-5 overflow-x-auto flex justify-center items-center min-h-[140px]"
+        >
+          <canvas
+            id="matrixCanvas"
+            class="rounded cursor-crosshair transition-transform duration-200"
+          ></canvas>
+        </div>
+
+        <!-- Interactive Playback Toolbar -->
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-800/80 text-xs text-slate-300"
+        >
+          <div class="flex items-center gap-2">
+            <button
+              id="btn-play"
+              onclick="togglePlayback()"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 transition shadow-[0_0_12px_rgba(0,242,254,0.4)]"
+            >
+              <svg
+                id="play-icon"
+                class="w-3.5 h-3.5 fill-current"
+                viewBox="0 0 24 24"
+              >
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span id="play-text">Pause</span>
+            </button>
+            <button
+              onclick="stepSingleFrame()"
+              class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-semibold transition"
+            >
+              Step ⏭
+            </button>
+            <button
+              onclick="restartSimAnimation()"
+              class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-semibold transition"
+            >
+              Restart ↺
+            </button>
+          </div>
+
+          <div
+            class="flex items-center gap-4 font-mono-code text-[11px] text-slate-400"
+          >
+            <div>
+              Stage:
+              <span id="sim-stage-label" class="text-cyan-400 font-bold"
+                >IN_ANIMATION</span
+              >
+            </div>
+            <div>
+              FPS:
+              <span id="sim-fps-label" class="text-emerald-400 font-bold"
+                >25</span
+              >
+            </div>
+            <div>
+              Zone Active:
+              <span id="sim-zone-label" class="text-amber-400 font-bold"
+                >Zone 1</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Grid Row: Matrix Sizing & Zone Management -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Option 1: Matrix Size Configuration (5 Cols) -->
+        <section
+          class="glass-panel rounded-2xl p-5 border border-slate-800 lg:col-span-4 flex flex-col justify-between"
+        >
+          <div>
+            <div
+              class="flex items-center justify-between pb-3 mb-4 border-b border-slate-800"
+            >
+              <h2
+                class="text-sm sm:text-base font-bold text-white flex items-center gap-2"
+              >
+                <span
+                  class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
+                  >1</span
+                >
+                Matrix Size Setup
+              </h2>
+              <span
+                class="text-[10px] uppercase font-mono-code text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded"
+                >Hardware Specs</span
+              >
+            </div>
+
+            <div class="space-y-4 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-medium"
+                  >Height (Fixed Rows)</label
+                >
+                <input
+                  type="number"
+                  value="8"
+                  disabled
+                  class="w-full bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 font-mono-code cursor-not-allowed opacity-80"
+                />
+              </div>
+
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label for="matrix-width" class="text-slate-300 font-medium"
+                    >Total Width (Cols, Multiple of 8)</label
+                  >
+                  <span
+                    id="module-count-tag"
+                    class="text-cyan-400 font-mono-code text-[11px]"
+                    >4 Modules</span
+                  >
+                </div>
+                <input
+                  type="number"
+                  id="matrix-width"
+                  value="32"
+                  min="8"
+                  max="192"
+                  step="8"
+                  onchange="handleMatrixWidthChange()"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition"
+                />
+                <p class="text-[11px] text-slate-500 mt-1">
+                  Standard: 8, 16, 24, 32, 40, 64, 96, 128 cols.
+                </p>
+              </div>
+
+              <!-- Quick Matrix Presets -->
+              <div class="pt-1">
+                <label class="block text-slate-400 mb-1.5 font-medium"
+                  >Quick Presets</label
+                >
+                <div class="grid grid-cols-4 gap-1.5 font-mono-code">
+                  <button
+                    onclick="setMatrixPreset(16)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    2x (16)
+                  </button>
+                  <button
+                    onclick="setMatrixPreset(32)"
+                    class="py-1 bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 rounded border border-cyan-800 text-center transition"
+                  >
+                    4x (32)
+                  </button>
+                  <button
+                    onclick="setMatrixPreset(64)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    8x (64)
+                  </button>
+                  <button
+                    onclick="setMatrixPreset(96)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    12x (96)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="mt-4 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px] text-slate-400"
+          >
+            💡 <span class="text-slate-300">MD_Parola Note:</span> Each 8x8
+            block corresponds to a single MAX7219 cascading IC driver.
+          </div>
+        </section>
+
+        <!-- Option 2: Zone Management (7 Cols) -->
+        <section
+          class="glass-panel rounded-2xl p-5 border border-slate-800 lg:col-span-8 flex flex-col justify-between"
+        >
+          <div>
+            <div
+              class="flex items-center justify-between pb-3 mb-4 border-b border-slate-800"
+            >
+              <h2
+                class="text-sm sm:text-base font-bold text-white flex items-center gap-2"
+              >
+                <span
+                  class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
+                  >2</span
+                >
+                Zone Management
+              </h2>
+              <span
+                class="text-[10px] uppercase font-mono-code text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded"
+                >Multi-Zone Partitioning</span
+              >
+            </div>
+
+            <!-- Add Zone Form -->
+            <form
+              id="zone-form"
+              onsubmit="handleAddZone(event)"
+              class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"
+            >
+              <div>
+                <label
+                  for="zone-name"
+                  class="block text-slate-300 mb-1 font-medium"
+                  >Zone Name</label
+                >
+                <input
+                  type="text"
+                  id="zone-name"
+                  placeholder="e.g. Clock Zone"
+                  required
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-cyan-400 transition"
+                />
+              </div>
+              <div>
+                <label
+                  for="zone-start"
+                  class="block text-slate-300 mb-1 font-medium"
+                  >Start Col (0-Index)</label
+                >
+                <input
+                  type="number"
+                  id="zone-start"
+                  min="0"
+                  value="0"
+                  required
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code outline-none focus:border-cyan-400 transition"
+                />
+              </div>
+              <div>
+                <label
+                  for="zone-end"
+                  class="block text-slate-300 mb-1 font-medium"
+                  >End Col (0-Index)</label
+                >
+                <input
+                  type="number"
+                  id="zone-end"
+                  min="0"
+                  value="31"
+                  required
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code outline-none focus:border-cyan-400 transition"
+                />
+              </div>
+              <div class="sm:col-span-3">
+                <button
+                  type="submit"
+                  class="w-full py-2 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-slate-950 font-bold rounded-lg shadow-[0_0_15px_rgba(0,242,254,0.3)] transition"
+                >
+                  + Add / Update Zone
+                </button>
+              </div>
+            </form>
+
+            <!-- Zone Chips List -->
+            <div class="mt-4">
+              <div
+                class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2"
+              >
+                Configured Display Zones
+              </div>
+              <div
+                id="zones-container"
+                class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
+              >
+                <!-- Dynamically Populated Zone Chips -->
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5"
+          >
+            <span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>
+            Active zones can be independently updated and animated across
+            dedicated matrix column spans.
+          </div>
+        </section>
+      </div>
+
+      <!-- Option 3: Add Message & MD_Parola Animation Configuration -->
+      <section
+        class="glass-panel rounded-2xl p-5 sm:p-6 border border-slate-800"
+      >
+        <div
+          class="flex items-center justify-between pb-3 mb-5 border-b border-slate-800"
+        >
+          <h2
+            class="text-sm sm:text-base font-bold text-white flex items-center gap-2"
+          >
+            <span
+              class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
+              >3</span
+            >
+            Message & MD_Parola Animation Configuration
+          </h2>
+          <span
+            class="text-[10px] uppercase font-mono-code text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2.5 py-0.5 rounded-full"
+            >Core Controller</span
+          >
+        </div>
+
+        <form
+          id="message-form"
+          onsubmit="handleSendConfig(event)"
+          class="space-y-5 text-xs"
+        >
+          <!-- Top Parameter Row: Zone, Message Type, Bold Toggle -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Zone Selection Dropdown -->
+            <div>
+              <label
+                for="target-zone"
+                class="block text-slate-300 mb-1 font-medium"
+                >1. Select Target Zone</label
+              >
+              <select
+                id="target-zone"
+                onchange="handleZoneSelectionChange()"
+                required
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+              >
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <!-- Message Type Selection -->
+            <div>
+              <label
+                for="msg-type"
+                class="block text-slate-300 mb-1 font-medium"
+                >2. Message Format Type</label
+              >
+              <select
+                id="msg-type"
+                onchange="handleMsgTypeToggle()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+              >
+                <option value="plain">Plain Text</option>
+                <option value="custom">
+                  Custom Dynamic Text (Format Template)
+                </option>
+              </select>
+            </div>
+
+            <!-- Font Alignment -->
+            <div>
+              <label
+                for="font-align"
+                class="block text-slate-300 mb-1 font-medium"
+              >
+                3. Font Alignment
+              </label>
+
+              <select
+                id="font-align"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+              >
+                <option value="left">Left</option>
+                <option value="center" selected>Center</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+
+            <!-- Text Bold Toggle Switch -->
+            <div
+              class="flex items-center justify-between bg-slate-900/80 border border-slate-700/80 rounded-lg px-4 py-2"
+            >
+              <div>
+                <div class="text-slate-200 font-semibold">
+                  4. Text Bold (Extrusion)
+                </div>
+                <div class="text-[10px] text-slate-400">
+                  Doubles font glyph column width
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="text-bold"
+                  class="sr-only peer"
+                  onchange="restartSimAnimation()"
+                />
+                <div
+                  class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"
+                ></div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Dynamic Message Text Input Area -->
+          <div id="plain-text-box">
+            <label
+              for="plain-text-val"
+              class="block text-slate-300 mb-1 font-medium"
+              >Display Message</label
+            >
+            <input
+              type="text"
+              id="plain-text-val"
+              value="ESP MATRIX"
+              oninput="restartSimAnimation()"
+              placeholder="Type plain text to display..."
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
+            />
+          </div>
+
+          <div id="custom-text-box" class="hidden space-y-2">
+            <div class="flex justify-between items-center">
+              <label
+                for="custom-text-val"
+                class="block text-slate-300 font-medium"
+                >Custom Dynamic Template Format</label
+              >
+              <span class="text-[10px] text-cyan-400 font-mono-code"
+                >Real-Time Substitution Enabled</span
+              >
+            </div>
+            <input
+              type="text"
+              id="custom-text-val"
+              value="{HH}:{MM}:{SS} | {TEMP}°C {HUM}% | {DD}-{MM}-{YYYY}"
+              oninput="restartSimAnimation()"
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-cyan-300 font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
+            />
+
+            <!-- Variable Tags Helpers -->
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <span class="text-[11px] text-slate-400 self-center mr-1"
+                >Click tag to insert:</span
+              >
+              <button
+                type="button"
+                onclick="insertTag('{HH}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {HH}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{MM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {MM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{SS}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {SS}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{DD}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {DD}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{YYYY}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {YYYY}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{TEMP}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {TEMP}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{HUM}')"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {HUM}
+              </button>
+            </div>
+          </div>
+
+          <!-- MD_Parola In & Out Animations -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <!-- Entrance Animation -->
+            <div>
+              <label
+                for="animation-in"
+                class="block text-slate-300 mb-1 font-medium"
+                >Entrance Animation (In Effect)</label
+              >
+              <select
+                id="animation-in"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
+              >
+                <option value="PA_PRINT">Static Print</option>
+                <option value="PA_SCROLL_LEFT" selected>Scroll Left</option>
+                <option value="PA_SCROLL_RIGHT">Scroll Right</option>
+                <option value="PA_SCROLL_UP">Scroll Up</option>
+                <option value="PA_SCROLL_DOWN">Scroll Down</option>
+                <option value="PA_SCROLL_UP_LEFT">Up Left</option>
+                <option value="PA_SCROLL_UP_RIGHT">Up Right</option>
+                <option value="PA_SCROLL_DOWN_LEFT">Down Left</option>
+                <option value="PA_SCROLL_DOWN_RIGHT">Down Right</option>
+                <option value="PA_SPRITE">Sprite Effect</option>
+                <option value="PA_SLICE">Slice In</option>
+                <option value="PA_MESH">Mesh Matrix</option>
+                <option value="PA_FADE">Smooth Fade</option>
+                <option value="PA_DISSOLVE">Dissolve</option>
+                <option value="PA_BLINDS">Vertical Blinds</option>
+                <option value="PA_RANDOM">Random Pixels</option>
+                <option value="PA_WIPE">Wipe</option>
+                <option value="PA_WIPE_CURSOR">Wipe Cursor</option>
+                <option value="PA_OPENING">Curtain Opening</option>
+                <option value="PA_OPENING_CURSOR">Opening Cursor</option>
+                <option value="PA_CLOSING">Curtain Closing</option>
+                <option value="PA_CLOSING_CURSOR">Closing Cursor</option>
+                <option value="PA_SCAN_HORIZ">Horizontal Scan</option>
+                <option value="PA_SCAN_HORIZX">Horizontal Scan X</option>
+                <option value="PA_SCAN_VERT">Vertical Scan</option>
+                <option value="PA_SCAN_VERTX">Vertical Scan X</option>
+                <option value="PA_GROW_UP">Grow Up</option>
+                <option value="PA_GROW_DOWN">Grow Down</option>
+              </select>
+            </div>
+
+            <!-- Exit Animation (From Requested MD_Parola List) -->
+            <div>
+              <label
+                for="animation-out"
+                class="block text-slate-300 mb-1 font-medium"
+                >Exit Animation (Out Effect)</label
+              >
+              <select
+                id="animation-out"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
+              >
+                <option value="PA_PRINT">Static Print</option>
+                <option value="PA_SCROLL_UP">Scroll Up</option>
+                <option value="PA_SCROLL_DOWN">Scroll Down</option>
+                <option value="PA_SCROLL_LEFT" selected>Scroll Left</option>
+                <option value="PA_SCROLL_RIGHT">Scroll Right</option>
+                <option value="PA_SCROLL_UP_LEFT">Scroll Up Left</option>
+                <option value="PA_SCROLL_UP_RIGHT">Scroll Up Right</option>
+                <option value="PA_SCROLL_DOWN_LEFT">Scroll Down Left</option>
+                <option value="PA_SCROLL_DOWN_RIGHT">Scroll Down Right</option>
+                <option value="PA_SPRITE">Sprite</option>
+                <option value="PA_SLICE">Slice</option>
+                <option value="PA_MESH">Mesh</option>
+                <option value="PA_FADE">Fade</option>
+                <option value="PA_DISSOLVE">Dissolve</option>
+                <option value="PA_BLINDS">Blinds</option>
+                <option value="PA_RANDOM">Random</option>
+                <option value="PA_WIPE">Wipe</option>
+                <option value="PA_WIPE_CURSOR">Wipe Cursor</option>
+                <option value="PA_OPENING">Opening</option>
+                <option value="PA_OPENING_CURSOR">Opening Cursor</option>
+                <option value="PA_CLOSING">Closing</option>
+                <option value="PA_CLOSING_CURSOR">Closing Cursor</option>
+                <option value="PA_SCAN_HORIZ">Scan Horizontal</option>
+                <option value="PA_SCAN_HORIZX">Scan Horizontal X</option>
+                <option value="PA_SCAN_VERT">Scan Vertical</option>
+                <option value="PA_SCAN_VERTX">Scan Vertical X</option>
+                <option value="PA_GROW_UP">Grow Up</option>
+                <option value="PA_GROW_DOWN">Grow Down</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Animation Timing & Display Parameters -->
+          <div
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1"
+          >
+            <!-- Animation Speed -->
+            <div>
+              <label
+                for="anim-speed"
+                class="block text-slate-300 mb-1 font-medium"
+                >Speed Frame Delay (ms)</label
+              >
+              <input
+                type="number"
+                id="anim-speed"
+                value="35"
+                min="5"
+                max="500"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
+              />
+            </div>
+
+            <!-- Starting Delay -->
+            <div>
+              <label
+                for="start-delay"
+                class="block text-slate-300 mb-1 font-medium"
+                >Starting Pause Delay (ms)</label
+              >
+              <input
+                type="number"
+                id="start-delay"
+                value="0"
+                min="0"
+                step="50"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
+              />
+            </div>
+
+            <!-- Ending Pause Delay -->
+            <div>
+              <label
+                for="end-delay"
+                class="block text-slate-300 mb-1 font-medium"
+                >Hold Pause / End Delay (ms)</label
+              >
+              <input
+                type="number"
+                id="end-delay"
+                value="1200"
+                min="0"
+                step="100"
+                onchange="restartSimAnimation()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
+              />
+            </div>
+
+            <!-- Brightness Range Slider (0 - 15) -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-slate-300 font-medium">Brightness</label>
+                <span
+                  id="brightness-badge"
+                  class="font-mono-code text-cyan-400 font-bold"
+                  >12 / 15</span
+                >
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <input
+                  type="range"
+                  id="brightness"
+                  min="0"
+                  max="15"
+                  value="12"
+                  oninput="handleBrightnessUpdate(this.value)"
+                  class="w-full cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Repetition Mode Control -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <div>
+              <label
+                for="loop-mode"
+                class="block text-slate-300 mb-1 font-medium"
+                >Repeat Mode</label
+              >
+              <select
+                id="loop-mode"
+                onchange="handleLoopModeToggle()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+              >
+                <option value="inf">Infinite Loop (Continuous Loop)</option>
+                <option value="num">Specific Iteration Count</option>
+              </select>
+            </div>
+
+            <div id="loop-count-wrapper" class="hidden">
+              <label
+                for="loop-count"
+                class="block text-slate-300 mb-1 font-medium"
+                >Iteration Cycles</label
+              >
+              <input
+                type="number"
+                id="loop-count"
+                value="3"
+                min="1"
+                max="100"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
+              />
+            </div>
+          </div>
+
+          <!-- Submit & JSON Export Actions -->
+          <div class="flex flex-col sm:flex-row gap-3 pt-3">
+            <button
+              type="submit"
+              class="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 hover:from-sky-400 hover:to-teal-300 text-slate-950 font-extrabold text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(0,242,254,0.4)] transition transform active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+              <span>Send Config to ESP Webserver</span>
+            </button>
+
+            <button
+              type="button"
+              onclick="showJsonPayloadModal()"
+              class="py-3 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs tracking-wide transition flex items-center justify-center gap-2"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                />
+              </svg>
+              <span>View JSON Payload</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- JSON / Code Modal (Hidden by Default) -->
+      <div
+        id="json-modal"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden"
+      >
+        <div
+          class="glass-panel w-full max-w-2xl rounded-2xl p-6 border border-slate-700 space-y-4 shadow-2xl"
+        >
+          <div
+            class="flex items-center justify-between border-b border-slate-800 pb-3"
+          >
+            <div
+              class="flex items-center gap-2 text-cyan-400 font-mono-code text-sm"
+            >
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              ESP WebServer REST Payload Preview
+            </div>
+            <button
+              onclick="closeJsonModal()"
+              class="text-slate-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+          </div>
+          <p class="text-xs text-slate-400">
+            This JSON data structure is transmitted to endpoint
+            <code
+              class="text-cyan-300 font-mono-code bg-slate-900 px-1 py-0.5 rounded"
+              >POST /api/matrix/config</code
+            >
+            on your ESP32
+          </p>
+          <pre
+            id="json-code-view"
+            class="bg-[#04060a] p-4 rounded-xl text-xs font-mono-code text-cyan-300 overflow-x-auto border border-slate-800 max-h-80 select-all"
+          ></pre>
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              onclick="copyPayloadToClipboard()"
+              id="btn-copy-json"
+              class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition"
+            >
+              Copy JSON Data
+            </button>
+            <button
+              onclick="closeJsonModal()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Toast Box -->
+      <div
+        id="toast-box"
+        class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none"
+      >
+        <div
+          id="toast-content"
+          class="glass-panel px-4 py-3 rounded-xl border border-cyan-500/40 text-xs font-medium text-white flex items-center gap-2.5 shadow-2xl"
+        >
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span id="toast-msg">Configuration saved!</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer
+      class="mt-12 text-center text-xs font-medium text-slate-500 tracking-wider"
+    >
+      ESP32 LED Matrix Configuration | Developer © M.Maity
+    </footer>
+
+    <script>
+      /* Complete 5x7 ASCII Dot Matrix Font Table */
+      const FONT_5x7 = {
+        " ": [0x00, 0x00, 0x00, 0x00, 0x00],
+        "!": [0x00, 0x00, 0x5f, 0x00, 0x00],
+        '"': [0x00, 0x07, 0x00, 0x07, 0x00],
+        "#": [0x14, 0x7f, 0x14, 0x7f, 0x14],
+        $: [0x24, 0x2a, 0x7f, 0x2a, 0x12],
+        "%": [0x23, 0x13, 0x08, 0x64, 0x62],
+        "&": [0x36, 0x49, 0x55, 0x22, 0x50],
+        "'": [0x00, 0x05, 0x03, 0x00, 0x00],
+        "(": [0x00, 0x1c, 0x22, 0x41, 0x00],
+        ")": [0x00, 0x41, 0x22, 0x1c, 0x00],
+        "*": [0x14, 0x08, 0x3e, 0x08, 0x14],
+        "+": [0x08, 0x08, 0x3e, 0x08, 0x08],
+        ",": [0x00, 0x50, 0x30, 0x00, 0x00],
+        "-": [0x08, 0x08, 0x08, 0x08, 0x08],
+        ".": [0x00, 0x60, 0x60, 0x00, 0x00],
+        "/": [0x20, 0x10, 0x08, 0x04, 0x02],
+        0: [0x3e, 0x51, 0x49, 0x45, 0x3e],
+        1: [0x00, 0x42, 0x7f, 0x40, 0x00],
+        2: [0x42, 0x61, 0x51, 0x49, 0x46],
+        3: [0x21, 0x41, 0x45, 0x4b, 0x31],
+        4: [0x18, 0x14, 0x12, 0x7f, 0x10],
+        5: [0x27, 0x45, 0x45, 0x45, 0x39],
+        6: [0x3c, 0x4a, 0x49, 0x49, 0x30],
+        7: [0x01, 0x71, 0x09, 0x05, 0x03],
+        8: [0x36, 0x49, 0x49, 0x49, 0x36],
+        9: [0x06, 0x49, 0x49, 0x29, 0x1e],
+        ":": [0x00, 0x36, 0x36, 0x00, 0x00],
+        ";": [0x00, 0x56, 0x36, 0x00, 0x00],
+        "<": [0x08, 0x14, 0x22, 0x41, 0x00],
+        "=": [0x14, 0x14, 0x14, 0x14, 0x14],
+        ">": [0x00, 0x41, 0x22, 0x14, 0x08],
+        "?": [0x02, 0x01, 0x51, 0x09, 0x06],
+        "@": [0x32, 0x49, 0x79, 0x41, 0x3e],
+        A: [0x7e, 0x11, 0x11, 0x11, 0x7e],
+        B: [0x7f, 0x49, 0x49, 0x49, 0x36],
+        C: [0x3e, 0x41, 0x41, 0x41, 0x22],
+        D: [0x7f, 0x41, 0x41, 0x22, 0x1c],
+        E: [0x7f, 0x49, 0x49, 0x49, 0x41],
+        F: [0x7f, 0x09, 0x09, 0x09, 0x01],
+        G: [0x3e, 0x41, 0x49, 0x49, 0x7a],
+        H: [0x7f, 0x08, 0x08, 0x08, 0x7f],
+        I: [0x00, 0x41, 0x7f, 0x41, 0x00],
+        J: [0x20, 0x40, 0x41, 0x3f, 0x01],
+        K: [0x7f, 0x08, 0x14, 0x22, 0x41],
+        L: [0x7f, 0x40, 0x40, 0x40, 0x40],
+        M: [0x7f, 0x02, 0x0c, 0x02, 0x7f],
+        N: [0x7f, 0x04, 0x08, 0x10, 0x7f],
+        O: [0x3e, 0x41, 0x41, 0x41, 0x3e],
+        P: [0x7f, 0x09, 0x09, 0x09, 0x06],
+        Q: [0x3e, 0x41, 0x51, 0x21, 0x5e],
+        R: [0x7f, 0x09, 0x19, 0x29, 0x46],
+        S: [0x46, 0x49, 0x49, 0x49, 0x31],
+        T: [0x01, 0x01, 0x7f, 0x01, 0x01],
+        U: [0x3f, 0x40, 0x40, 0x40, 0x3f],
+        V: [0x1f, 0x20, 0x40, 0x20, 0x1f],
+        W: [0x7f, 0x20, 0x18, 0x20, 0x7f],
+        X: [0x63, 0x14, 0x08, 0x14, 0x63],
+        Y: [0x07, 0x08, 0x70, 0x08, 0x07],
+        Z: [0x61, 0x51, 0x49, 0x45, 0x43],
+        "[": [0x00, 0x7f, 0x41, 0x41, 0x00],
+        "\\": [0x02, 0x04, 0x08, 0x10, 0x20],
+        "]": [0x00, 0x41, 0x41, 0x7f, 0x00],
+        "^": [0x04, 0x02, 0x01, 0x02, 0x04],
+        _: [0x40, 0x40, 0x40, 0x40, 0x40],
+        "`": [0x00, 0x01, 0x02, 0x04, 0x00],
+        "|": [0x00, 0x00, 0x7f, 0x00, 0x00],
+        "~": [0x08, 0x04, 0x08, 0x10, 0x08],
+        "°": [0x06, 0x09, 0x09, 0x06, 0x00],
+      };
+
+      let matrixWidth = 32;
+      const matrixHeight = 8;
+      let dotRadius = 4;
+      let dotGap = 2.5;
+      let canvasScale = 1.0;
+
+      let ledColorOn = "#00f2fe";
+      let ledColorGlow = "rgba(0, 242, 254, 0.65)";
+      let ledBrightnessLevel = 12; // 0 to 15
+
+      let canvas, ctx;
+      let animInterval = null;
+      let isPlaying = true;
+
+      // Animation Lifecycle State Machine: 0: Entrance Delay, 1: In Animation, 2: Hold Delay, 3: Out Animation, 4: Loop Cycle
+      let animPhase = 1;
+      let phaseStep = 0;
+      let phaseHoldCounter = 0;
+      let currentLoopCount = 0;
+      let lastFpsTime = performance.now();
+      let frameCount = 0;
+
+      // Zones Registry
+      let zones = [{ id: "zone_0", name: "Zone 1", start: 0, end: 31 }];
+
+      function updateLiveClock() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString(undefined, {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
+        const timeStr = now.toLocaleTimeString();
+        const clockElem = document.getElementById("realtime-clock");
+        if (clockElem) {
+          clockElem.innerHTML = `<span>${dateStr}</span> <span class="text-slate-600">|</span> <span class="text-cyan-400 font-bold">${timeStr}</span>`;
+        }
+      }
+      setInterval(updateLiveClock, 1000);
+      updateLiveClock();
+
+      function getProcessedMessageText() {
+        const msgType = document.getElementById("msg-type").value;
+        if (msgType === "plain") {
+          return document.getElementById("plain-text-val").value || " ";
+        }
+
+        // Dynamic Tag Replacement
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        let template = document.getElementById("custom-text-val").value;
+
+        template = template
+          .replace(/{HH}/g, pad(now.getHours()))
+          .replace(/{MM}/g, pad(now.getMinutes()))
+          .replace(/{SS}/g, pad(now.getSeconds()))
+          .replace(/{DD}/g, pad(now.getDate()))
+          .replace(/{YYYY}/g, now.getFullYear())
+          .replace(/{TEMP}/g, "26")
+          .replace(/{HUM}/g, "62");
+
+        return template || " ";
+      }
+
+      function renderTextToBitmap(text, isBold = false) {
+        let columns = [];
+        const upper = text.toUpperCase();
+
+        for (let i = 0; i < upper.length; i++) {
+          const char = upper[i];
+          const glyph = FONT_5x7[char] ||
+            FONT_5x7["?"] || [0x00, 0x00, 0x00, 0x00, 0x00];
+
+          for (let col = 0; col < glyph.length; col++) {
+            let colByte = glyph[col];
+            if (isBold && col > 0) {
+              colByte |= glyph[col - 1]; // Bold OR extrusion
+            }
+            columns.push(colByte);
+          }
+          columns.push(0x00); // 1 column character spacing
+          if (isBold) columns.push(0x00);
+        }
+
+        // Convert vertical bit bytes to 8 x W 2D binary grid
+        const w = Math.max(1, columns.length);
+        const grid = Array(8)
+          .fill(0)
+          .map(() => Array(w).fill(0));
+
+        for (let c = 0; c < w; c++) {
+          const byte = columns[c] || 0;
+          for (let r = 0; r < 7; r++) {
+            if ((byte >> r) & 1) {
+              grid[r + 1][c] = 1; // 1-row vertical center offset
+            }
+          }
+        }
+        return { grid, width: w };
+      }
+
+      function initCanvas() {
+        canvas = document.getElementById("matrixCanvas");
+        ctx = canvas.getContext("2d");
+        updateCanvasGeometry();
+      }
+
+      function updateCanvasGeometry() {
+        if (!canvas) return;
+        const baseDotPitch = dotRadius * 2 + dotGap;
+        canvas.width = matrixWidth * baseDotPitch + dotGap + 12;
+        canvas.height = matrixHeight * baseDotPitch + dotGap + 12;
+
+        const badge = document.getElementById("matrix-spec-badge");
+        if (badge) {
+          badge.innerText = `8 × ${matrixWidth} PX (${Math.floor(matrixWidth / 8)} Modules)`;
+        }
+        const modTag = document.getElementById("module-count-tag");
+        if (modTag) {
+          modTag.innerText = `${Math.floor(matrixWidth / 8)} Modules`;
+        }
+      }
+
+      function drawMatrixFrame(
+        buffer,
+        alphaMultiplier = 1.0,
+        activeZone = null,
+      ) {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Background Bezel Panel
+        ctx.fillStyle = "#090d14";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const dotDiameter = dotRadius * 2;
+        const pitch = dotDiameter + dotGap;
+        const startX = 6 + dotGap;
+        const startY = 6 + dotGap;
+        const normBrightness = Math.max(0.08, ledBrightnessLevel / 15.0);
+
+        // Draw Module Separation Lines (Every 8 Columns)
+        for (let c = 8; c < matrixWidth; c += 8) {
+          const sepX = startX + c * pitch - dotGap / 2;
+          ctx.strokeStyle = "#1b2434";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(sepX, 4);
+          ctx.lineTo(sepX, canvas.height - 4);
+          ctx.stroke();
+        }
+
+        // Draw Individual Matrix LEDs
+        for (let r = 0; r < matrixHeight; r++) {
+          for (let c = 0; c < matrixWidth; c++) {
+            const x = startX + c * pitch + dotRadius;
+            const y = startY + r * pitch + dotRadius;
+            const isOn = buffer[r] && buffer[r][c];
+
+            // Draw LED Housing Ring
+            ctx.beginPath();
+            ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+
+            if (isOn) {
+              // Illuminated LED with Glow
+              ctx.fillStyle = ledColorOn;
+              ctx.shadowBlur = Math.round(12 * normBrightness);
+              ctx.shadowColor = ledColorGlow;
+              ctx.globalAlpha = Math.min(1.0, normBrightness * alphaMultiplier);
+              ctx.fill();
+
+              // Specular Hotspot
+              ctx.beginPath();
+              ctx.arc(x - 1, y - 1, dotRadius * 0.45, 0, Math.PI * 2);
+              ctx.fillStyle = "#ffffff";
+              ctx.globalAlpha = 0.5 * normBrightness * alphaMultiplier;
+              ctx.fill();
+              ctx.globalAlpha = 1.0;
+              ctx.shadowBlur = 0;
+            } else {
+              // Unlit LED Bezel Dot
+              ctx.fillStyle = "#111724";
+              ctx.shadowBlur = 0;
+              ctx.globalAlpha = 1.0;
+              ctx.fill();
+            }
+          }
+        }
+
+        // Draw Zone Boundary Overlays if configured
+        if (activeZone) {
+          const zStartX = startX + activeZone.start * pitch - dotGap / 2;
+          const zEndX = startX + (activeZone.end + 1) * pitch - dotGap / 2;
+          ctx.strokeStyle = "rgba(0, 242, 254, 0.35)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(zStartX, 4, zEndX - zStartX, canvas.height - 8);
+        }
+      }
+
+      function computeEffectBuffer(
+        effectType,
+        step,
+        maxSteps,
+        textGrid,
+        zStart,
+        zEnd,
+        isExit = false,
+      ) {
+        const zWidth = zEnd - zStart + 1;
+        const textWidth = textGrid[0].length;
+
+        const outBuffer = Array(8)
+          .fill(null)
+          .map(() => Array(matrixWidth).fill(0));
+
+        let alpha = 1.0;
+
+        // =========================================================
+        // COMMON ALIGNMENT
+        // =========================================================
+        //
+        // This MUST be the same alignment used by the HOLD phase.
+        //
+        // If text is wider than the zone, offset = 0.
+        // This prevents the animation from suddenly jumping.
+        //
+        function getAlignedX() {
+          const align =
+            document.getElementById("font-align")?.value || "center";
+
+          if (textWidth >= zWidth) {
+            return 0;
+          }
+
+          if (align === "left") {
+            return 0;
+          }
+
+          if (align === "right") {
+            return zWidth - textWidth;
+          }
+
+          // CENTER
+          return Math.floor((zWidth - textWidth) / 2);
+        }
+
+        const alignedX = getAlignedX();
+
+        // =========================================================
+        // DRAW COMPLETE VIRTUAL TEXT
+        // =========================================================
+
+        function drawVirtual(virtualX, virtualY = 0) {
+          for (let r = 0; r < 8; r++) {
+            const physicalY = virtualY + r;
+
+            if (physicalY < 0 || physicalY >= 8) continue;
+
+            for (let c = 0; c < textWidth; c++) {
+              const physicalX = zStart + virtualX + c;
+
+              if (
+                physicalX >= zStart &&
+                physicalX <= zEnd &&
+                physicalX >= 0 &&
+                physicalX < matrixWidth
+              ) {
+                outBuffer[physicalY][physicalX] = textGrid[r][c];
+              }
+            }
+          }
+        }
+
+        // =========================================================
+        // PA_PRINT
+        // =========================================================
+
+        if (effectType === "PA_PRINT") {
+          drawVirtual(alignedX);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCROLL_LEFT
+        // =========================================================
+        //
+        // Entrance:
+        //     completely outside right -> aligned position
+        //
+        // Exit:
+        //     aligned position -> completely outside left
+        //
+        // ONE FRAME = ONE MATRIX COLUMN
+        // =========================================================
+
+        if (effectType === "PA_SCROLL_LEFT") {
+          let x;
+
+          if (!isExit) {
+            // Right -> aligned
+            x = zWidth - step;
+          } else {
+            // Aligned -> left
+            x = alignedX - step;
+          }
+
+          drawVirtual(x);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCROLL_RIGHT
+        // =========================================================
+        //
+        // Entrance:
+        //     completely outside left -> aligned position
+        //
+        // Exit:
+        //     aligned position -> completely outside right
+        //
+        // ONE FRAME = ONE MATRIX COLUMN
+        // =========================================================
+
+        if (effectType === "PA_SCROLL_RIGHT") {
+          let x;
+
+          if (!isExit) {
+            // Left -> aligned
+            x = -textWidth + step;
+          } else {
+            // Aligned -> right
+            x = alignedX + step;
+          }
+
+          drawVirtual(x);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCROLL_UP
+        // =========================================================
+
+        if (effectType === "PA_SCROLL_UP") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          let y;
+
+          if (!isExit) {
+            // Bottom -> normal position
+            y = Math.round(8 - 8 * progress);
+          } else {
+            // Normal position -> top
+            y = -Math.round(8 * progress);
+          }
+
+          // IMPORTANT:
+          // Horizontal alignment is preserved.
+          drawVirtual(alignedX, y);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCROLL_DOWN
+        // =========================================================
+
+        if (effectType === "PA_SCROLL_DOWN") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          let y;
+
+          if (!isExit) {
+            // Top -> normal position
+            y = -8 + Math.round(8 * progress);
+          } else {
+            // Normal position -> bottom
+            y = Math.round(8 * progress);
+          }
+
+          drawVirtual(alignedX, y);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_FADE
+        // =========================================================
+
+        if (effectType === "PA_FADE") {
+          drawVirtual(alignedX);
+
+          alpha = isExit
+            ? Math.max(0, 1 - step / Math.max(1, maxSteps))
+            : Math.min(1, step / Math.max(1, maxSteps));
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_WIPE
+        // =========================================================
+
+        if (effectType === "PA_WIPE" || effectType === "PA_WIPE_CURSOR") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const revealWidth = Math.ceil(zWidth * progress);
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              let visible;
+
+              if (!isExit) {
+                visible = c < revealWidth;
+              } else {
+                visible = c >= revealWidth;
+              }
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_OPENING
+        // =========================================================
+
+        if (effectType === "PA_OPENING" || effectType === "PA_OPENING_CURSOR") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const halfWidth = Math.ceil((zWidth / 2) * progress);
+
+          const center = zWidth / 2;
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const distance = Math.abs(screenCol - center);
+
+              const visible = isExit
+                ? distance > halfWidth
+                : distance <= halfWidth;
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_CLOSING
+        // =========================================================
+
+        if (effectType === "PA_CLOSING" || effectType === "PA_CLOSING_CURSOR") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const halfWidth = Math.ceil((zWidth / 2) * progress);
+
+          const center = zWidth / 2;
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const distance = Math.abs(screenCol - center);
+
+              const visible = isExit
+                ? distance >= halfWidth
+                : distance <= halfWidth;
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_BLINDS
+        // =========================================================
+
+        if (effectType === "PA_BLINDS") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const blindWidth = 4;
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const local = screenCol % blindWidth;
+
+              const visible = isExit
+                ? local >= progress * blindWidth
+                : local < progress * blindWidth;
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // DISSOLVE / RANDOM / MESH
+        // =========================================================
+
+        if (
+          effectType === "PA_DISSOLVE" ||
+          effectType === "PA_RANDOM" ||
+          effectType === "PA_MESH"
+        ) {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const threshold = isExit ? 1 - progress : progress;
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const pseudoRand =
+                (((Math.sin(r * 12.9898 + c * 78.233 + step * 43.123) *
+                  43758.5453) %
+                  1) +
+                  1) /
+                2;
+
+              if (pseudoRand <= threshold) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCAN_HORIZ
+        // =========================================================
+
+        if (effectType === "PA_SCAN_HORIZ" || effectType === "PA_SCAN_HORIZX") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const rowLimit = Math.floor(8 * progress);
+
+          for (let r = 0; r < 8; r++) {
+            const visible = isExit ? r >= rowLimit : r <= rowLimit;
+
+            if (!visible) continue;
+
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol >= 0 && screenCol < zWidth) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SCAN_VERT
+        // =========================================================
+
+        if (effectType === "PA_SCAN_VERT" || effectType === "PA_SCAN_VERTX") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          const colLimit = Math.floor(zWidth * progress);
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const visible = isExit
+                ? screenCol >= colLimit
+                : screenCol <= colLimit;
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_GROW_UP
+        // =========================================================
+
+        if (effectType === "PA_GROW_UP") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          let y;
+
+          if (!isExit) {
+            y = 8 - Math.round(8 * progress);
+          } else {
+            y = Math.round(8 * progress);
+          }
+
+          drawVirtual(alignedX, y);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_GROW_DOWN
+        // =========================================================
+
+        if (effectType === "PA_GROW_DOWN") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          let y;
+
+          if (!isExit) {
+            y = -8 + Math.round(8 * progress);
+          } else {
+            y = -Math.round(8 * progress);
+          }
+
+          drawVirtual(alignedX, y);
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SPRITE
+        // =========================================================
+
+        if (effectType === "PA_SPRITE") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              const visible = (r + c + step) % 3 !== 0;
+
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // PA_SLICE
+        // =========================================================
+
+        if (effectType === "PA_SLICE") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+
+          for (let r = 0; r < 8; r++) {
+            const direction = r % 2 === 0 ? 1 : -1;
+
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+
+              if (screenCol < 0 || screenCol >= zWidth) {
+                continue;
+              }
+
+              let src;
+
+              if (!isExit) {
+                src = c - direction * Math.round(textWidth * (1 - progress));
+              } else {
+                src = c + direction * Math.round(textWidth * progress);
+              }
+
+              if (src >= 0 && src < textWidth) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][src];
+              }
+            }
+          }
+
+          return {
+            buffer: outBuffer,
+            alpha,
+          };
+        }
+
+        // =========================================================
+        // FALLBACK
+        // =========================================================
+
+        drawVirtual(alignedX);
+
+        return {
+          buffer: outBuffer,
+          alpha,
+        };
+      }
+
+      function restartSimAnimation() {
+        if (animInterval) clearInterval(animInterval);
+
+        animPhase = 0;
+        phaseStep = 0;
+        phaseHoldCounter = 0;
+        currentLoopCount = 0;
+
+        const rawSpeed =
+          parseInt(document.getElementById("anim-speed").value) || 35;
+        const speed = Math.max(8, rawSpeed);
+
+        // ---------------------------------------------------------
+        // TARGET ZONE
+        // ---------------------------------------------------------
+
+        const targetZoneName = document.getElementById("target-zone").value;
+
+        const activeZone = zones.find((z) => z.name === targetZoneName) ||
+          zones[0] || {
+            start: 0,
+            end: matrixWidth - 1,
+            name: "Zone 1",
+          };
+
+        const zStart = Math.max(0, Math.min(activeZone.start, matrixWidth - 1));
+
+        const zEnd = Math.max(
+          zStart,
+          Math.min(activeZone.end, matrixWidth - 1),
+        );
+
+        const zWidth = zEnd - zStart + 1;
+
+        // ---------------------------------------------------------
+        // MESSAGE
+        // ---------------------------------------------------------
+
+        const messageText = getProcessedMessageText();
+
+        const isBold = document.getElementById("text-bold").checked;
+
+        const { grid: textGrid, width: textCols } = renderTextToBitmap(
+          messageText,
+          isBold,
+        );
+
+        // IMPORTANT:
+        // Do NOT create a physical baseBuffer containing the complete
+        // message. That was the source of the cropping problem.
+        //
+        // textGrid remains the complete virtual message bitmap.
+        // Every animation renders this virtual bitmap into the zone.
+
+        // ---------------------------------------------------------
+        // ALIGNMENT
+        // ---------------------------------------------------------
+
+        const fontAlign =
+          document.getElementById("font-align")?.value || "center";
+
+        function getStaticTextOffset() {
+          if (textCols >= zWidth) {
+            return 0;
+          }
+
+          switch (fontAlign) {
+            case "left":
+              return 0;
+
+            case "right":
+              return zWidth - textCols;
+
+            case "center":
+            default:
+              return Math.floor((zWidth - textCols) / 2);
+          }
+        }
+
+        // ---------------------------------------------------------
+        // SCROLL DISTANCES
+        // ---------------------------------------------------------
+        //
+        // One animation frame = exactly one matrix column.
+        //
+        // This keeps entrance and exit at the same physical speed,
+        // regardless of message length.
+        //
+
+        const scrollAlignedX = getStaticTextOffset();
+
+        function getScrollSteps(effect, isExit = false) {
+          if (effect === "PA_SCROLL_LEFT") {
+            return isExit ? scrollAlignedX + textCols : zWidth - scrollAlignedX;
+          }
+
+          if (effect === "PA_SCROLL_RIGHT") {
+            return isExit ? zWidth - scrollAlignedX : scrollAlignedX + textCols;
+          }
+
+          return null;
+        }
+
+        // ---------------------------------------------------------
+        // CREATE EMPTY MATRIX
+        // ---------------------------------------------------------
+
+        function emptyBuffer() {
+          return Array(8)
+            .fill(null)
+            .map(() => Array(matrixWidth).fill(0));
+        }
+
+        // ---------------------------------------------------------
+        // STATIC / HOLD BUFFER
+        // ---------------------------------------------------------
+
+        function createStaticBuffer() {
+          const buffer = emptyBuffer();
+
+          const offset = getStaticTextOffset();
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textCols; c++) {
+              const physicalCol = zStart + offset + c;
+
+              // Clip ONLY at the actual zone boundary.
+              // The original textGrid is never modified.
+              if (
+                physicalCol >= zStart &&
+                physicalCol <= zEnd &&
+                physicalCol >= 0 &&
+                physicalCol < matrixWidth
+              ) {
+                buffer[r][physicalCol] = textGrid[r][c];
+              }
+            }
+          }
+
+          return buffer;
+        }
+
+        // ---------------------------------------------------------
+        // ANIMATIONS
+        // ---------------------------------------------------------
+
+        const animInType = document.getElementById("animation-in").value;
+
+        const animOutType = document.getElementById("animation-out").value;
+
+        const startDelayMs =
+          parseInt(document.getElementById("start-delay").value) || 0;
+
+        const endDelayInput = parseInt(
+          document.getElementById("end-delay").value,
+          10,
+        );
+
+        const endDelayMs = Number.isFinite(endDelayInput)
+          ? Math.max(0, endDelayInput)
+          : 1200;
+
+        const loopMode = document.getElementById("loop-mode").value;
+
+        const targetLoops =
+          loopMode === "num"
+            ? parseInt(document.getElementById("loop-count").value) || 1
+            : Infinity;
+
+        // ---------------------------------------------------------
+        // CORRECT NUMBER OF ANIMATION STEPS
+        // ---------------------------------------------------------
+
+        function getAnimationSteps(effect, isExit = false) {
+          switch (effect) {
+            case "PA_SCROLL_LEFT":
+            case "PA_SCROLL_RIGHT": {
+              const steps = getScrollSteps(effect, isExit);
+              return Math.max(1, steps);
+            }
+
+            case "PA_SCROLL_UP":
+            case "PA_SCROLL_DOWN":
+            case "PA_GROW_UP":
+            case "PA_GROW_DOWN":
+              return 8;
+
+            case "PA_WIPE":
+            case "PA_WIPE_CURSOR":
+            case "PA_CLOSING":
+            case "PA_CLOSING_CURSOR":
+            case "PA_OPENING":
+            case "PA_OPENING_CURSOR":
+            case "PA_BLINDS":
+            case "PA_SCAN_VERT":
+            case "PA_SCAN_VERTX":
+              return zWidth;
+
+            case "PA_SCAN_HORIZ":
+            case "PA_SCAN_HORIZX":
+              return 8;
+
+            case "PA_FADE":
+            case "PA_DISSOLVE":
+            case "PA_RANDOM":
+            case "PA_MESH":
+            case "PA_SPRITE":
+              return 20;
+
+            case "PA_SLICE":
+              return textCols;
+
+            default:
+              return 1;
+          }
+        }
+
+        const maxInSteps = getAnimationSteps(animInType, false);
+        const maxOutSteps = getAnimationSteps(animOutType, true);
+
+        // ---------------------------------------------------------
+        // STATIC BUFFER
+        // ---------------------------------------------------------
+
+        const staticBuffer = createStaticBuffer();
+
+        // ---------------------------------------------------------
+        // MAIN ANIMATION ENGINE
+        // ---------------------------------------------------------
+
+        animInterval = setInterval(() => {
+          if (!isPlaying) return;
+
+          // FPS
+          frameCount++;
+
+          const now = performance.now();
+
+          if (now - lastFpsTime >= 1000) {
+            document.getElementById("sim-fps-label").innerText = frameCount;
+
+            frameCount = 0;
+            lastFpsTime = now;
+          }
+
+          let stageLabel = "IN_ANIMATION";
+
+          let renderResult = {
+            buffer: staticBuffer,
+            alpha: 1,
+          };
+
+          // -------------------------------------------------------
+          // PHASE 0 - START DELAY
+          // -------------------------------------------------------
+
+          if (animPhase === 0) {
+            stageLabel = "START_DELAY";
+
+            renderResult = {
+              buffer: emptyBuffer(),
+              alpha: 0,
+            };
+
+            phaseHoldCounter += speed;
+
+            if (phaseHoldCounter >= startDelayMs) {
+              phaseHoldCounter = 0;
+              phaseStep = 0;
+              animPhase = 1;
+            }
+          }
+
+          // -------------------------------------------------------
+          // PHASE 1 - ENTRANCE
+          // -------------------------------------------------------
+          else if (animPhase === 1) {
+            stageLabel = `IN: ${animInType}`;
+
+            renderResult = computeEffectBuffer(
+              animInType,
+              phaseStep,
+              maxInSteps,
+              textGrid,
+              zStart,
+              zEnd,
+              false,
+            );
+
+            phaseStep++;
+
+            if (phaseStep >= maxInSteps) {
+              phaseStep = 0;
+              phaseHoldCounter = 0;
+              animPhase = 2;
+            }
+          }
+
+          // -------------------------------------------------------
+          // PHASE 2 - HOLD
+          // -------------------------------------------------------
+          else if (animPhase === 2) {
+            stageLabel = "HOLD_PAUSE";
+
+            // If hold is zero, immediately begin exit.
+            if (endDelayMs <= 0) {
+              phaseHoldCounter = 0;
+              phaseStep = 0;
+              animPhase = 3;
+
+              // Render the first exit frame immediately.
+              renderResult = computeEffectBuffer(
+                animOutType,
+                phaseStep,
+                maxOutSteps,
+                textGrid,
+                zStart,
+                zEnd,
+                true,
+              );
+
+              phaseStep++;
+            } else {
+              renderResult = {
+                buffer: staticBuffer,
+                alpha: 1,
+              };
+
+              phaseHoldCounter += speed;
+
+              if (phaseHoldCounter >= endDelayMs) {
+                phaseHoldCounter = 0;
+                phaseStep = 0;
+                animPhase = 3;
+              }
+            }
+          }
+
+          // -------------------------------------------------------
+          // PHASE 3 - EXIT
+          // -------------------------------------------------------
+          else if (animPhase === 3) {
+            stageLabel = `OUT: ${animOutType}`;
+
+            renderResult = computeEffectBuffer(
+              animOutType,
+              phaseStep,
+              maxOutSteps,
+              textGrid,
+              zStart,
+              zEnd,
+              true,
+            );
+
+            phaseStep++;
+
+            if (phaseStep >= maxOutSteps) {
+              phaseStep = 0;
+              phaseHoldCounter = 0;
+
+              currentLoopCount++;
+
+              if (currentLoopCount >= targetLoops) {
+                animPhase = 2;
+                stageLabel = "COMPLETE";
+              } else {
+                animPhase = 0;
+              }
+            }
+          }
+
+          document.getElementById("sim-stage-label").innerText = stageLabel;
+
+          document.getElementById("sim-zone-label").innerText =
+            activeZone.name || "Zone 1";
+
+          drawMatrixFrame(renderResult.buffer, renderResult.alpha, activeZone);
+        }, speed);
+      }
+
+      function handleMatrixWidthChange() {
+        let width =
+          parseInt(document.getElementById("matrix-width").value) || 32;
+        width = Math.max(8, Math.round(width / 8) * 8); // Force multiple of 8
+        document.getElementById("matrix-width").value = width;
+        matrixWidth = width;
+
+        // Adjust default zones to fit inside bounds
+        if (zones.length > 0 && zones[0].end >= matrixWidth) {
+          zones[0].end = matrixWidth - 1;
+        }
+        renderZonesUI();
+        updateCanvasGeometry();
+        restartSimAnimation();
+      }
+
+      function setMatrixPreset(presetWidth) {
+        document.getElementById("matrix-width").value = presetWidth;
+        handleMatrixWidthChange();
+      }
+
+      function handleAddZone(e) {
+        e.preventDefault();
+        const name = document.getElementById("zone-name").value.trim();
+        const start = parseInt(document.getElementById("zone-start").value);
+        const end = parseInt(document.getElementById("zone-end").value);
+
+        if (start < 0 || end >= matrixWidth || start > end) {
+          showToast(
+            `Columns must be between 0 and ${matrixWidth - 1} with Start ≤ End.`,
+          );
+          return;
+        }
+
+        // Check if existing zone with name
+        const existingIdx = zones.findIndex(
+          (z) => z.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (existingIdx >= 0) {
+          zones[existingIdx] = { id: zones[existingIdx].id, name, start, end };
+          showToast(`Zone "${name}" updated.`);
+        } else {
+          zones.push({ id: `zone_${Date.now()}`, name, start, end });
+          showToast(`Zone "${name}" added successfully.`);
+        }
+
+        renderZonesUI();
+        restartSimAnimation();
+        document.getElementById("zone-name").value = "";
+      }
+
+      function removeZone(id) {
+        if (zones.length <= 1) {
+          showToast("At least one zone must remain configured.");
+          return;
+        }
+        zones = zones.filter((z) => z.id !== id);
+        renderZonesUI();
+        restartSimAnimation();
+      }
+
+      function renderZonesUI() {
+        const container = document.getElementById("zones-container");
+        const targetSelect = document.getElementById("target-zone");
+        const currentSelected = targetSelect.value;
+
+        container.innerHTML = "";
+        targetSelect.innerHTML = "";
+
+        zones.forEach((z) => {
+          // Chip UI
+          const chip = document.createElement("div");
+          chip.className =
+            "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm";
+          chip.innerHTML = `
+          <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
+          <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+        `;
+          container.appendChild(chip);
+
+          // Select Options
+          const opt = document.createElement("option");
+          opt.value = z.name;
+          opt.innerText = `${z.name} (Cols: ${z.start} → ${z.end})`;
+          targetSelect.appendChild(opt);
+        });
+
+        if (zones.some((z) => z.name === currentSelected)) {
+          targetSelect.value = currentSelected;
+        }
+      }
+
+      function handleZoneSelectionChange() {
+        restartSimAnimation();
+      }
+
+      function handleMsgTypeToggle() {
+        const type = document.getElementById("msg-type").value;
+        document
+          .getElementById("plain-text-box")
+          .classList.toggle("hidden", type !== "plain");
+        document
+          .getElementById("custom-text-box")
+          .classList.toggle("hidden", type === "plain");
+        restartSimAnimation();
+      }
+
+      function handleLoopModeToggle() {
+        const mode = document.getElementById("loop-mode").value;
+        document
+          .getElementById("loop-count-wrapper")
+          .classList.toggle("hidden", mode !== "num");
+        restartSimAnimation();
+      }
+
+      function insertTag(tag) {
+        const input = document.getElementById("custom-text-val");
+        input.value += ` ${tag}`;
+        input.focus();
+        restartSimAnimation();
+      }
+
+      function handleBrightnessUpdate(val) {
+        ledBrightnessLevel = parseInt(val);
+        document.getElementById("brightness-badge").innerText =
+          `${ledBrightnessLevel} / 15`;
+      }
+
+      function setLedTheme(color, glow) {
+        ledColorOn = color;
+        ledColorGlow = glow;
+        showToast("Matrix LED Color Theme Changed");
+      }
+
+      function toggleCanvasScale() {
+        canvasScale =
+          canvasScale === 1.0 ? 1.4 : canvasScale === 1.4 ? 0.8 : 1.0;
+        canvas.style.transform = `scale(${canvasScale})`;
+        document.getElementById("btn-zoom").innerText = `Zoom ${canvasScale}x`;
+      }
+
+      function togglePlayback() {
+        isPlaying = !isPlaying;
+        document.getElementById("play-text").innerText = isPlaying
+          ? "Pause"
+          : "Play";
+        document.getElementById("play-icon").innerHTML = isPlaying
+          ? '<path d="M8 5v14l11-7z"/>'
+          : '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      }
+
+      function stepSingleFrame() {
+        isPlaying = false;
+        document.getElementById("play-text").innerText = "Play";
+        phaseStep++;
+      }
+
+      function generatePayload() {
+        const msgType = document.getElementById("msg-type").value;
+        const targetZoneName = document.getElementById("target-zone").value;
+        const activeZone =
+          zones.find((z) => z.name === targetZoneName) || zones[0];
+
+        return {
+          timestamp: new Date().toISOString(),
+          device: "ESP_LED_MATRIX_MD_PAROLA",
+          matrix: {
+            height: 8,
+            width: matrixWidth,
+            modules: Math.floor(matrixWidth / 8),
+          },
+          zone: {
+            name: activeZone.name,
+            startCol: activeZone.start,
+            endCol: activeZone.end,
+          },
+          message: {
+            type: msgType,
+            content:
+              msgType === "plain"
+                ? document.getElementById("plain-text-val").value
+                : document.getElementById("custom-text-val").value,
+
+            bold: document.getElementById("text-bold").checked,
+
+            align: document.getElementById("font-align").value,
+          },
+          animation: {
+            inEffect: document.getElementById("animation-in").value,
+            outEffect: document.getElementById("animation-out").value,
+            speedMs:
+              parseInt(document.getElementById("anim-speed").value) || 35,
+            startDelayMs:
+              parseInt(document.getElementById("start-delay").value) || 0,
+            endDelayMs:
+              parseInt(document.getElementById("end-delay").value) || 1200,
+          },
+          display: {
+            brightness: ledBrightnessLevel,
+            repeat:
+              document.getElementById("loop-mode").value === "inf"
+                ? -1
+                : parseInt(document.getElementById("loop-count").value),
+          },
+        };
+      }
+
+      function handleSendConfig(e) {
+        e.preventDefault();
+        const payload = generatePayload();
+
+        // REST API Post to ESP Server
+        fetch("/api/matrix/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((res) => {
+            if (res.ok) showToast("Config uploaded directly to ESP Hardware!");
+            else showToast("Simulated offline: Payload formatted.");
+          })
+          .catch(() => {
+            showToast("Simulated Mode: Configuration generated!");
+          });
+      }
+
+      function showJsonPayloadModal() {
+        const payload = generatePayload();
+        document.getElementById("json-code-view").innerText = JSON.stringify(
+          payload,
+          null,
+          2,
+        );
+        document.getElementById("json-modal").classList.remove("hidden");
+      }
+
+      function closeJsonModal() {
+        document.getElementById("json-modal").classList.add("hidden");
+      }
+
+      function copyPayloadToClipboard() {
+        const jsonText = document.getElementById("json-code-view").innerText;
+        const tempInput = document.createElement("textarea");
+        tempInput.value = jsonText;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+
+        const btn = document.getElementById("btn-copy-json");
+        btn.innerText = "Copied to Clipboard!";
+        setTimeout(() => (btn.innerText = "Copy JSON Data"), 2000);
+      }
+
+      function showToast(msg) {
+        const toast = document.getElementById("toast-box");
+        document.getElementById("toast-msg").innerText = msg;
+        toast.classList.remove("translate-y-20", "opacity-0");
+        setTimeout(() => {
+          toast.classList.add("translate-y-20", "opacity-0");
+        }, 3000);
+      }
+
+      window.onload = function () {
+        initCanvas();
+        renderZonesUI();
+        restartSimAnimation();
+      };
+    </script>
+  </body>
+</html>
