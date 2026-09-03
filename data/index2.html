@@ -102,7 +102,7 @@
       <!-- Top Header & Real-Time Clock -->
       <header class="text-center pt-2 pb-1 relative">
         <h1
-          class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-wider bg-gradient-to-r from-sky-400 via-cyan-300 to-teal-400 bg-clip-text text-transparent uppercase drop-shadow-[0_0_25px_rgba(0,242,254,0.3)]"
+          class="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-sky-400 via-cyan-300 to-teal-400 bg-clip-text text-transparent uppercase drop-shadow-[0_0_25px_rgba(0,242,254,0.3)]"
         >
           ESP LED MATRIX
         </h1>
@@ -125,7 +125,7 @@
               class="w-3 h-3 rounded-sm bg-cyan-400 shadow-[0_0_8px_#00f2fe]"
             ></div>
             <h2 class="text-base sm:text-lg font-bold text-white tracking-wide">
-              Live Hardware Matrix Emulation
+              Live Matrix
             </h2>
             <span
               id="matrix-spec-badge"
@@ -299,7 +299,7 @@
                 <input
                   type="number"
                   id="matrix-width"
-                  value="32"
+                  value="40"
                   min="8"
                   max="192"
                   step="8"
@@ -318,39 +318,32 @@
                 >
                 <div class="grid grid-cols-4 gap-1.5 font-mono-code">
                   <button
-                    onclick="setMatrixPreset(16)"
+                    onclick="setMatrixPreset(40)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    2x (16)
+                    5 (40)
                   </button>
                   <button
-                    onclick="setMatrixPreset(32)"
-                    class="py-1 bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 rounded border border-cyan-800 text-center transition"
-                  >
-                    4x (32)
-                  </button>
-                  <button
-                    onclick="setMatrixPreset(64)"
+                    onclick="setMatrixPreset(80)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    8x (64)
+                    10 (80)
                   </button>
                   <button
-                    onclick="setMatrixPreset(96)"
+                    onclick="setMatrixPreset(120)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    12x (96)
+                    15 (120)
+                  </button>
+                  <button
+                    onclick="setMatrixPreset(160)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    20 (160)
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div
-            class="mt-4 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px] text-slate-400"
-          >
-            💡 <span class="text-slate-300">MD_Parola Note:</span> Each 8x8
-            block corresponds to a single MAX7219 cascading IC driver.
           </div>
         </section>
 
@@ -422,7 +415,7 @@
                   type="number"
                   id="zone-end"
                   min="0"
-                  value="31"
+                  value="39"
                   required
                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code outline-none focus:border-cyan-400 transition"
                 />
@@ -477,7 +470,7 @@
               class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
               >3</span
             >
-            Message & MD_Parola Animation Configuration
+            Animation Configuration
           </h2>
           <span
             class="text-[10px] uppercase font-mono-code text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2.5 py-0.5 rounded-full"
@@ -552,13 +545,15 @@
             </div>
 
             <!-- Text Bold Toggle Switch -->
+
             <div
               class="flex items-center justify-between bg-slate-900/80 border border-slate-700/80 rounded-lg px-4 py-2"
             >
               <div>
                 <div class="text-slate-200 font-semibold">
-                  4. Text Bold (Extrusion)
+                  Text Bold (Extrusion)
                 </div>
+
                 <div class="text-[10px] text-slate-400">
                   Doubles font glyph column width
                 </div>
@@ -600,7 +595,7 @@
                 <label
                   for="custom-text-val"
                   class="block text-slate-300 font-medium"
-                  >Custom Dynamic Template Format</label
+                  >Custom Dynamic Format</label
                 >
                 <!-- Interactive Info Icon & Tooltip -->
                 <div
@@ -688,9 +683,6 @@
                   </div>
                 </div>
               </div>
-              <span class="text-[10px] text-cyan-400 font-mono-code"
-                >Real-Time Substitution Enabled</span
-              >
             </div>
             <input
               type="text"
@@ -702,9 +694,6 @@
 
             <!-- Variable Tags Helpers -->
             <div class="flex flex-wrap gap-1.5 pt-1">
-              <span class="text-[11px] text-slate-400 self-center mr-1"
-                >Click tag to insert:</span
-              >
               <!-- Time Tags -->
               <button
                 type="button"
@@ -1032,17 +1021,12 @@
 
           <!-- NEW: Add Scene Management -->
           <div class="mt-6 pt-5 border-t border-slate-800">
-            <div
-              class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-3"
-            >
-              Scene Management (Add to Sequence)
-            </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-4">
               <div class="sm:col-span-2">
                 <label
                   for="scene-name"
                   class="block text-slate-300 mb-1 font-medium"
-                  >Scene Name</label
+                  >Scene Sequence Name</label
                 >
                 <input
                   type="text"
@@ -1267,7 +1251,7 @@
         "°": [0x06, 0x09, 0x09, 0x06, 0x00],
       };
 
-      let matrixWidth = 32;
+      let matrixWidth = 40;
       const matrixHeight = 8;
       let dotRadius = 4;
       let dotGap = 2.5;
@@ -1290,7 +1274,9 @@
       let frameCount = 0;
 
       // Zones and Scenes Registry
-      let zones = [{ id: "zone_0", name: "Zone 1", start: 0, end: 31 }];
+      let zones = [
+        { id: "zone_0", name: "Zone 1", start: 0, end: matrixWidth - 1 },
+      ];
       let scenes = [];
 
       function updateLiveClock() {
