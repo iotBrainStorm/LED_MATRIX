@@ -1594,6 +1594,7 @@
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_WIPE REVERSES ON EXIT ======== //
         if (effectType.startsWith("PA_WIPE")) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           const revealWidth = Math.ceil(zWidth * progress);
@@ -1604,15 +1605,29 @@
               const screenCol = alignedX + c;
               if (screenCol < 0 || screenCol >= zWidth) continue;
 
-              let visible = !isExit
-                ? screenCol < revealWidth
-                : screenCol >= revealWidth;
+              let visible = false;
+              if (!isExit) {
+                // Entrance wipes left -> right
+                visible = screenCol < revealWidth;
+              } else {
+                // Exit wipe is reverse process right -> left
+                visible = screenCol < zWidth - revealWidth;
+              }
+
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
-            if (hasCursor && revealWidth < zWidth && revealWidth >= 0) {
-              const cursorCol = !isExit ? revealWidth : revealWidth - 1;
-              if (cursorCol >= 0 && cursorCol < zWidth) {
-                outBuffer[r][zStart + cursorCol] = 1;
+
+            // Cursor Logic
+            if (hasCursor) {
+              if (!isExit) {
+                if (revealWidth >= 0 && revealWidth < zWidth) {
+                  outBuffer[r][zStart + revealWidth] = 1;
+                }
+              } else {
+                const cursorCol = zWidth - revealWidth - 1;
+                if (cursorCol >= 0 && cursorCol < zWidth) {
+                  outBuffer[r][zStart + cursorCol] = 1;
+                }
               }
             }
           }
@@ -1709,7 +1724,8 @@
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_DISSOLVE" || effectType === "PA_RANDOM") {
+        // ======== FIX: PA_RANDOM (Strictly within Text) ======== //
+        if (effectType === "PA_RANDOM") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
@@ -1725,12 +1741,33 @@
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
           }
-          if (effectType === "PA_RANDOM") {
-            const noiseIntensity = !isExit ? 1 - progress : progress;
-            for (let r = 0; r < 8; r++) {
-              for (let c = 0; c < zWidth; c++) {
-                if (Math.random() < noiseIntensity * 0.15) {
-                  outBuffer[r][zStart + c] = 1;
+          return { buffer: outBuffer, alpha };
+        }
+
+        // ======== FIX: PA_DISSOLVE (Starts fully ON, then dissolves into text) ======== //
+        if (effectType === "PA_DISSOLVE") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < zWidth; c++) {
+              const pseudoRand =
+                (((Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1) + 1) %
+                1;
+              const isTextPixel =
+                c >= alignedX &&
+                c < alignedX + textWidth &&
+                textGrid[r][c - alignedX];
+
+              if (!isExit) {
+                // IN: Background pixels start ON, and randomly turn OFF to reveal the text
+                if (isTextPixel) {
+                  outBuffer[r][zStart + c] = 1; // Text stays solid
+                } else {
+                  if (pseudoRand > progress) outBuffer[r][zStart + c] = 1; // Unneeded bg turns off
+                }
+              } else {
+                // OUT: Starts as text, dissolves to fully OFF
+                if (isTextPixel) {
+                  if (pseudoRand > progress) outBuffer[r][zStart + c] = 1;
                 }
               }
             }
@@ -1843,26 +1880,30 @@
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_SLICE (Alternating Vertical Slice per Column) ======== //
         if (effectType === "PA_SLICE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          for (let r = 0; r < 8; r++) {
-            const fromRight = r % 2 === 0;
-            for (let c = 0; c < textWidth; c++) {
-              const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) continue;
+          for (let c = 0; c < textWidth; c++) {
+            const screenCol = alignedX + c;
+            if (screenCol < 0 || screenCol >= zWidth) continue;
 
-              let offset = 0;
-              if (!isExit) {
-                const distance = Math.floor(zWidth * (1 - progress));
-                offset = fromRight ? distance : -distance;
-              } else {
-                const distance = Math.floor(zWidth * progress);
-                offset = fromRight ? -distance : distance;
-              }
+            const fromTop = c % 2 === 0;
+            let offset = 0;
 
-              const finalCol = screenCol + offset;
-              if (finalCol >= 0 && finalCol < zWidth) {
-                outBuffer[r][zStart + finalCol] = textGrid[r][c];
+            if (!isExit) {
+              const distance = Math.floor(8 * (1 - progress));
+              offset = fromTop ? distance : -distance;
+            } else {
+              const distance = Math.floor(8 * progress);
+              offset = fromTop ? -distance : distance;
+            }
+
+            for (let r = 0; r < 8; r++) {
+              const finalRow = r + offset;
+              if (finalRow >= 0 && finalRow < 8) {
+                if (textGrid[r][c]) {
+                  outBuffer[finalRow][zStart + screenCol] = 1;
+                }
               }
             }
           }
@@ -1949,6 +1990,7 @@
             case "PA_GROW_DOWN":
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
+            case "PA_SLICE": // 8 rows to slice down
               return 8;
             case "PA_WIPE":
             case "PA_WIPE_CURSOR":
@@ -1969,8 +2011,6 @@
               return 20;
             case "PA_SPRITE":
               return zWidth + 6;
-            case "PA_SLICE":
-              return textCols + zWidth;
             default:
               return 1;
           }
