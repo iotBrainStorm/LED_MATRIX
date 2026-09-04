@@ -1833,32 +1833,48 @@
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_GROW_UP ======== //
         if (effectType === "PA_GROW_UP") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const limitRow = Math.floor(8 * (1 - progress));
           for (let r = 0; r < 8; r++) {
-            if (!isExit && r < limitRow) continue;
-            if (isExit && r >= Math.floor(8 * progress)) continue;
-            for (let c = 0; c < textWidth; c++) {
-              const screenCol = alignedX + c;
-              if (screenCol >= 0 && screenCol < zWidth) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            let visible = false;
+            if (!isExit) {
+              // IN: Appears from bottom (row 7) up to top (row 0)
+              visible = r >= 7 - step;
+            } else {
+              // OUT: Disappears from top (row 0) down to bottom (row 7)
+              visible = r > step;
+            }
+
+            if (visible) {
+              for (let c = 0; c < textWidth; c++) {
+                const screenCol = alignedX + c;
+                if (screenCol >= 0 && screenCol < zWidth) {
+                  outBuffer[r][zStart + screenCol] = textGrid[r][c];
+                }
               }
             }
           }
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_GROW_DOWN ======== //
         if (effectType === "PA_GROW_DOWN") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const limitRow = Math.floor(8 * progress);
           for (let r = 0; r < 8; r++) {
-            if (!isExit && r > limitRow) continue;
-            if (isExit && r <= Math.floor(8 * (1 - progress))) continue;
-            for (let c = 0; c < textWidth; c++) {
-              const screenCol = alignedX + c;
-              if (screenCol >= 0 && screenCol < zWidth) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            let visible = false;
+            if (!isExit) {
+              // IN: Appears from top (row 0) down to bottom (row 7)
+              visible = r <= step;
+            } else {
+              // OUT: Disappears from bottom (row 7) up to top (row 0)
+              visible = r < 7 - step;
+            }
+
+            if (visible) {
+              for (let c = 0; c < textWidth; c++) {
+                const screenCol = alignedX + c;
+                if (screenCol >= 0 && screenCol < zWidth) {
+                  outBuffer[r][zStart + screenCol] = textGrid[r][c];
+                }
               }
             }
           }
