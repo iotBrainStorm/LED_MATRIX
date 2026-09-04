@@ -135,7 +135,7 @@
           </div>
 
           <!-- Quick Simulator Controls & LED Theme Selector -->
-          <div class="flex items-center gap-2 text-xs">
+          <div class="flex w-full items-center justify-between text-xs">
             <!-- LED Color Picker -->
             <div
               class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
@@ -168,24 +168,64 @@
               ></button>
             </div>
 
-            <!-- Zoom Toggle -->
-            <button
-              id="btn-zoom"
-              onclick="toggleCanvasScale()"
-              class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            <!-- Zoom Selector (Supports 1.4x down to 0.4x) -->
+            <div
+              class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
             >
-              Zoom 1x
-            </button>
+              <label for="zoom-select" class="text-slate-400 font-medium"
+                >Zoom:</label
+              >
+              <select
+                id="zoom-select"
+                onchange="setCanvasScale(parseFloat(this.value))"
+                class="bg-transparent text-cyan-300 font-mono-code text-xs outline-none cursor-pointer"
+              >
+                <option value="1.4" class="bg-slate-900 text-slate-200">
+                  1.4x
+                </option>
+                <option value="1.2" class="bg-slate-900 text-slate-200">
+                  1.2x
+                </option>
+                <option value="1.0" class="bg-slate-900 text-cyan-300" selected>
+                  Normal
+                </option>
+                <option value="0.8" class="bg-slate-900 text-slate-200">
+                  0.8x
+                </option>
+                <option value="0.7" class="bg-slate-900 text-slate-200">
+                  0.7x
+                </option>
+                <option value="0.6" class="bg-slate-900 text-slate-200">
+                  0.6x
+                </option>
+                <option value="0.5" class="bg-slate-900 text-slate-200">
+                  0.5x
+                </option>
+                <option value="0.4" class="bg-slate-900 text-slate-200">
+                  0.4x
+                </option>
+                <option value="0.3" class="bg-slate-900 text-slate-200">
+                  0.3x
+                </option>
+                <option value="0.2" class="bg-slate-900 text-slate-200">
+                  0.2x
+                </option>
+                <option value="0.1" class="bg-slate-900 text-slate-200">
+                  0.1x
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <!-- Canvas Scrollable Container with Module Boundary Guides -->
+        <!-- Canvas Scrollable Container with Two-Axis Overflow and Auto-Centering -->
         <div
-          class="matrix-display-container rounded-xl p-3 sm:p-5 overflow-x-auto flex justify-center items-center min-h-[140px]"
+          class="matrix-display-container rounded-xl p-3 sm:p-5 overflow-auto flex min-h-[140px] max-h-[360px]"
         >
           <canvas
             id="matrixCanvas"
-            class="rounded cursor-crosshair transition-transform duration-200"
+            class="m-auto rounded cursor-crosshair transition-all duration-150"
+            style="image-rendering: pixelated"
           ></canvas>
         </div>
 
@@ -1414,6 +1454,9 @@
         canvas.width = matrixWidth * baseDotPitch + dotGap + 12;
         canvas.height = matrixHeight * baseDotPitch + dotGap + 12;
 
+        // Apply actual CSS layout width and height according to zoom scale
+        applyCanvasScale();
+
         const badge = document.getElementById("matrix-spec-badge");
         if (badge) {
           badge.innerText = `8 × ${matrixWidth} PX (${Math.floor(matrixWidth / 8)} Modules)`;
@@ -1422,6 +1465,15 @@
         if (modTag) {
           modTag.innerText = `${Math.floor(matrixWidth / 8)} Modules`;
         }
+      }
+
+      function applyCanvasScale() {
+        if (!canvas) return;
+        // Setting display dimensions updates the DOM layout box,
+        // allowing native scrollbars to measure the full canvas accurately.
+        canvas.style.width = `${Math.round(canvas.width * canvasScale)}px`;
+        canvas.style.height = `${Math.round(canvas.height * canvasScale)}px`;
+        canvas.style.transform = "none"; // Clear transform scale
       }
 
       function drawMatrixFrame(
@@ -2345,9 +2397,9 @@
           chip.className =
             "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm";
           chip.innerHTML = `
-                <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
-                <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-              `;
+                    <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
+                    <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+                  `;
           container.appendChild(chip);
 
           const opt = document.createElement("option");
@@ -2403,11 +2455,23 @@
         showToast("Matrix LED Color Theme Changed");
       }
 
+      const ZOOM_LEVELS = [
+        1.4, 1.2, 1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
+      ];
+
+      function setCanvasScale(scale) {
+        canvasScale = parseFloat(scale);
+        applyCanvasScale();
+        const select = document.getElementById("zoom-select");
+        if (select && select.value !== String(canvasScale)) {
+          select.value = String(canvasScale);
+        }
+      }
+
       function toggleCanvasScale() {
-        canvasScale =
-          canvasScale === 1.0 ? 1.4 : canvasScale === 1.4 ? 0.8 : 1.0;
-        canvas.style.transform = `scale(${canvasScale})`;
-        document.getElementById("btn-zoom").innerText = `Zoom ${canvasScale}x`;
+        const currentIndex = ZOOM_LEVELS.indexOf(canvasScale);
+        const nextIndex = (currentIndex + 1) % ZOOM_LEVELS.length;
+        setCanvasScale(ZOOM_LEVELS[nextIndex]);
       }
 
       function togglePlayback() {
@@ -2514,9 +2578,9 @@
           chip.className =
             "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm";
           chip.innerHTML = `
-                  <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
-                  <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-                `;
+                      <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
+                      <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+                    `;
           container.appendChild(chip);
         });
       }
