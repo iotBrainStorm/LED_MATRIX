@@ -1511,30 +1511,17 @@
       ) {
         const zWidth = zEnd - zStart + 1;
         const textWidth = textGrid[0].length;
-
         const outBuffer = Array(8)
           .fill(null)
           .map(() => Array(matrixWidth).fill(0));
-
         let alpha = 1.0;
 
         function getAlignedX() {
           const align =
             document.getElementById("font-align")?.value || "center";
-
-          if (textWidth >= zWidth) {
-            return 0;
-          }
-
-          if (align === "left") {
-            return 0;
-          }
-
-          if (align === "right") {
-            return zWidth - textWidth;
-          }
-
-          // CENTER
+          if (textWidth >= zWidth) return 0;
+          if (align === "left") return 0;
+          if (align === "right") return zWidth - textWidth;
           return Math.floor((zWidth - textWidth) / 2);
         }
 
@@ -1543,12 +1530,9 @@
         function drawVirtual(virtualX, virtualY = 0) {
           for (let r = 0; r < 8; r++) {
             const physicalY = virtualY + r;
-
             if (physicalY < 0 || physicalY >= 8) continue;
-
             for (let c = 0; c < textWidth; c++) {
               const physicalX = zStart + virtualX + c;
-
               if (
                 physicalX >= zStart &&
                 physicalX <= zEnd &&
@@ -1563,68 +1547,42 @@
 
         if (effectType === "PA_PRINT") {
           drawVirtual(alignedX);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
-        }
-
-        if (effectType === "PA_SCROLL_LEFT") {
-          let x;
-
-          if (!isExit) {
-            x = zWidth - step;
-          } else {
-            x = alignedX - step;
-          }
-
-          drawVirtual(x);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
-        }
-
-        if (effectType === "PA_SCROLL_RIGHT") {
-          let x;
-
-          if (!isExit) {
-            x = -textWidth + step;
-          } else {
-            x = alignedX + step;
-          }
-
-          drawVirtual(x);
-
-          return {
-            buffer: outBuffer,
-            alpha,
-          };
-        }
-
-        if (effectType === "PA_SCROLL_UP") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          let y;
-          if (!isExit) {
-            y = Math.round(8 - 8 * progress);
-          } else {
-            y = -Math.round(8 * progress);
-          }
-          drawVirtual(alignedX, y);
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_SCROLL_DOWN") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          let y;
-          if (!isExit) {
-            y = -8 + Math.round(8 * progress);
-          } else {
-            y = Math.round(8 * progress);
+        if (effectType.startsWith("PA_SCROLL_")) {
+          let x = alignedX;
+          let y = 0;
+
+          if (effectType.includes("LEFT")) {
+            x = !isExit ? zWidth - step : alignedX - step;
+          } else if (effectType.includes("RIGHT")) {
+            x = !isExit ? -textWidth + step : alignedX + step;
           }
-          drawVirtual(alignedX, y);
+
+          if (effectType.includes("UP_")) {
+            const progress = Math.min(1, step / Math.max(1, maxSteps));
+            y = !isExit
+              ? Math.round(8 - 8 * progress)
+              : -Math.round(8 * progress);
+          } else if (effectType.includes("DOWN_")) {
+            const progress = Math.min(1, step / Math.max(1, maxSteps));
+            y = !isExit
+              ? -8 + Math.round(8 * progress)
+              : Math.round(8 * progress);
+          } else if (effectType === "PA_SCROLL_UP") {
+            const progress = Math.min(1, step / Math.max(1, maxSteps));
+            y = !isExit
+              ? Math.round(8 - 8 * progress)
+              : -Math.round(8 * progress);
+          } else if (effectType === "PA_SCROLL_DOWN") {
+            const progress = Math.min(1, step / Math.max(1, maxSteps));
+            y = !isExit
+              ? -8 + Math.round(8 * progress)
+              : Math.round(8 * progress);
+          }
+
+          drawVirtual(x, y);
           return { buffer: outBuffer, alpha };
         }
 
@@ -1636,70 +1594,72 @@
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_WIPE" || effectType === "PA_WIPE_CURSOR") {
+        if (effectType.startsWith("PA_WIPE")) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           const revealWidth = Math.ceil(zWidth * progress);
+          const hasCursor = effectType.includes("CURSOR");
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              let visible = !isExit
+                ? screenCol < revealWidth
+                : screenCol >= revealWidth;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+            if (hasCursor && revealWidth < zWidth && revealWidth >= 0) {
+              const cursorCol = !isExit ? revealWidth : revealWidth - 1;
+              if (cursorCol >= 0 && cursorCol < zWidth) {
+                outBuffer[r][zStart + cursorCol] = 1;
               }
-              let visible;
-              if (!isExit) {
-                visible = c < revealWidth;
+            }
+          }
+          return { buffer: outBuffer, alpha };
+        }
+
+        if (
+          effectType.startsWith("PA_OPENING") ||
+          effectType.startsWith("PA_CLOSING")
+        ) {
+          const isOpening = effectType.startsWith("PA_OPENING");
+          const hasCursor = effectType.includes("CURSOR");
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+          const halfWidth = Math.ceil((zWidth / 2) * progress);
+          const center = Math.floor(zWidth / 2);
+
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              const distance = Math.abs(screenCol - center);
+              let visible = false;
+
+              if (isOpening) {
+                visible = !isExit
+                  ? distance <= halfWidth
+                  : distance > halfWidth;
               } else {
-                visible = c >= revealWidth;
+                visible = !isExit
+                  ? distance >= zWidth / 2 - halfWidth
+                  : distance < zWidth / 2 - halfWidth;
               }
-              if (visible) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
-              }
+
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
-          }
-          return { buffer: outBuffer, alpha };
-        }
-
-        if (effectType === "PA_OPENING" || effectType === "PA_OPENING_CURSOR") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const halfWidth = Math.ceil((zWidth / 2) * progress);
-          const center = zWidth / 2;
-
-          for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < textWidth; c++) {
-              const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
-              const distance = Math.abs(screenCol - center);
-              const visible = isExit
-                ? distance > halfWidth
-                : distance <= halfWidth;
-              if (visible) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
-              }
-            }
-          }
-          return { buffer: outBuffer, alpha };
-        }
-
-        if (effectType === "PA_CLOSING" || effectType === "PA_CLOSING_CURSOR") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const halfWidth = Math.ceil((zWidth / 2) * progress);
-          const center = zWidth / 2;
-
-          for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < textWidth; c++) {
-              const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
-              const distance = Math.abs(screenCol - center);
-              const visible = isExit
-                ? distance >= halfWidth
-                : distance <= halfWidth;
-              if (visible) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            if (hasCursor) {
+              if (isOpening) {
+                const c1 = center - halfWidth;
+                const c2 = center + halfWidth;
+                if (c1 >= 0) outBuffer[r][zStart + c1] = 1;
+                if (c2 < zWidth) outBuffer[r][zStart + c2] = 1;
+              } else {
+                const c1 = center - Math.floor(zWidth / 2 - halfWidth);
+                const c2 = center + Math.floor(zWidth / 2 - halfWidth);
+                if (c1 >= 0) outBuffer[r][zStart + c1] = 1;
+                if (c2 < zWidth) outBuffer[r][zStart + c2] = 1;
               }
             }
           }
@@ -1708,61 +1668,124 @@
 
         if (effectType === "PA_BLINDS") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const blindWidth = 4;
+          const blindWidth = 5;
+          const revealInBlind = Math.ceil(blindWidth * progress);
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
               const local = screenCol % blindWidth;
-              const visible = isExit
-                ? local >= progress * blindWidth
-                : local < progress * blindWidth;
-              if (visible) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              const visible = !isExit
+                ? local < revealInBlind
+                : local >= revealInBlind;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+          }
+          return { buffer: outBuffer, alpha };
+        }
+
+        if (effectType === "PA_MESH") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              const isCheck = (r + screenCol) % 2 === 0;
+              let visible = false;
+
+              if (!isExit) {
+                if (progress < 0.5) visible = isCheck;
+                else visible = true;
+              } else {
+                if (progress < 0.5) visible = !isCheck;
+                else visible = false;
+              }
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+          }
+          return { buffer: outBuffer, alpha };
+        }
+
+        if (effectType === "PA_DISSOLVE" || effectType === "PA_RANDOM") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              const pseudoRand =
+                (((Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1) + 1) %
+                1;
+              const visible = !isExit
+                ? pseudoRand <= progress
+                : pseudoRand > progress;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+          }
+          if (effectType === "PA_RANDOM") {
+            const noiseIntensity = !isExit ? 1 - progress : progress;
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < zWidth; c++) {
+                if (Math.random() < noiseIntensity * 0.15) {
+                  outBuffer[r][zStart + c] = 1;
+                }
               }
             }
           }
           return { buffer: outBuffer, alpha };
         }
 
-        if (
-          effectType === "PA_DISSOLVE" ||
-          effectType === "PA_RANDOM" ||
-          effectType === "PA_MESH"
-        ) {
+        if (effectType.startsWith("PA_SCAN_HORIZ")) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const threshold = isExit ? 1 - progress : progress;
+          const scanRow = Math.floor(8 * progress);
+          const hasX = effectType.includes("X");
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
-              const pseudoRand =
-                (((Math.sin(r * 12.9898 + c * 78.233 + step * 43.123) *
-                  43758.5453) %
-                  1) +
-                  1) /
-                2;
-              if (pseudoRand <= threshold) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
-              }
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              let visible = !isExit ? r <= scanRow : r > scanRow;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+            if (hasX && scanRow >= 0 && scanRow < 8 && scanRow === r) {
+              for (let c = 0; c < zWidth; c++) outBuffer[r][zStart + c] = 0;
             }
           }
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_SCAN_HORIZ" || effectType === "PA_SCAN_HORIZX") {
+        if (effectType.startsWith("PA_SCAN_VERT")) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const rowLimit = Math.floor(8 * progress);
+          const scanCol = Math.floor(zWidth * progress);
+          const hasX = effectType.includes("X");
 
           for (let r = 0; r < 8; r++) {
-            const visible = isExit ? r >= rowLimit : r <= rowLimit;
-            if (!visible) continue;
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              let visible = !isExit
+                ? screenCol <= scanCol
+                : screenCol > scanCol;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+            if (hasX && scanCol >= 0 && scanCol < zWidth) {
+              outBuffer[r][zStart + scanCol] = 0;
+            }
+          }
+          return { buffer: outBuffer, alpha };
+        }
+
+        if (effectType === "PA_GROW_UP") {
+          const progress = Math.min(1, step / Math.max(1, maxSteps));
+          const limitRow = Math.floor(8 * (1 - progress));
+          for (let r = 0; r < 8; r++) {
+            if (!isExit && r < limitRow) continue;
+            if (isExit && r >= Math.floor(8 * progress)) continue;
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
               if (screenCol >= 0 && screenCol < zWidth) {
@@ -1773,20 +1796,15 @@
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_SCAN_VERT" || effectType === "PA_SCAN_VERTX") {
+        if (effectType === "PA_GROW_DOWN") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const colLimit = Math.floor(zWidth * progress);
-
+          const limitRow = Math.floor(8 * progress);
           for (let r = 0; r < 8; r++) {
+            if (!isExit && r > limitRow) continue;
+            if (isExit && r <= Math.floor(8 * (1 - progress))) continue;
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
-              const visible = isExit
-                ? screenCol >= colLimit
-                : screenCol <= colLimit;
-              if (visible) {
+              if (screenCol >= 0 && screenCol < zWidth) {
                 outBuffer[r][zStart + screenCol] = textGrid[r][c];
               }
             }
@@ -1794,42 +1812,32 @@
           return { buffer: outBuffer, alpha };
         }
 
-        if (effectType === "PA_GROW_UP") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          let y;
-          if (!isExit) {
-            y = 8 - Math.round(8 * progress);
-          } else {
-            y = Math.round(8 * progress);
-          }
-          drawVirtual(alignedX, y);
-          return { buffer: outBuffer, alpha };
-        }
-
-        if (effectType === "PA_GROW_DOWN") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          let y;
-          if (!isExit) {
-            y = -8 + Math.round(8 * progress);
-          } else {
-            y = -Math.round(8 * progress);
-          }
-          drawVirtual(alignedX, y);
-          return { buffer: outBuffer, alpha };
-        }
-
         if (effectType === "PA_SPRITE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
+          const spriteX = Math.floor(zWidth * progress);
+
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              const visible = !isExit
+                ? screenCol <= spriteX
+                : screenCol > spriteX;
+              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+            }
+          }
+
+          const sX = zStart + (!isExit ? spriteX : zWidth - spriteX);
+          if (sX >= zStart && sX <= zEnd) {
+            for (let sr = 1; sr < 7; sr++) {
+              for (let sc = 0; sc < 4; sc++) {
+                if (sX - sc >= zStart) outBuffer[sr][sX - sc] = 1;
               }
-              const visible = (r + c + step) % 3 !== 0;
-              if (visible) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][c];
-              }
+            }
+            if (step % 4 < 2 && sX >= zStart) {
+              outBuffer[3][sX] = 0;
+              outBuffer[4][sX] = 0;
             }
           }
           return { buffer: outBuffer, alpha };
@@ -1838,20 +1846,23 @@
         if (effectType === "PA_SLICE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           for (let r = 0; r < 8; r++) {
-            const direction = r % 2 === 0 ? 1 : -1;
+            const fromRight = r % 2 === 0;
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              if (screenCol < 0 || screenCol >= zWidth) {
-                continue;
-              }
-              let src;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              let offset = 0;
               if (!isExit) {
-                src = c - direction * Math.round(textWidth * (1 - progress));
+                const distance = Math.floor(zWidth * (1 - progress));
+                offset = fromRight ? distance : -distance;
               } else {
-                src = c + direction * Math.round(textWidth * progress);
+                const distance = Math.floor(zWidth * progress);
+                offset = fromRight ? -distance : distance;
               }
-              if (src >= 0 && src < textWidth) {
-                outBuffer[r][zStart + screenCol] = textGrid[r][src];
+
+              const finalCol = screenCol + offset;
+              if (finalCol >= 0 && finalCol < zWidth) {
+                outBuffer[r][zStart + finalCol] = textGrid[r][c];
               }
             }
           }
@@ -1918,13 +1929,51 @@
         const scrollAlignedX = getStaticTextOffset();
 
         function getScrollSteps(effect, isExit = false) {
-          if (effect === "PA_SCROLL_LEFT") {
+          if (effect.includes("LEFT")) {
             return isExit ? scrollAlignedX + textCols : zWidth - scrollAlignedX;
           }
-          if (effect === "PA_SCROLL_RIGHT") {
+          if (effect.includes("RIGHT")) {
             return isExit ? zWidth - scrollAlignedX : scrollAlignedX + textCols;
           }
-          return null;
+          return zWidth;
+        }
+
+        function getAnimationSteps(effect, isExit = false) {
+          if (effect.startsWith("PA_SCROLL_")) {
+            if (effect === "PA_SCROLL_UP" || effect === "PA_SCROLL_DOWN")
+              return 8;
+            return Math.max(1, getScrollSteps(effect, isExit));
+          }
+          switch (effect) {
+            case "PA_GROW_UP":
+            case "PA_GROW_DOWN":
+            case "PA_SCAN_HORIZ":
+            case "PA_SCAN_HORIZX":
+              return 8;
+            case "PA_WIPE":
+            case "PA_WIPE_CURSOR":
+            case "PA_CLOSING":
+            case "PA_CLOSING_CURSOR":
+            case "PA_OPENING":
+            case "PA_OPENING_CURSOR":
+            case "PA_BLINDS":
+            case "PA_SCAN_VERT":
+            case "PA_SCAN_VERTX":
+              return zWidth;
+            case "PA_FADE":
+              return 20;
+            case "PA_DISSOLVE":
+            case "PA_RANDOM":
+              return 30;
+            case "PA_MESH":
+              return 20;
+            case "PA_SPRITE":
+              return zWidth + 6;
+            case "PA_SLICE":
+              return textCols + zWidth;
+            default:
+              return 1;
+          }
         }
 
         function emptyBuffer() {
@@ -1969,44 +2018,6 @@
           loopMode === "num"
             ? parseInt(document.getElementById("loop-count").value) || 1
             : Infinity;
-
-        function getAnimationSteps(effect, isExit = false) {
-          switch (effect) {
-            case "PA_SCROLL_LEFT":
-            case "PA_SCROLL_RIGHT": {
-              const steps = getScrollSteps(effect, isExit);
-              return Math.max(1, steps);
-            }
-            case "PA_SCROLL_UP":
-            case "PA_SCROLL_DOWN":
-            case "PA_GROW_UP":
-            case "PA_GROW_DOWN":
-              return 8;
-            case "PA_WIPE":
-            case "PA_WIPE_CURSOR":
-            case "PA_CLOSING":
-            case "PA_CLOSING_CURSOR":
-            case "PA_OPENING":
-            case "PA_OPENING_CURSOR":
-            case "PA_BLINDS":
-            case "PA_SCAN_VERT":
-            case "PA_SCAN_VERTX":
-              return zWidth;
-            case "PA_SCAN_HORIZ":
-            case "PA_SCAN_HORIZX":
-              return 8;
-            case "PA_FADE":
-            case "PA_DISSOLVE":
-            case "PA_RANDOM":
-            case "PA_MESH":
-            case "PA_SPRITE":
-              return 20;
-            case "PA_SLICE":
-              return textCols;
-            default:
-              return 1;
-          }
-        }
 
         const maxInSteps = getAnimationSteps(animInType, false);
         const maxOutSteps = getAnimationSteps(animOutType, true);
