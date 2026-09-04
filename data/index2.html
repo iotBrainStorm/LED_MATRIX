@@ -1841,8 +1841,8 @@
               // IN: Appears from bottom (row 7) up to top (row 0)
               visible = r >= 7 - step;
             } else {
-              // OUT: Disappears from top (row 0) down to bottom (row 7)
-              visible = r > step;
+              // OUT: Disappears from bottom (row 7) up to top (row 0) -> "Shrinks Up"
+              visible = r < 7 - step;
             }
 
             if (visible) {
@@ -1865,8 +1865,8 @@
               // IN: Appears from top (row 0) down to bottom (row 7)
               visible = r <= step;
             } else {
-              // OUT: Disappears from bottom (row 7) up to top (row 0)
-              visible = r < 7 - step;
+              // OUT: Disappears from top (row 0) down to bottom (row 7) -> "Shrinks Down"
+              visible = r > step;
             }
 
             if (visible) {
