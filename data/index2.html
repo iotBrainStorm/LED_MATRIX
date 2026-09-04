@@ -1880,29 +1880,86 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_SLICE (Alternating Vertical Slice per Column) ======== //
+        // ======== FIX: PA_SLICE (Horizontal Column-by-Column Sweep) ======== //
         if (effectType === "PA_SLICE") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          for (let c = 0; c < textWidth; c++) {
-            const screenCol = alignedX + c;
-            if (screenCol < 0 || screenCol >= zWidth) continue;
+          let remSteps = step;
 
-            const fromTop = c % 2 === 0;
-            let offset = 0;
+          if (!isExit) {
+            // IN: Columns spawn on the right and slide LEFT.
+            // We process leftmost columns first so they settle in order.
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
 
-            if (!isExit) {
-              const distance = Math.floor(8 * (1 - progress));
-              offset = fromTop ? distance : -distance;
-            } else {
-              const distance = Math.floor(8 * progress);
-              offset = fromTop ? -distance : distance;
-            }
-
-            for (let r = 0; r < 8; r++) {
-              const finalRow = r + offset;
-              if (finalRow >= 0 && finalRow < 8) {
+              let isEmpty = true;
+              for (let r = 0; r < 8; r++) {
                 if (textGrid[r][c]) {
-                  outBuffer[finalRow][zStart + screenCol] = 1;
+                  isEmpty = false;
+                  break;
+                }
+              }
+
+              const distance = Math.max(0, zWidth - 1 - screenCol);
+
+              if (!isEmpty) {
+                if (remSteps >= distance) {
+                  for (let r = 0; r < 8; r++) {
+                    if (textGrid[r][c]) outBuffer[r][zStart + screenCol] = 1;
+                  }
+                  remSteps -= distance;
+                } else {
+                  const pos = zWidth - 1 - remSteps;
+                  if (pos >= 0 && pos < zWidth) {
+                    for (let r = 0; r < 8; r++) {
+                      if (textGrid[r][c]) outBuffer[r][zStart + pos] = 1;
+                    }
+                  }
+                  break; // Only one column animates at a time
+                }
+              }
+            }
+          } else {
+            // OUT: Columns detach and slide LEFT into the void.
+            // We MUST process leftmost columns first to prevent sliding over static text!
+            for (let c = 0; c < textWidth; c++) {
+              const screenCol = alignedX + c;
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              let isEmpty = true;
+              for (let r = 0; r < 8; r++) {
+                if (textGrid[r][c]) {
+                  isEmpty = false;
+                  break;
+                }
+              }
+
+              const distance = screenCol + 1; // Distance to slide completely off the left edge
+
+              if (!isEmpty) {
+                if (remSteps >= distance) {
+                  // Column has completely exited the left side
+                  remSteps -= distance;
+                } else {
+                  // Column is currently in motion sliding left
+                  const pos = screenCol - remSteps;
+                  if (pos >= 0 && pos < zWidth) {
+                    for (let r = 0; r < 8; r++) {
+                      if (textGrid[r][c]) outBuffer[r][zStart + pos] = 1;
+                    }
+                  }
+
+                  // Draw the rest of the text that hasn't started moving yet
+                  // (which are all columns to the RIGHT of the currently moving one)
+                  for (let cRem = c + 1; cRem < textWidth; cRem++) {
+                    const remScreenCol = alignedX + cRem;
+                    if (remScreenCol >= 0 && remScreenCol < zWidth) {
+                      for (let r = 0; r < 8; r++) {
+                        if (textGrid[r][cRem])
+                          outBuffer[r][zStart + remScreenCol] = 1;
+                      }
+                    }
+                  }
+                  break; // Only one column animates at a time
                 }
               }
             }
@@ -1990,8 +2047,28 @@
             case "PA_GROW_DOWN":
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
-            case "PA_SLICE": // 8 rows to slice down
-              return 8;
+            case "PA_SLICE": {
+              // Calculate exact total steps required based on column travel distances
+              let steps = 0;
+              for (let c = 0; c < textCols; c++) {
+                let isEmpty = true;
+                for (let r = 0; r < 8; r++) {
+                  if (textGrid[r][c]) {
+                    isEmpty = false;
+                    break;
+                  }
+                }
+                if (!isEmpty) {
+                  const screenCol = scrollAlignedX + c;
+                  if (screenCol >= 0 && screenCol < zWidth) {
+                    steps += isExit
+                      ? screenCol + 1 // OUT: Travels to left edge (-1)
+                      : Math.max(0, zWidth - 1 - screenCol); // IN: Travels from right edge
+                  }
+                }
+              }
+              return Math.max(1, steps);
+            }
             case "PA_WIPE":
             case "PA_WIPE_CURSOR":
             case "PA_CLOSING":
@@ -2235,9 +2312,9 @@
           chip.className =
             "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm";
           chip.innerHTML = `
-          <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
-          <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-        `;
+                <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
+                <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+              `;
           container.appendChild(chip);
 
           const opt = document.createElement("option");
@@ -2404,9 +2481,9 @@
           chip.className =
             "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm";
           chip.innerHTML = `
-            <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
-            <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-          `;
+                  <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
+                  <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
+                `;
           container.appendChild(chip);
         });
       }
