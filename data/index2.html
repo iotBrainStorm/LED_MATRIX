@@ -2384,6 +2384,100 @@
         restartSimAnimation();
       }
 
+      function selectZoneForEdit(id) {
+        const zone = zones.find((z) => z.id === id);
+        if (!zone) return;
+
+        // Populate Zone form fields
+        document.getElementById("zone-name").value = zone.name;
+        document.getElementById("zone-start").value = zone.start;
+        document.getElementById("zone-end").value = zone.end;
+
+        // Also switch the Animation target dropdown to match
+        const targetSelect = document.getElementById("target-zone");
+        if (targetSelect) {
+          targetSelect.value = zone.name;
+        }
+
+        document.getElementById("zone-name").focus();
+        restartSimAnimation();
+        showToast(`Zone "${zone.name}" loaded for editing.`);
+      }
+
+      function selectSceneForEdit(id) {
+        const scene = scenes.find((s) => s.id === id);
+        if (!scene || !scene.config) return;
+
+        // 1. Scene Name
+        document.getElementById("scene-name").value = scene.name;
+
+        const cfg = scene.config;
+
+        // 2. Target Zone
+        if (cfg.zone && cfg.zone.name) {
+          const targetSelect = document.getElementById("target-zone");
+          if (
+            [...targetSelect.options].some((opt) => opt.value === cfg.zone.name)
+          ) {
+            targetSelect.value = cfg.zone.name;
+          }
+        }
+
+        // 3. Message Type & Content
+        if (cfg.message) {
+          document.getElementById("msg-type").value = cfg.message.type;
+          handleMsgTypeToggle(); // Updates visibility between plain and custom box
+
+          if (cfg.message.type === "plain") {
+            document.getElementById("plain-text-val").value =
+              cfg.message.content || "";
+          } else {
+            document.getElementById("custom-text-val").value =
+              cfg.message.content || "";
+          }
+
+          document.getElementById("font-align").value =
+            cfg.message.align || "center";
+          document.getElementById("text-bold").checked = Boolean(
+            cfg.message.bold,
+          );
+        }
+
+        // 4. Animation Effects & Timers
+        if (cfg.animation) {
+          document.getElementById("animation-in").value =
+            cfg.animation.inEffect;
+          document.getElementById("animation-out").value =
+            cfg.animation.outEffect;
+          document.getElementById("anim-speed").value =
+            cfg.animation.speedMs ?? 35;
+          document.getElementById("start-delay").value =
+            cfg.animation.startDelayMs ?? 0;
+          document.getElementById("end-delay").value =
+            cfg.animation.endDelayMs ?? 1200;
+        }
+
+        // 5. Display (Brightness & Repeat)
+        if (cfg.display) {
+          const bLevel = cfg.display.brightness ?? 12;
+          document.getElementById("brightness").value = bLevel;
+          handleBrightnessUpdate(bLevel);
+
+          if (cfg.display.repeat === -1) {
+            document.getElementById("loop-mode").value = "inf";
+          } else {
+            document.getElementById("loop-mode").value = "num";
+            document.getElementById("loop-count").value =
+              cfg.display.repeat || 1;
+          }
+          handleLoopModeToggle(); // Shows/hides iteration count field
+        }
+
+        restartSimAnimation();
+        document.getElementById("scene-name").focus();
+        showToast(`Scene "${scene.name}" loaded for editing.`);
+      }
+
       function renderZonesUI() {
         const container = document.getElementById("zones-container");
         const targetSelect = document.getElementById("target-zone");
@@ -2395,11 +2489,14 @@
         zones.forEach((z) => {
           const chip = document.createElement("div");
           chip.className =
-            "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm";
+            "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm cursor-pointer hover:border-cyan-400 hover:bg-slate-800/90 transition select-none";
+          chip.title = "Click to edit zone";
+          chip.onclick = () => selectZoneForEdit(z.id);
+
           chip.innerHTML = `
-                    <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
-                    <button type="button" onclick="removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-                  `;
+      <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
+      <button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" title="Delete zone" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
+    `;
           container.appendChild(chip);
 
           const opt = document.createElement("option");
@@ -2576,11 +2673,14 @@
         scenes.forEach((s) => {
           const chip = document.createElement("div");
           chip.className =
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm";
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm cursor-pointer hover:border-teal-400 hover:bg-slate-800/90 transition select-none";
+          chip.title = "Click to edit scene configuration";
+          chip.onclick = () => selectSceneForEdit(s.id);
+
           chip.innerHTML = `
-                      <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
-                      <button type="button" onclick="removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition">✕</button>
-                    `;
+      <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
+      <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" title="Delete scene" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
+    `;
           container.appendChild(chip);
         });
       }
