@@ -168,7 +168,7 @@
               ></button>
             </div>
 
-            <!-- Zoom Selector (Supports 1.4x down to 0.4x) -->
+            <!-- Zoom Selector -->
             <div
               class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
             >
@@ -218,7 +218,7 @@
           </div>
         </div>
 
-        <!-- Canvas Scrollable Container with Two-Axis Overflow and Auto-Centering -->
+        <!-- Canvas Scrollable Container -->
         <div
           class="matrix-display-container rounded-xl p-3 sm:p-5 overflow-auto flex min-h-[140px] max-h-[360px]"
         >
@@ -246,7 +246,7 @@
               >
                 <path d="M8 5v14l11-7z" />
               </svg>
-              <span id="play-text">Pause</span>
+              <span id="play-text">Play</span>
             </button>
             <button
               onclick="stepSingleFrame()"
@@ -268,13 +268,13 @@
             <div>
               Stage:
               <span id="sim-stage-label" class="text-cyan-400 font-bold"
-                >IN_ANIMATION</span
+                >STOPPED</span
               >
             </div>
             <div>
               FPS:
               <span id="sim-fps-label" class="text-emerald-400 font-bold"
-                >25</span
+                >0</span
               >
             </div>
             <div>
@@ -289,7 +289,7 @@
 
       <!-- Grid Row: Matrix Sizing & Zone Management -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Option 1: Matrix Size Configuration (5 Cols) -->
+        <!-- Option 1: Matrix Size Configuration -->
         <section
           class="glass-panel rounded-2xl p-5 border border-slate-800 lg:col-span-4 flex flex-col justify-between"
         >
@@ -387,7 +387,7 @@
           </div>
         </section>
 
-        <!-- Option 2: Zone Management (7 Cols) -->
+        <!-- Option 2: Zone Management -->
         <section
           class="glass-panel rounded-2xl p-5 border border-slate-800 lg:col-span-8 flex flex-col justify-between"
         >
@@ -480,15 +480,13 @@
               <div
                 id="zones-container"
                 class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
-              >
-                <!-- Dynamically Populated Zone Chips -->
-              </div>
+              ></div>
             </div>
           </div>
         </section>
       </div>
 
-      <!-- Option 3: Add Message & MD_Parola Animation Configuration -->
+      <!-- Option 3: Animation Configuration -->
       <section
         class="glass-panel rounded-2xl p-5 sm:p-6 border border-slate-800"
       >
@@ -518,7 +516,7 @@
           "
           class="space-y-5 text-xs"
         >
-          <!-- Top Parameter Row: Zone, Message Type, Bold Toggle -->
+          <!-- Top Parameter Row -->
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <!-- Zone Selection Dropdown -->
             <div>
@@ -532,9 +530,7 @@
                 onchange="handleZoneSelectionChange()"
                 required
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
-              >
-                <!-- Populated dynamically -->
-              </select>
+              ></select>
             </div>
 
             <!-- Message Type Selection -->
@@ -564,10 +560,9 @@
               >
                 3. Font Alignment
               </label>
-
               <select
                 id="font-align"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
               >
                 <option value="left">Left</option>
@@ -577,7 +572,6 @@
             </div>
 
             <!-- Text Bold Toggle Switch -->
-
             <div
               class="flex items-center justify-between bg-slate-900/80 border border-slate-700/80 rounded-lg px-4 py-2"
             >
@@ -585,7 +579,6 @@
                 <div class="text-slate-200 font-semibold">
                   Text Bold (Extrusion)
                 </div>
-
                 <div class="text-[10px] text-slate-400">
                   Doubles font glyph column width
                 </div>
@@ -595,7 +588,7 @@
                   type="checkbox"
                   id="text-bold"
                   class="sr-only peer"
-                  onchange="restartSimAnimation()"
+                  onchange="handleConfigFieldChange()"
                 />
                 <div
                   class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"
@@ -615,7 +608,7 @@
               type="text"
               id="plain-text-val"
               value="ESP MATRIX"
-              oninput="restartSimAnimation()"
+              oninput="handleConfigFieldChange()"
               placeholder="Type plain text to display..."
               class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
             />
@@ -629,7 +622,7 @@
                   class="block text-slate-300 font-medium"
                   >Custom Dynamic Format</label
                 >
-                <!-- Interactive Info Icon & Tooltip -->
+                <!-- Tooltip -->
                 <div
                   class="group relative inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-700 text-slate-300 text-[10px] font-bold cursor-help hover:bg-cyan-500 hover:text-slate-950 transition-colors ml-2"
                 >
@@ -647,19 +640,15 @@
                     >
                       <div>
                         <span class="text-cyan-300 font-bold">{HH}</span> 24-hr
-                        (00-23)
                       </div>
                       <div>
                         <span class="text-cyan-300 font-bold">{hh}</span> 12-hr
-                        (01-12)
                       </div>
                       <div>
                         <span class="text-cyan-300 font-bold">{mm}</span> Minute
-                        (00-59)
                       </div>
                       <div>
                         <span class="text-cyan-300 font-bold">{ss}</span> Second
-                        (00-59)
                       </div>
                       <div
                         class="col-span-2 border-b border-slate-700/50 pb-1 mb-1"
@@ -667,7 +656,6 @@
                         <span class="text-cyan-300 font-bold">{AMPM}</span> AM /
                         PM
                       </div>
-
                       <div>
                         <span class="text-emerald-300 font-bold">{DD}</span> Day
                         (01-31)
@@ -696,7 +684,6 @@
                         <span class="text-emerald-300 font-bold">{YYYY}</span>
                         Year (2026)
                       </div>
-
                       <div
                         class="col-span-2 border-t border-slate-700/50 pt-1 mt-1"
                       >
@@ -707,9 +694,8 @@
                       </div>
                       <div class="col-span-2">
                         <span class="text-amber-300 font-bold">{TEMP}</span>
-                        Temperature |
-                        <span class="text-amber-300 font-bold">{HUM}</span>
-                        Humidity
+                        Temp |
+                        <span class="text-amber-300 font-bold">{HUM}</span> Hum
                       </div>
                     </div>
                   </div>
@@ -720,13 +706,12 @@
               type="text"
               id="custom-text-val"
               value="{hh}:{mm}:{ss} {AMPM} | {TEMP}°C {HUM}% | {DD}-{MMM}-{YYYY}"
-              oninput="restartSimAnimation()"
+              oninput="handleConfigFieldChange()"
               class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-cyan-300 font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
             />
 
             <!-- Variable Tags Helpers -->
             <div class="flex flex-wrap gap-1.5 pt-1">
-              <!-- Time Tags -->
               <button
                 type="button"
                 onclick="insertTag('{HH}')"
@@ -762,7 +747,6 @@
               >
                 {AMPM}
               </button>
-              <!-- Date Tags -->
               <button
                 type="button"
                 onclick="insertTag('{DD}')"
@@ -812,7 +796,6 @@
               >
                 {YYYY}
               </button>
-              <!-- Weekday Tags -->
               <button
                 type="button"
                 onclick="insertTag('{WWW}')"
@@ -827,7 +810,6 @@
               >
                 {WWWW}
               </button>
-              <!-- Sensor Tags -->
               <button
                 type="button"
                 onclick="insertTag('{TEMP}')"
@@ -847,7 +829,6 @@
 
           <!-- MD_Parola In & Out Animations -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-            <!-- Entrance Animation -->
             <div>
               <label
                 for="animation-in"
@@ -856,7 +837,7 @@
               >
               <select
                 id="animation-in"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
                 <option value="PA_PRINT">Static Print</option>
@@ -890,7 +871,6 @@
               </select>
             </div>
 
-            <!-- Exit Animation (From Requested MD_Parola List) -->
             <div>
               <label
                 for="animation-out"
@@ -899,7 +879,7 @@
               >
               <select
                 id="animation-out"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
                 <option value="PA_PRINT">Static Print</option>
@@ -909,8 +889,8 @@
                 <option value="PA_SCROLL_RIGHT">Scroll Right</option>
                 <option value="PA_SCROLL_UP_LEFT">Scroll Up Left</option>
                 <option value="PA_SCROLL_UP_RIGHT">Scroll Up Right</option>
-                <option value="PA_SCROLL_DOWN_LEFT">Scroll Down Left</option>
-                <option value="PA_SCROLL_DOWN_RIGHT">Scroll Down Right</option>
+                <option value="PA_SCROLL_DOWN_LEFT">Down Left</option>
+                <option value="PA_SCROLL_DOWN_RIGHT">Down Right</option>
                 <option value="PA_SPRITE">Sprite</option>
                 <option value="PA_SLICE">Slice</option>
                 <option value="PA_MESH">Mesh</option>
@@ -938,7 +918,6 @@
           <div
             class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1"
           >
-            <!-- Animation Speed -->
             <div>
               <label
                 for="anim-speed"
@@ -951,12 +930,11 @@
                 value="35"
                 min="5"
                 max="500"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               />
             </div>
 
-            <!-- Starting Delay -->
             <div>
               <label
                 for="start-delay"
@@ -969,12 +947,11 @@
                 value="0"
                 min="0"
                 step="50"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               />
             </div>
 
-            <!-- Ending Pause Delay -->
             <div>
               <label
                 for="end-delay"
@@ -987,12 +964,11 @@
                 value="1200"
                 min="0"
                 step="100"
-                onchange="restartSimAnimation()"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               />
             </div>
 
-            <!-- Brightness Range Slider (0 - 15) -->
             <div>
               <div class="flex justify-between items-center mb-1">
                 <label class="text-slate-300 font-medium">Brightness</label>
@@ -1046,12 +1022,13 @@
                 value="3"
                 min="1"
                 max="100"
+                onchange="handleConfigFieldChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               />
             </div>
           </div>
 
-          <!-- NEW: Add Scene Management -->
+          <!-- Scene Management Section -->
           <div class="mt-6 pt-5 border-t border-slate-800">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-4">
               <div class="sm:col-span-2">
@@ -1089,9 +1066,7 @@
               <div
                 id="scenes-container"
                 class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
-              >
-                <!-- Dynamically Populated Scene Chips -->
-              </div>
+              ></div>
             </div>
           </div>
 
@@ -1134,7 +1109,7 @@
         </form>
       </section>
 
-      <!-- JSON / Code Modal (Hidden by Default) -->
+      <!-- JSON Preview Modal -->
       <div
         id="json-modal"
         class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden"
@@ -1159,7 +1134,7 @@
             </button>
           </div>
           <p class="text-xs text-slate-400">
-            This JSON data structure is transmitted to endpoint
+            Transmitted to endpoint
             <code
               class="text-cyan-300 font-mono-code bg-slate-900 px-1 py-0.5 rounded"
               >POST /api/matrix/config</code
@@ -1291,13 +1266,12 @@
 
       let ledColorOn = "#00f2fe";
       let ledColorGlow = "rgba(0, 242, 254, 0.65)";
-      let ledBrightnessLevel = 12; // 0 to 15
+      let ledBrightnessLevel = 12;
 
       let canvas, ctx;
       let animInterval = null;
-      let isPlaying = true;
+      let isPlaying = false; // STOPPED by default on initial load
 
-      // Animation Lifecycle State Machine: 0: Entrance Delay, 1: In Animation, 2: Hold Delay, 3: Out Animation, 4: Loop Cycle
       let animPhase = 1;
       let phaseStep = 0;
       let phaseHoldCounter = 0;
@@ -1305,11 +1279,11 @@
       let lastFpsTime = performance.now();
       let frameCount = 0;
 
-      // Zones and Scenes Registry
       let zones = [
         { id: "zone_0", name: "Zone 1", start: 0, end: matrixWidth - 1 },
       ];
       let scenes = [];
+      let selectedSceneId = null; // Targeted scene ID
 
       function updateLiveClock() {
         const now = new Date();
@@ -1328,23 +1302,29 @@
       setInterval(updateLiveClock, 1000);
       updateLiveClock();
 
-      function getProcessedMessageText() {
-        const msgType = document.getElementById("msg-type").value;
+      function getProcessedMessageText(cfg = null) {
+        const msgType = cfg
+          ? cfg.message.type
+          : document.getElementById("msg-type").value;
         if (msgType === "plain") {
-          return document.getElementById("plain-text-val").value || " ";
+          return (
+            (cfg
+              ? cfg.message.content
+              : document.getElementById("plain-text-val").value) || " "
+          );
         }
 
-        // Dynamic Tag Replacement Engine
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
-        let template = document.getElementById("custom-text-val").value;
+        let template =
+          (cfg
+            ? cfg.message.content
+            : document.getElementById("custom-text-val").value) || "";
 
-        // Parse comprehensive Time formatting
         const h24 = now.getHours();
         const h12 = h24 % 12 || 12;
         const ampm = h24 >= 12 ? "PM" : "AM";
 
-        // Parse comprehensive Date formatting
         const monthNamesShort = [
           "Jan",
           "Feb",
@@ -1399,8 +1379,8 @@
           .replace(/{YY}/g, now.getFullYear().toString().slice(-2))
           .replace(/{WWWW}/g, dayNamesLong[now.getDay()])
           .replace(/{WWW}/g, dayNamesShort[now.getDay()])
-          .replace(/{TEMP}/g, "26") // Simulated Temp Value
-          .replace(/{HUM}/g, "62"); // Simulated Hum Value
+          .replace(/{TEMP}/g, "26")
+          .replace(/{HUM}/g, "62");
 
         return template || " ";
       }
@@ -1417,15 +1397,14 @@
           for (let col = 0; col < glyph.length; col++) {
             let colByte = glyph[col];
             if (isBold && col > 0) {
-              colByte |= glyph[col - 1]; // Bold OR extrusion
+              colByte |= glyph[col - 1];
             }
             columns.push(colByte);
           }
-          columns.push(0x00); // 1 column character spacing
+          columns.push(0x00);
           if (isBold) columns.push(0x00);
         }
 
-        // Convert vertical bit bytes to 8 x W 2D binary grid
         const w = Math.max(1, columns.length);
         const grid = Array(8)
           .fill(0)
@@ -1435,7 +1414,7 @@
           const byte = columns[c] || 0;
           for (let r = 0; r < 7; r++) {
             if ((byte >> r) & 1) {
-              grid[r + 1][c] = 1; // 1-row vertical center offset
+              grid[r + 1][c] = 1;
             }
           }
         }
@@ -1453,8 +1432,6 @@
         const baseDotPitch = dotRadius * 2 + dotGap;
         canvas.width = matrixWidth * baseDotPitch + dotGap + 12;
         canvas.height = matrixHeight * baseDotPitch + dotGap + 12;
-
-        // Apply actual CSS layout width and height according to zoom scale
         applyCanvasScale();
 
         const badge = document.getElementById("matrix-spec-badge");
@@ -1469,13 +1446,12 @@
 
       function applyCanvasScale() {
         if (!canvas) return;
-        // Setting display dimensions updates the DOM layout box,
-        // allowing native scrollbars to measure the full canvas accurately.
         canvas.style.width = `${Math.round(canvas.width * canvasScale)}px`;
         canvas.style.height = `${Math.round(canvas.height * canvasScale)}px`;
-        canvas.style.transform = "none"; // Clear transform scale
+        canvas.style.transform = "none";
       }
 
+      /* Original Visual Matrix Renderer (Identical Output) */
       function drawMatrixFrame(
         buffer,
         alphaMultiplier = 1.0,
@@ -1484,7 +1460,6 @@
         if (!ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Background Bezel Panel
         ctx.fillStyle = "#090d14";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1494,7 +1469,6 @@
         const startY = 6 + dotGap;
         const normBrightness = Math.max(0.08, ledBrightnessLevel / 15.0);
 
-        // Draw Module Separation Lines (Every 8 Columns)
         for (let c = 8; c < matrixWidth; c += 8) {
           const sepX = startX + c * pitch - dotGap / 2;
           ctx.strokeStyle = "#1b2434";
@@ -1505,26 +1479,22 @@
           ctx.stroke();
         }
 
-        // Draw Individual Matrix LEDs
         for (let r = 0; r < matrixHeight; r++) {
           for (let c = 0; c < matrixWidth; c++) {
             const x = startX + c * pitch + dotRadius;
             const y = startY + r * pitch + dotRadius;
             const isOn = buffer[r] && buffer[r][c];
 
-            // Draw LED Housing Ring
             ctx.beginPath();
             ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
 
             if (isOn) {
-              // Illuminated LED with Glow
               ctx.fillStyle = ledColorOn;
               ctx.shadowBlur = Math.round(12 * normBrightness);
               ctx.shadowColor = ledColorGlow;
               ctx.globalAlpha = Math.min(1.0, normBrightness * alphaMultiplier);
               ctx.fill();
 
-              // Specular Hotspot
               ctx.beginPath();
               ctx.arc(x - 1, y - 1, dotRadius * 0.45, 0, Math.PI * 2);
               ctx.fillStyle = "#ffffff";
@@ -1533,7 +1503,6 @@
               ctx.globalAlpha = 1.0;
               ctx.shadowBlur = 0;
             } else {
-              // Unlit LED Bezel Dot
               ctx.fillStyle = "#111724";
               ctx.shadowBlur = 0;
               ctx.globalAlpha = 1.0;
@@ -1542,7 +1511,6 @@
           }
         }
 
-        // Draw Zone Boundary Overlays if configured
         if (activeZone) {
           const zStartX = startX + activeZone.start * pitch - dotGap / 2;
           const zEndX = startX + (activeZone.end + 1) * pitch - dotGap / 2;
@@ -1552,6 +1520,7 @@
         }
       }
 
+      /* Original 28 MD_Parola Animation Math Engine */
       function computeEffectBuffer(
         effectType,
         step,
@@ -1658,17 +1627,14 @@
 
               let visible = false;
               if (!isExit) {
-                // Entrance wipes left -> right
                 visible = screenCol < revealWidth;
               } else {
-                // Exit wipe is reverse process right -> left
                 visible = screenCol < zWidth - revealWidth;
               }
 
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
 
-            // Cursor Logic
             if (hasCursor) {
               if (!isExit) {
                 if (revealWidth >= 0 && revealWidth < zWidth) {
@@ -1807,14 +1773,12 @@
                 textGrid[r][c - alignedX];
 
               if (!isExit) {
-                // IN: Background pixels start ON, and randomly turn OFF to reveal the text
                 if (isTextPixel) {
-                  outBuffer[r][zStart + c] = 1; // Text stays solid
+                  outBuffer[r][zStart + c] = 1;
                 } else {
-                  if (pseudoRand > progress) outBuffer[r][zStart + c] = 1; // Unneeded bg turns off
+                  if (pseudoRand > progress) outBuffer[r][zStart + c] = 1;
                 }
               } else {
-                // OUT: Starts as text, dissolves to fully OFF
                 if (isTextPixel) {
                   if (pseudoRand > progress) outBuffer[r][zStart + c] = 1;
                 }
@@ -1827,9 +1791,6 @@
         if (effectType.startsWith("PA_SCAN_HORIZ")) {
           const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
-          // IN: Sweep left-to-right (0 to zWidth)
-          // OUT: Sweep right-to-left (zWidth down to 0)
           const scanCol = !isExit
             ? Math.floor(zWidth * progress)
             : Math.floor(zWidth * (1 - progress));
@@ -1840,11 +1801,9 @@
               if (screenCol < 0 || screenCol >= zWidth) continue;
 
               const isScanCol = screenCol === scanCol;
-
               let visible = false;
-              if (!isBlank)
-                visible = isScanCol; // HORIZ: Show ONLY the sweeping line
-              else visible = !isScanCol; // HORIZX: Show ALL text EXCEPT the sweeping line
+              if (!isBlank) visible = isScanCol;
+              else visible = !isScanCol;
 
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
@@ -1855,9 +1814,6 @@
         if (effectType.startsWith("PA_SCAN_VERT")) {
           const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-
-          // IN: Sweep top-to-bottom (0 to 8)
-          // OUT: Sweep bottom-to-top (8 down to 0)
           const scanRow = !isExit
             ? Math.floor(8 * progress)
             : Math.floor(8 * (1 - progress));
@@ -1870,9 +1826,8 @@
               if (screenCol < 0 || screenCol >= zWidth) continue;
 
               let visible = false;
-              if (!isBlank)
-                visible = isScanRow; // VERT: Show ONLY the sweeping line
-              else visible = !isScanRow; // VERTX: Show ALL text EXCEPT the sweeping line
+              if (!isBlank) visible = isScanRow;
+              else visible = !isScanRow;
 
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
@@ -1884,10 +1839,8 @@
           for (let r = 0; r < 8; r++) {
             let visible = false;
             if (!isExit) {
-              // IN: Appears from bottom (row 7) up to top (row 0)
               visible = r >= 7 - step;
             } else {
-              // OUT: Disappears from bottom (row 7) up to top (row 0) -> "Shrinks Up"
               visible = r < 7 - step;
             }
 
@@ -1907,10 +1860,8 @@
           for (let r = 0; r < 8; r++) {
             let visible = false;
             if (!isExit) {
-              // IN: Appears from top (row 0) down to bottom (row 7)
               visible = r <= step;
             } else {
-              // OUT: Disappears from top (row 0) down to bottom (row 7) -> "Shrinks Down"
               visible = r > step;
             }
 
@@ -1961,8 +1912,6 @@
           let remSteps = step;
 
           if (!isExit) {
-            // IN: Columns spawn on the right and slide LEFT.
-            // We process leftmost columns first so they settle in order.
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
               if (screenCol < 0 || screenCol >= zWidth) continue;
@@ -1990,13 +1939,11 @@
                       if (textGrid[r][c]) outBuffer[r][zStart + pos] = 1;
                     }
                   }
-                  break; // Only one column animates at a time
+                  break;
                 }
               }
             }
           } else {
-            // OUT: Columns detach and slide LEFT into the void.
-            // We MUST process leftmost columns first to prevent sliding over static text!
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
               if (screenCol < 0 || screenCol >= zWidth) continue;
@@ -2009,14 +1956,12 @@
                 }
               }
 
-              const distance = screenCol + 1; // Distance to slide completely off the left edge
+              const distance = screenCol + 1;
 
               if (!isEmpty) {
                 if (remSteps >= distance) {
-                  // Column has completely exited the left side
                   remSteps -= distance;
                 } else {
-                  // Column is currently in motion sliding left
                   const pos = screenCol - remSteps;
                   if (pos >= 0 && pos < zWidth) {
                     for (let r = 0; r < 8; r++) {
@@ -2024,8 +1969,6 @@
                     }
                   }
 
-                  // Draw the rest of the text that hasn't started moving yet
-                  // (which are all columns to the RIGHT of the currently moving one)
                   for (let cRem = c + 1; cRem < textWidth; cRem++) {
                     const remScreenCol = alignedX + cRem;
                     if (remScreenCol >= 0 && remScreenCol < zWidth) {
@@ -2035,7 +1978,7 @@
                       }
                     }
                   }
-                  break; // Only one column animates at a time
+                  break;
                 }
               }
             }
@@ -2043,31 +1986,42 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // FALLBACK
         drawVirtual(alignedX);
         return { buffer: outBuffer, alpha };
       }
 
-      function restartSimAnimation() {
-        if (animInterval) clearInterval(animInterval);
+      /* Active Target Identification */
+      function getActiveSelection() {
+        let activeZone = null;
+        let activeConfig = null;
 
-        animPhase = 0;
-        phaseStep = 0;
-        phaseHoldCounter = 0;
-        currentLoopCount = 0;
+        if (selectedSceneId) {
+          const sc = scenes.find((s) => s.id === selectedSceneId);
+          if (sc && sc.config) {
+            activeConfig = sc.config;
+            activeZone =
+              zones.find((z) => z.name === sc.config.zone?.name) || zones[0];
+          }
+        }
 
-        const rawSpeed =
-          parseInt(document.getElementById("anim-speed").value) || 35;
-        const speed = Math.max(8, rawSpeed);
+        if (!activeZone) {
+          const targetZoneName = document.getElementById("target-zone")?.value;
+          activeZone = zones.find((z) => z.name === targetZoneName) ||
+            zones[0] || {
+              start: 0,
+              end: matrixWidth - 1,
+              name: "Zone 1",
+            };
+          activeConfig = getFormConfig();
+        }
 
-        const targetZoneName = document.getElementById("target-zone").value;
-        const activeZone = zones.find((z) => z.name === targetZoneName) ||
-          zones[0] || {
-            start: 0,
-            end: matrixWidth - 1,
-            name: "Zone 1",
-          };
+        return { activeZone, activeConfig };
+      }
 
+      let currentAnimParams = null;
+
+      function setupAnimationParameters() {
+        const { activeZone, activeConfig } = getActiveSelection();
         const zStart = Math.max(0, Math.min(activeZone.start, matrixWidth - 1));
         const zEnd = Math.max(
           zStart,
@@ -2075,20 +2029,16 @@
         );
         const zWidth = zEnd - zStart + 1;
 
-        const messageText = getProcessedMessageText();
-        const isBold = document.getElementById("text-bold").checked;
+        const messageText = getProcessedMessageText(activeConfig);
+        const isBold = activeConfig.message.bold;
         const { grid: textGrid, width: textCols } = renderTextToBitmap(
           messageText,
           isBold,
         );
-
-        const fontAlign =
-          document.getElementById("font-align")?.value || "center";
+        const fontAlign = activeConfig.message.align || "center";
 
         function getStaticTextOffset() {
-          if (textCols >= zWidth) {
-            return 0;
-          }
+          if (textCols >= zWidth) return 0;
           switch (fontAlign) {
             case "left":
               return 0;
@@ -2120,14 +2070,11 @@
           }
 
           switch (effect) {
-            // == 8-Step Vertical Effects ==
             case "PA_GROW_UP":
             case "PA_GROW_DOWN":
             case "PA_SCAN_VERT":
             case "PA_SCAN_VERTX":
               return 8;
-
-            // == Width-based Horizontal Effects ==
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
             case "PA_WIPE":
@@ -2138,8 +2085,6 @@
             case "PA_OPENING_CURSOR":
             case "PA_BLINDS":
               return zWidth;
-
-            // == Timed Effects ==
             case "PA_FADE":
               return 20;
             case "PA_DISSOLVE":
@@ -2149,10 +2094,7 @@
               return 20;
             case "PA_SPRITE":
               return zWidth + 6;
-
-            // == Complex Dynamic Steps ==
             case "PA_SLICE": {
-              // Calculate exact total steps required based on column travel distances
               let steps = 0;
               for (let c = 0; c < textCols; c++) {
                 let isEmpty = true;
@@ -2166,8 +2108,8 @@
                   const screenCol = scrollAlignedX + c;
                   if (screenCol >= 0 && screenCol < zWidth) {
                     steps += isExit
-                      ? screenCol + 1 // OUT: Travels to left edge (-1)
-                      : Math.max(0, zWidth - 1 - screenCol); // IN: Travels from right edge
+                      ? screenCol + 1
+                      : Math.max(0, zWidth - 1 - screenCol);
                   }
                 }
               }
@@ -2178,6 +2120,22 @@
           }
         }
 
+        const animInType = activeConfig.animation.inEffect;
+        const animOutType = activeConfig.animation.outEffect;
+        const startDelayMs = activeConfig.animation.startDelayMs || 0;
+        const endDelayMs = Math.max(
+          0,
+          activeConfig.animation.endDelayMs || 1200,
+        );
+        const targetLoops =
+          activeConfig.display.repeat === -1
+            ? Infinity
+            : activeConfig.display.repeat || 1;
+        const speed = Math.max(8, activeConfig.animation.speedMs || 35);
+
+        const maxInSteps = getAnimationSteps(animInType, false);
+        const maxOutSteps = getAnimationSteps(animOutType, true);
+
         function emptyBuffer() {
           return Array(8)
             .fill(null)
@@ -2187,7 +2145,6 @@
         function createStaticBuffer() {
           const buffer = emptyBuffer();
           const offset = getStaticTextOffset();
-
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textCols; c++) {
               const physicalCol = zStart + offset + c;
@@ -2204,26 +2161,214 @@
           return buffer;
         }
 
-        const animInType = document.getElementById("animation-in").value;
-        const animOutType = document.getElementById("animation-out").value;
-        const startDelayMs =
-          parseInt(document.getElementById("start-delay").value) || 0;
-        const endDelayInput = parseInt(
-          document.getElementById("end-delay").value,
-          10,
-        );
-        const endDelayMs = Number.isFinite(endDelayInput)
-          ? Math.max(0, endDelayInput)
-          : 1200;
-        const loopMode = document.getElementById("loop-mode").value;
-        const targetLoops =
-          loopMode === "num"
-            ? parseInt(document.getElementById("loop-count").value) || 1
-            : Infinity;
+        currentAnimParams = {
+          activeZone,
+          activeConfig,
+          zStart,
+          zEnd,
+          zWidth,
+          textGrid,
+          textCols,
+          animInType,
+          animOutType,
+          startDelayMs,
+          endDelayMs,
+          targetLoops,
+          speed,
+          maxInSteps,
+          maxOutSteps,
+          staticBuffer: createStaticBuffer(),
+          emptyBuffer,
+        };
+      }
 
-        const maxInSteps = getAnimationSteps(animInType, false);
-        const maxOutSteps = getAnimationSteps(animOutType, true);
-        const staticBuffer = createStaticBuffer();
+      /* Inactive Zones remain static and freeze in place */
+      function overlayInactiveZones(buffer, activeZone) {
+        zones.forEach((z) => {
+          if (activeZone && z.name === activeZone.name) return;
+          const staticScene = scenes.find(
+            (s) => s.config?.zone?.name === z.name,
+          );
+          if (staticScene && staticScene.config) {
+            const zStart = Math.max(0, Math.min(z.start, matrixWidth - 1));
+            const zEnd = Math.max(zStart, Math.min(z.end, matrixWidth - 1));
+            const zWidth = zEnd - zStart + 1;
+            const text = getProcessedMessageText(staticScene.config);
+            const isBold = staticScene.config.message?.bold;
+            const { grid: tGrid, width: tCols } = renderTextToBitmap(
+              text,
+              isBold,
+            );
+            const align = staticScene.config.message?.align || "center";
+            let offset = 0;
+            if (tCols < zWidth) {
+              if (align === "right") offset = zWidth - tCols;
+              else if (align === "center")
+                offset = Math.floor((zWidth - tCols) / 2);
+            }
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < tCols; c++) {
+                const px = zStart + offset + c;
+                if (px >= zStart && px <= zEnd && px < matrixWidth) {
+                  if (tGrid[r][c]) buffer[r][px] = 1;
+                }
+              }
+            }
+          }
+        });
+      }
+
+      /* Advances Animation by 1 Tick / Step */
+      function advanceAnimationFrame(isStep = false) {
+        if (!currentAnimParams) setupAnimationParameters();
+        const p = currentAnimParams;
+
+        let stageLabel = "IN_ANIMATION";
+        let renderResult = {
+          buffer: p.staticBuffer.map((row) => [...row]),
+          alpha: 1,
+        };
+
+        if (animPhase === 0) {
+          stageLabel = "START_DELAY";
+          renderResult = { buffer: p.emptyBuffer(), alpha: 0 };
+          if (isStep) {
+            animPhase = 1;
+            phaseStep = 0;
+            phaseHoldCounter = 0;
+          } else {
+            phaseHoldCounter += p.speed;
+            if (phaseHoldCounter >= p.startDelayMs) {
+              phaseHoldCounter = 0;
+              phaseStep = 0;
+              animPhase = 1;
+            }
+          }
+        } else if (animPhase === 1) {
+          stageLabel = `IN: ${p.animInType}`;
+          renderResult = computeEffectBuffer(
+            p.animInType,
+            phaseStep,
+            p.maxInSteps,
+            p.textGrid,
+            p.zStart,
+            p.zEnd,
+            false,
+          );
+          phaseStep++;
+          if (phaseStep >= p.maxInSteps) {
+            phaseStep = 0;
+            phaseHoldCounter = 0;
+            animPhase = 2;
+          }
+        } else if (animPhase === 2) {
+          stageLabel = "HOLD_PAUSE";
+          if (isStep || p.endDelayMs <= 0) {
+            phaseHoldCounter = 0;
+            phaseStep = 0;
+            animPhase = 3;
+            renderResult = computeEffectBuffer(
+              p.animOutType,
+              phaseStep,
+              p.maxOutSteps,
+              p.textGrid,
+              p.zStart,
+              p.zEnd,
+              true,
+            );
+            phaseStep++;
+          } else {
+            renderResult = {
+              buffer: p.staticBuffer.map((row) => [...row]),
+              alpha: 1,
+            };
+            phaseHoldCounter += p.speed;
+            if (phaseHoldCounter >= p.endDelayMs) {
+              phaseHoldCounter = 0;
+              phaseStep = 0;
+              animPhase = 3;
+            }
+          }
+        } else if (animPhase === 3) {
+          stageLabel = `OUT: ${p.animOutType}`;
+          renderResult = computeEffectBuffer(
+            p.animOutType,
+            phaseStep,
+            p.maxOutSteps,
+            p.textGrid,
+            p.zStart,
+            p.zEnd,
+            true,
+          );
+          phaseStep++;
+          if (phaseStep >= p.maxOutSteps) {
+            phaseStep = 0;
+            phaseHoldCounter = 0;
+            currentLoopCount++;
+            if (currentLoopCount >= p.targetLoops) {
+              animPhase = 2;
+              stageLabel = "COMPLETE";
+              if (!isStep) {
+                pauseSimulation();
+              }
+            } else {
+              animPhase = 0;
+            }
+          }
+        }
+
+        overlayInactiveZones(renderResult.buffer, p.activeZone);
+        document.getElementById("sim-stage-label").innerText = stageLabel;
+        document.getElementById("sim-zone-label").innerText =
+          p.activeZone.name || "Zone 1";
+        drawMatrixFrame(renderResult.buffer, renderResult.alpha, p.activeZone);
+      }
+
+      /* Single Static Frame Preview without running any timers */
+      function renderStaticPreview() {
+        setupAnimationParameters();
+        const p = currentAnimParams;
+        const buf = p.staticBuffer.map((row) => [...row]);
+        overlayInactiveZones(buf, p.activeZone);
+        document.getElementById("sim-stage-label").innerText = isPlaying
+          ? "RUNNING"
+          : "STOPPED";
+        document.getElementById("sim-zone-label").innerText =
+          p.activeZone.name || "Zone 1";
+        drawMatrixFrame(buf, 1.0, p.activeZone);
+      }
+
+      function updatePlayButtonUI() {
+        const btnText = document.getElementById("play-text");
+        const btnIcon = document.getElementById("play-icon");
+        if (btnText) btnText.innerText = isPlaying ? "Pause" : "Play";
+        if (btnIcon) {
+          btnIcon.innerHTML = isPlaying
+            ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'
+            : '<path d="M8 5v14l11-7z"/>';
+        }
+      }
+
+      /* Instantly halts all background intervals and animation loops */
+      function pauseSimulation() {
+        if (animInterval) {
+          clearInterval(animInterval);
+          animInterval = null;
+        }
+        isPlaying = false;
+        updatePlayButtonUI();
+        const fps = document.getElementById("sim-fps-label");
+        if (fps) fps.innerText = "0";
+        const stage = document.getElementById("sim-stage-label");
+        if (stage) stage.innerText = "PAUSED";
+      }
+
+      function startAnimationTimer() {
+        if (animInterval) clearInterval(animInterval);
+        setupAnimationParameters();
+        const speed = currentAnimParams.speed;
+        lastFpsTime = performance.now();
+        frameCount = 0;
 
         animInterval = setInterval(() => {
           if (!isPlaying) return;
@@ -2236,96 +2381,50 @@
             lastFpsTime = now;
           }
 
-          let stageLabel = "IN_ANIMATION";
-          let renderResult = {
-            buffer: staticBuffer,
-            alpha: 1,
-          };
-
-          if (animPhase === 0) {
-            stageLabel = "START_DELAY";
-            renderResult = { buffer: emptyBuffer(), alpha: 0 };
-            phaseHoldCounter += speed;
-            if (phaseHoldCounter >= startDelayMs) {
-              phaseHoldCounter = 0;
-              phaseStep = 0;
-              animPhase = 1;
-            }
-          } else if (animPhase === 1) {
-            stageLabel = `IN: ${animInType}`;
-            renderResult = computeEffectBuffer(
-              animInType,
-              phaseStep,
-              maxInSteps,
-              textGrid,
-              zStart,
-              zEnd,
-              false,
-            );
-            phaseStep++;
-            if (phaseStep >= maxInSteps) {
-              phaseStep = 0;
-              phaseHoldCounter = 0;
-              animPhase = 2;
-            }
-          } else if (animPhase === 2) {
-            stageLabel = "HOLD_PAUSE";
-            if (endDelayMs <= 0) {
-              phaseHoldCounter = 0;
-              phaseStep = 0;
-              animPhase = 3;
-              renderResult = computeEffectBuffer(
-                animOutType,
-                phaseStep,
-                maxOutSteps,
-                textGrid,
-                zStart,
-                zEnd,
-                true,
-              );
-              phaseStep++;
-            } else {
-              renderResult = { buffer: staticBuffer, alpha: 1 };
-              phaseHoldCounter += speed;
-              if (phaseHoldCounter >= endDelayMs) {
-                phaseHoldCounter = 0;
-                phaseStep = 0;
-                animPhase = 3;
-              }
-            }
-          } else if (animPhase === 3) {
-            stageLabel = `OUT: ${animOutType}`;
-            renderResult = computeEffectBuffer(
-              animOutType,
-              phaseStep,
-              maxOutSteps,
-              textGrid,
-              zStart,
-              zEnd,
-              true,
-            );
-            phaseStep++;
-            if (phaseStep >= maxOutSteps) {
-              phaseStep = 0;
-              phaseHoldCounter = 0;
-              currentLoopCount++;
-              if (currentLoopCount >= targetLoops) {
-                animPhase = 2;
-                stageLabel = "COMPLETE";
-              } else {
-                animPhase = 0;
-              }
-            }
-          }
-
-          document.getElementById("sim-stage-label").innerText = stageLabel;
-          document.getElementById("sim-zone-label").innerText =
-            activeZone.name || "Zone 1";
-          drawMatrixFrame(renderResult.buffer, renderResult.alpha, activeZone);
+          advanceAnimationFrame(false);
         }, speed);
       }
 
+      /* On Demand Play / Pause Button */
+      function togglePlayback() {
+        isPlaying = !isPlaying;
+        updatePlayButtonUI();
+
+        if (isPlaying) {
+          startAnimationTimer();
+        } else {
+          pauseSimulation();
+        }
+      }
+
+      /* Step 1 Single Frame */
+      function stepSingleFrame() {
+        pauseSimulation(); // Instantly stops all background animation
+        advanceAnimationFrame(true); // Advances exactly one frame
+      }
+
+      function restartSimAnimation() {
+        animPhase = 0;
+        phaseStep = 0;
+        phaseHoldCounter = 0;
+        currentLoopCount = 0;
+        setupAnimationParameters();
+
+        if (isPlaying) {
+          startAnimationTimer();
+        } else {
+          renderStaticPreview();
+        }
+      }
+
+      /* Form Input Change Handler: Halts background scripts instantly */
+      function handleConfigFieldChange() {
+        pauseSimulation();
+        renderStaticPreview();
+      }
+
       function handleMatrixWidthChange() {
+        pauseSimulation();
         let width =
           parseInt(document.getElementById("matrix-width").value) || 32;
         width = Math.max(8, Math.round(width / 8) * 8);
@@ -2337,7 +2436,7 @@
         }
         renderZonesUI();
         updateCanvasGeometry();
-        restartSimAnimation();
+        renderStaticPreview();
       }
 
       function setMatrixPreset(presetWidth) {
@@ -2347,6 +2446,7 @@
 
       function handleAddZone(e) {
         if (e) e.preventDefault();
+        pauseSimulation();
         const name = document.getElementById("zone-name").value.trim();
         const start = parseInt(document.getElementById("zone-start").value);
         const end = parseInt(document.getElementById("zone-end").value);
@@ -2366,54 +2466,54 @@
           showToast(`Zone "${name}" updated.`);
         } else {
           zones.push({ id: `zone_${Date.now()}`, name, start, end });
-          showToast(`Zone "${name}" added successfully.`);
+          showToast(`Zone "${name}" added.`);
         }
 
         renderZonesUI();
-        restartSimAnimation();
+        renderStaticPreview();
         document.getElementById("zone-name").value = "";
       }
 
       function removeZone(id) {
+        pauseSimulation();
         if (zones.length <= 1) {
           showToast("At least one zone must remain configured.");
           return;
         }
         zones = zones.filter((z) => z.id !== id);
         renderZonesUI();
-        restartSimAnimation();
+        renderStaticPreview();
       }
 
       function selectZoneForEdit(id) {
+        pauseSimulation();
         const zone = zones.find((z) => z.id === id);
         if (!zone) return;
 
-        // Populate Zone form fields
         document.getElementById("zone-name").value = zone.name;
         document.getElementById("zone-start").value = zone.start;
         document.getElementById("zone-end").value = zone.end;
 
-        // Also switch the Animation target dropdown to match
         const targetSelect = document.getElementById("target-zone");
         if (targetSelect) {
           targetSelect.value = zone.name;
         }
 
         document.getElementById("zone-name").focus();
-        restartSimAnimation();
         showToast(`Zone "${zone.name}" loaded for editing.`);
+        renderStaticPreview();
       }
 
       function selectSceneForEdit(id) {
+        pauseSimulation(); // Instantly stops animation
+        selectedSceneId = id;
+
         const scene = scenes.find((s) => s.id === id);
         if (!scene || !scene.config) return;
 
-        // 1. Scene Name
         document.getElementById("scene-name").value = scene.name;
-
         const cfg = scene.config;
 
-        // 2. Target Zone
         if (cfg.zone && cfg.zone.name) {
           const targetSelect = document.getElementById("target-zone");
           if (
@@ -2423,11 +2523,9 @@
           }
         }
 
-        // 3. Message Type & Content
         if (cfg.message) {
           document.getElementById("msg-type").value = cfg.message.type;
-          handleMsgTypeToggle(); // Updates visibility between plain and custom box
-
+          handleMsgTypeToggle();
           if (cfg.message.type === "plain") {
             document.getElementById("plain-text-val").value =
               cfg.message.content || "";
@@ -2435,7 +2533,6 @@
             document.getElementById("custom-text-val").value =
               cfg.message.content || "";
           }
-
           document.getElementById("font-align").value =
             cfg.message.align || "center";
           document.getElementById("text-bold").checked = Boolean(
@@ -2443,7 +2540,6 @@
           );
         }
 
-        // 4. Animation Effects & Timers
         if (cfg.animation) {
           document.getElementById("animation-in").value =
             cfg.animation.inEffect;
@@ -2457,12 +2553,10 @@
             cfg.animation.endDelayMs ?? 1200;
         }
 
-        // 5. Display (Brightness & Repeat)
         if (cfg.display) {
           const bLevel = cfg.display.brightness ?? 12;
           document.getElementById("brightness").value = bLevel;
           handleBrightnessUpdate(bLevel);
-
           if (cfg.display.repeat === -1) {
             document.getElementById("loop-mode").value = "inf";
           } else {
@@ -2470,12 +2564,12 @@
             document.getElementById("loop-count").value =
               cfg.display.repeat || 1;
           }
-          handleLoopModeToggle(); // Shows/hides iteration count field
+          handleLoopModeToggle();
         }
 
-        restartSimAnimation();
-        document.getElementById("scene-name").focus();
-        showToast(`Scene "${scene.name}" loaded for editing.`);
+        renderScenesUI();
+        renderStaticPreview();
+        showToast(`Scene "${scene.name}" active.`);
       }
 
       function renderZonesUI() {
@@ -2492,11 +2586,10 @@
             "inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono-code shadow-sm cursor-pointer hover:border-cyan-400 hover:bg-slate-800/90 transition select-none";
           chip.title = "Click to edit zone";
           chip.onclick = () => selectZoneForEdit(z.id);
-
           chip.innerHTML = `
-      <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
-      <button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" title="Delete zone" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
-    `;
+            <span><strong>${z.name}</strong> [${z.start} - ${z.end}]</span>
+            <button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
+          `;
           container.appendChild(chip);
 
           const opt = document.createElement("option");
@@ -2511,10 +2604,15 @@
       }
 
       function handleZoneSelectionChange() {
-        restartSimAnimation();
+        pauseSimulation();
+        const zoneName = document.getElementById("target-zone")?.value;
+        const label = document.getElementById("sim-zone-label");
+        if (label && zoneName) label.innerText = zoneName;
+        renderStaticPreview();
       }
 
       function handleMsgTypeToggle() {
+        pauseSimulation();
         const type = document.getElementById("msg-type").value;
         document
           .getElementById("plain-text-box")
@@ -2522,78 +2620,59 @@
         document
           .getElementById("custom-text-box")
           .classList.toggle("hidden", type === "plain");
-        restartSimAnimation();
+        renderStaticPreview();
       }
 
       function handleLoopModeToggle() {
+        pauseSimulation();
         const mode = document.getElementById("loop-mode").value;
         document
           .getElementById("loop-count-wrapper")
           .classList.toggle("hidden", mode !== "num");
-        restartSimAnimation();
       }
 
       function insertTag(tag) {
+        pauseSimulation();
         const input = document.getElementById("custom-text-val");
         input.value += ` ${tag}`;
         input.focus();
-        restartSimAnimation();
+        renderStaticPreview();
       }
 
       function handleBrightnessUpdate(val) {
         ledBrightnessLevel = parseInt(val);
         document.getElementById("brightness-badge").innerText =
           `${ledBrightnessLevel} / 15`;
+        renderStaticPreview();
       }
 
       function setLedTheme(color, glow) {
         ledColorOn = color;
         ledColorGlow = glow;
         showToast("Matrix LED Color Theme Changed");
+        renderStaticPreview();
       }
 
       const ZOOM_LEVELS = [
         1.4, 1.2, 1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
       ];
-
       function setCanvasScale(scale) {
         canvasScale = parseFloat(scale);
         applyCanvasScale();
         const select = document.getElementById("zoom-select");
-        if (select && select.value !== String(canvasScale)) {
+        if (select && select.value !== String(canvasScale))
           select.value = String(canvasScale);
-        }
       }
-
-      function toggleCanvasScale() {
-        const currentIndex = ZOOM_LEVELS.indexOf(canvasScale);
-        const nextIndex = (currentIndex + 1) % ZOOM_LEVELS.length;
-        setCanvasScale(ZOOM_LEVELS[nextIndex]);
-      }
-
-      function togglePlayback() {
-        isPlaying = !isPlaying;
-        document.getElementById("play-text").innerText = isPlaying
-          ? "Pause"
-          : "Play";
-        document.getElementById("play-icon").innerHTML = isPlaying
-          ? '<path d="M8 5v14l11-7z"/>'
-          : '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
-      }
-
-      function stepSingleFrame() {
-        isPlaying = false;
-        document.getElementById("play-text").innerText = "Play";
-        phaseStep++;
-      }
-
-      // --- Scene Management Features --- //
 
       function getFormConfig() {
         const msgType = document.getElementById("msg-type").value;
         const targetZoneName = document.getElementById("target-zone").value;
-        const activeZone =
-          zones.find((z) => z.name === targetZoneName) || zones[0];
+        const activeZone = zones.find((z) => z.name === targetZoneName) ||
+          zones[0] || {
+            name: "Zone 1",
+            start: 0,
+            end: matrixWidth - 1,
+          };
 
         return {
           zone: {
@@ -2631,6 +2710,7 @@
       }
 
       function handleAddScene() {
+        pauseSimulation();
         const name = document.getElementById("scene-name").value.trim();
         if (!name) {
           showToast("Please enter a scene name.");
@@ -2646,47 +2726,53 @@
           scenes[existingIdx] = { id: scenes[existingIdx].id, name, config };
           showToast(`Scene "${name}" updated.`);
         } else {
-          scenes.push({ id: `scene_${Date.now()}`, name, config });
+          const newId = `scene_${Date.now()}`;
+          scenes.push({ id: newId, name, config });
+          selectedSceneId = newId;
           showToast(`Scene "${name}" added.`);
         }
 
         renderScenesUI();
+        renderStaticPreview();
         document.getElementById("scene-name").value = "";
       }
 
       function removeScene(id) {
+        pauseSimulation();
         scenes = scenes.filter((s) => s.id !== id);
+        if (selectedSceneId === id) selectedSceneId = null;
         renderScenesUI();
+        renderStaticPreview();
         showToast("Scene removed.");
       }
 
       function renderScenesUI() {
         const container = document.getElementById("scenes-container");
         container.innerHTML = "";
-
         if (scenes.length === 0) {
           container.innerHTML =
-            '<span class="text-[11px] text-slate-500 italic mt-2.5">No scenes added yet. Form acts as single scene.</span>';
+            '<span class="text-[11px] text-slate-500 italic mt-2.5">No scenes added yet. Form controls default live scene.</span>';
           return;
         }
-
         scenes.forEach((s) => {
+          const isSel = s.id === selectedSceneId;
           const chip = document.createElement("div");
-          chip.className =
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-teal-300 border border-slate-700 text-xs font-mono-code shadow-sm cursor-pointer hover:border-teal-400 hover:bg-slate-800/90 transition select-none";
-          chip.title = "Click to edit scene configuration";
+          chip.className = `inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
+            isSel
+              ? "bg-teal-500/20 text-teal-300 border-2 border-teal-400 font-bold"
+              : "bg-slate-800 text-teal-400 border border-slate-700 hover:border-teal-400"
+          }`;
+          chip.title = "Click to select and preview this scene";
           chip.onclick = () => selectSceneForEdit(s.id);
-
           chip.innerHTML = `
-      <span><strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone.name}]</span>
-      <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" title="Delete scene" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
-    `;
+            <span>${isSel ? "▶ " : ""}<strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone?.name || "Zone"}]</span>
+            <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
+          `;
           container.appendChild(chip);
         });
       }
 
       function generatePayload() {
-        // If there are user defined scenes, use them. Otherwise default fallback to currently active parameters
         const finalScenes =
           scenes.length > 0
             ? scenes.map((s) => ({ sceneName: s.name, ...s.config }))
@@ -2707,27 +2793,21 @@
       function handleSendConfig(e) {
         if (e) e.preventDefault();
         const payload = generatePayload();
-
-        // REST API Post to ESP Server
         fetch("/api/matrix/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
           .then((res) => {
-            if (res.ok)
-              showToast("Sequence/Config uploaded directly to ESP Hardware!");
-            else showToast("Simulated offline: Payload formatted.");
+            if (res.ok) showToast("Config uploaded directly to ESP hardware!");
+            else showToast("Offline: Payload generated successfully.");
           })
-          .catch(() => {
-            showToast("Simulated Mode: Configuration generated!");
-          });
+          .catch(() => showToast("Offline mode: Payload generated!"));
       }
 
       function showJsonPayloadModal() {
-        const payload = generatePayload();
         document.getElementById("json-code-view").innerText = JSON.stringify(
-          payload,
+          generatePayload(),
           null,
           2,
         );
@@ -2739,33 +2819,51 @@
       }
 
       function copyPayloadToClipboard() {
-        const jsonText = document.getElementById("json-code-view").innerText;
-        const tempInput = document.createElement("textarea");
-        tempInput.value = jsonText;
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand("copy");
-        document.body.removeChild(tempInput);
-
-        const btn = document.getElementById("btn-copy-json");
-        btn.innerText = "Copied to Clipboard!";
-        setTimeout(() => (btn.innerText = "Copy JSON Data"), 2000);
+        navigator.clipboard
+          .writeText(document.getElementById("json-code-view").innerText)
+          .then(() => {
+            const btn = document.getElementById("btn-copy-json");
+            btn.innerText = "Copied to Clipboard!";
+            setTimeout(() => (btn.innerText = "Copy JSON Data"), 2000);
+          });
       }
 
       function showToast(msg) {
         const toast = document.getElementById("toast-box");
         document.getElementById("toast-msg").innerText = msg;
         toast.classList.remove("translate-y-20", "opacity-0");
-        setTimeout(() => {
-          toast.classList.add("translate-y-20", "opacity-0");
-        }, 3000);
+        setTimeout(
+          () => toast.classList.add("translate-y-20", "opacity-0"),
+          3000,
+        );
+      }
+
+      /* Automatic Background Pause on Input Focus/Click */
+      function attachInputStopListeners() {
+        const form = document.getElementById("message-form");
+        const zoneForm = document.getElementById("zone-form");
+        const stopHandler = () => {
+          if (isPlaying) {
+            pauseSimulation();
+          }
+        };
+
+        ["focusin", "keydown", "input", "mousedown"].forEach((evt) => {
+          if (form) form.addEventListener(evt, stopHandler);
+          if (zoneForm) zoneForm.addEventListener(evt, stopHandler);
+        });
       }
 
       window.onload = function () {
         initCanvas();
         renderZonesUI();
         renderScenesUI();
-        restartSimAnimation();
+        attachInputStopListeners();
+
+        // Stopped by default on page load
+        isPlaying = false;
+        updatePlayButtonUI();
+        renderStaticPreview();
       };
     </script>
   </body>
