@@ -1594,7 +1594,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_WIPE REVERSES ON EXIT ======== //
         if (effectType.startsWith("PA_WIPE")) {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           const revealWidth = Math.ceil(zWidth * progress);
@@ -1724,7 +1723,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_RANDOM (Strictly within Text) ======== //
         if (effectType === "PA_RANDOM") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           for (let r = 0; r < 8; r++) {
@@ -1744,7 +1742,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_DISSOLVE (Starts fully ON, then dissolves into text) ======== //
         if (effectType === "PA_DISSOLVE") {
           const progress = Math.min(1, step / Math.max(1, maxSteps));
           for (let r = 0; r < 8; r++) {
@@ -1775,7 +1772,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_SCAN_HORIZ & PA_SCAN_HORIZX ======== //
         if (effectType.startsWith("PA_SCAN_HORIZ")) {
           const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
@@ -1804,7 +1800,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_SCAN_VERT & PA_SCAN_VERTX ======== //
         if (effectType.startsWith("PA_SCAN_VERT")) {
           const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
@@ -1833,7 +1828,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_GROW_UP ======== //
         if (effectType === "PA_GROW_UP") {
           for (let r = 0; r < 8; r++) {
             let visible = false;
@@ -1857,7 +1851,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_GROW_DOWN ======== //
         if (effectType === "PA_GROW_DOWN") {
           for (let r = 0; r < 8; r++) {
             let visible = false;
@@ -1912,7 +1905,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // ======== FIX: PA_SLICE (Horizontal Column-by-Column Sweep) ======== //
         if (effectType === "PA_SLICE") {
           let remSteps = step;
 
