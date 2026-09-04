@@ -2074,11 +2074,39 @@
               return 8;
             return Math.max(1, getScrollSteps(effect, isExit));
           }
+
           switch (effect) {
+            // == 8-Step Vertical Effects ==
             case "PA_GROW_UP":
             case "PA_GROW_DOWN":
+            case "PA_SCAN_VERT":
+            case "PA_SCAN_VERTX":
+              return 8;
+
+            // == Width-based Horizontal Effects ==
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
+            case "PA_WIPE":
+            case "PA_WIPE_CURSOR":
+            case "PA_CLOSING":
+            case "PA_CLOSING_CURSOR":
+            case "PA_OPENING":
+            case "PA_OPENING_CURSOR":
+            case "PA_BLINDS":
+              return zWidth;
+
+            // == Timed Effects ==
+            case "PA_FADE":
+              return 20;
+            case "PA_DISSOLVE":
+            case "PA_RANDOM":
+              return 30;
+            case "PA_MESH":
+              return 20;
+            case "PA_SPRITE":
+              return zWidth + 6;
+
+            // == Complex Dynamic Steps ==
             case "PA_SLICE": {
               // Calculate exact total steps required based on column travel distances
               let steps = 0;
@@ -2101,25 +2129,6 @@
               }
               return Math.max(1, steps);
             }
-            case "PA_WIPE":
-            case "PA_WIPE_CURSOR":
-            case "PA_CLOSING":
-            case "PA_CLOSING_CURSOR":
-            case "PA_OPENING":
-            case "PA_OPENING_CURSOR":
-            case "PA_BLINDS":
-            case "PA_SCAN_VERT":
-            case "PA_SCAN_VERTX":
-              return zWidth;
-            case "PA_FADE":
-              return 20;
-            case "PA_DISSOLVE":
-            case "PA_RANDOM":
-              return 30;
-            case "PA_MESH":
-              return 20;
-            case "PA_SPRITE":
-              return zWidth + 6;
             default:
               return 1;
           }
