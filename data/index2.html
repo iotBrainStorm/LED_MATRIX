@@ -1775,43 +1775,59 @@
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_SCAN_HORIZ & PA_SCAN_HORIZX ======== //
         if (effectType.startsWith("PA_SCAN_HORIZ")) {
+          const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const scanRow = Math.floor(8 * progress);
-          const hasX = effectType.includes("X");
+
+          // IN: Sweep left-to-right (0 to zWidth)
+          // OUT: Sweep right-to-left (zWidth down to 0)
+          const scanCol = !isExit
+            ? Math.floor(zWidth * progress)
+            : Math.floor(zWidth * (1 - progress));
 
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
               if (screenCol < 0 || screenCol >= zWidth) continue;
 
-              let visible = !isExit ? r <= scanRow : r > scanRow;
+              const isScanCol = screenCol === scanCol;
+
+              let visible = false;
+              if (!isBlank)
+                visible = isScanCol; // HORIZ: Show ONLY the sweeping line
+              else visible = !isScanCol; // HORIZX: Show ALL text EXCEPT the sweeping line
+
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
-            }
-            if (hasX && scanRow >= 0 && scanRow < 8 && scanRow === r) {
-              for (let c = 0; c < zWidth; c++) outBuffer[r][zStart + c] = 0;
             }
           }
           return { buffer: outBuffer, alpha };
         }
 
+        // ======== FIX: PA_SCAN_VERT & PA_SCAN_VERTX ======== //
         if (effectType.startsWith("PA_SCAN_VERT")) {
+          const isBlank = effectType.includes("X");
           const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const scanCol = Math.floor(zWidth * progress);
-          const hasX = effectType.includes("X");
+
+          // IN: Sweep top-to-bottom (0 to 8)
+          // OUT: Sweep bottom-to-top (8 down to 0)
+          const scanRow = !isExit
+            ? Math.floor(8 * progress)
+            : Math.floor(8 * (1 - progress));
 
           for (let r = 0; r < 8; r++) {
+            const isScanRow = r === scanRow;
+
             for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
               if (screenCol < 0 || screenCol >= zWidth) continue;
 
-              let visible = !isExit
-                ? screenCol <= scanCol
-                : screenCol > scanCol;
+              let visible = false;
+              if (!isBlank)
+                visible = isScanRow; // VERT: Show ONLY the sweeping line
+              else visible = !isScanRow; // VERTX: Show ALL text EXCEPT the sweeping line
+
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
-            }
-            if (hasX && scanCol >= 0 && scanCol < zWidth) {
-              outBuffer[r][zStart + scanCol] = 0;
             }
           }
           return { buffer: outBuffer, alpha };
