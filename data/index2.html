@@ -142,26 +142,31 @@
             >
               <span class="text-slate-400 font-medium">Color:</span>
               <button
+                type="button"
                 onclick="setLedTheme('#00f2fe', 'rgba(0, 242, 254, 0.7)')"
                 title="Cyan"
                 class="w-4 h-4 rounded-full bg-cyan-400 ring-2 ring-transparent hover:ring-white transition-all"
               ></button>
               <button
+                type="button"
                 onclick="setLedTheme('#10b981', 'rgba(16, 185, 129, 0.7)')"
                 title="Emerald"
                 class="w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-transparent hover:ring-white transition-all"
               ></button>
               <button
+                type="button"
                 onclick="setLedTheme('#f59e0b', 'rgba(245, 158, 11, 0.7)')"
                 title="Amber"
                 class="w-4 h-4 rounded-full bg-amber-500 ring-2 ring-transparent hover:ring-white transition-all"
               ></button>
               <button
+                type="button"
                 onclick="setLedTheme('#ef4444', 'rgba(239, 68, 68, 0.7)')"
                 title="Ruby"
                 class="w-4 h-4 rounded-full bg-red-500 ring-2 ring-transparent hover:ring-white transition-all"
               ></button>
               <button
+                type="button"
                 onclick="setLedTheme('#f8fafc', 'rgba(248, 250, 252, 0.8)')"
                 title="White"
                 class="w-4 h-4 rounded-full bg-slate-100 ring-2 ring-transparent hover:ring-white transition-all"
@@ -236,6 +241,7 @@
           <div class="flex items-center gap-2">
             <button
               id="btn-play"
+              type="button"
               onclick="togglePlayback()"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 transition shadow-[0_0_12px_rgba(0,242,254,0.4)]"
             >
@@ -249,12 +255,16 @@
               <span id="play-text">Play</span>
             </button>
             <button
+              id="btn-step"
+              type="button"
               onclick="stepSingleFrame()"
               class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-semibold transition"
             >
               Step ⏭
             </button>
             <button
+              id="btn-restart"
+              type="button"
               onclick="restartSimAnimation()"
               class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-semibold transition"
             >
@@ -333,7 +343,7 @@
                   <span
                     id="module-count-tag"
                     class="text-cyan-400 font-mono-code text-[11px]"
-                    >4 Modules</span
+                    >5 Modules</span
                   >
                 </div>
                 <input
@@ -358,24 +368,28 @@
                 >
                 <div class="grid grid-cols-4 gap-1.5 font-mono-code">
                   <button
+                    type="button"
                     onclick="setMatrixPreset(40)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
                     5 (40)
                   </button>
                   <button
+                    type="button"
                     onclick="setMatrixPreset(80)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
                     10 (80)
                   </button>
                   <button
+                    type="button"
                     onclick="setMatrixPreset(120)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
                     15 (120)
                   </button>
                   <button
+                    type="button"
                     onclick="setMatrixPreset(160)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
@@ -1125,6 +1139,7 @@
               ESP WebServer REST Payload Preview
             </div>
             <button
+              type="button"
               onclick="closeJsonModal()"
               class="text-slate-400 hover:text-white text-lg font-bold"
             >
@@ -1145,6 +1160,7 @@
           ></pre>
           <div class="flex justify-end gap-2 pt-2">
             <button
+              type="button"
               onclick="copyPayloadToClipboard()"
               id="btn-copy-json"
               class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition"
@@ -1152,6 +1168,7 @@
               Copy JSON Data
             </button>
             <button
+              type="button"
               onclick="closeJsonModal()"
               class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition"
             >
@@ -1282,6 +1299,7 @@
       ];
       let scenes = [];
       let selectedSceneId = null; // Targeted scene ID
+      let currentAnimParams = null;
 
       function updateLiveClock() {
         const now = new Date();
@@ -1449,7 +1467,6 @@
         canvas.style.transform = "none";
       }
 
-      /* Original Visual Matrix Renderer (Identical Output) */
       function drawMatrixFrame(
         buffer,
         alphaMultiplier = 1.0,
@@ -1518,7 +1535,6 @@
         }
       }
 
-      /* Original 28 MD_Parola Animation Math Engine */
       function computeEffectBuffer(
         effectType,
         step,
@@ -1988,15 +2004,17 @@
         return { buffer: outBuffer, alpha };
       }
 
-      /* Active Target Identification */
+      /* Active Target Identification with Live Form Sync */
       function getActiveSelection() {
+        const currentFormConfig = getFormConfig();
         let activeZone = null;
-        let activeConfig = null;
+        let activeConfig = currentFormConfig;
 
         if (selectedSceneId) {
           const sc = scenes.find((s) => s.id === selectedSceneId);
-          if (sc && sc.config) {
-            activeConfig = sc.config;
+          if (sc) {
+            // Keep the active scene in sync with form inputs
+            sc.config = currentFormConfig;
             activeZone =
               zones.find((z) => z.name === sc.config.zone?.name) || zones[0];
           }
@@ -2010,13 +2028,10 @@
               end: matrixWidth - 1,
               name: "Zone 1",
             };
-          activeConfig = getFormConfig();
         }
 
         return { activeZone, activeConfig };
       }
-
-      let currentAnimParams = null;
 
       function setupAnimationParameters() {
         const { activeZone, activeConfig } = getActiveSelection();
@@ -2159,6 +2174,38 @@
           return buffer;
         }
 
+        // Cache inactive zones statically ONCE to eliminate CPU lag and dynamic text ticking
+        const inactiveZonesBuffer = emptyBuffer();
+        zones.forEach((z) => {
+          if (activeZone && z.name === activeZone.name) return;
+          const staticScene = scenes.find(
+            (s) => s.config?.zone?.name === z.name,
+          );
+          if (staticScene && staticScene.config) {
+            const zS = Math.max(0, Math.min(z.start, matrixWidth - 1));
+            const zE = Math.max(zS, Math.min(z.end, matrixWidth - 1));
+            const zW = zE - zS + 1;
+            const text = getProcessedMessageText(staticScene.config);
+            const isB = staticScene.config.message?.bold;
+            const { grid: tGrid, width: tCols } = renderTextToBitmap(text, isB);
+            const align = staticScene.config.message?.align || "center";
+            let offset = 0;
+            if (tCols < zW) {
+              if (align === "right") offset = zW - tCols;
+              else if (align === "center")
+                offset = Math.floor((zW - tCols) / 2);
+            }
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < tCols; c++) {
+                const px = zS + offset + c;
+                if (px >= zS && px <= zE && px < matrixWidth) {
+                  if (tGrid[r][c]) inactiveZonesBuffer[r][px] = 1;
+                }
+              }
+            }
+          }
+        });
+
         currentAnimParams = {
           activeZone,
           activeConfig,
@@ -2176,44 +2223,9 @@
           maxInSteps,
           maxOutSteps,
           staticBuffer: createStaticBuffer(),
+          inactiveZonesBuffer,
           emptyBuffer,
         };
-      }
-
-      /* Inactive Zones remain static and freeze in place */
-      function overlayInactiveZones(buffer, activeZone) {
-        zones.forEach((z) => {
-          if (activeZone && z.name === activeZone.name) return;
-          const staticScene = scenes.find(
-            (s) => s.config?.zone?.name === z.name,
-          );
-          if (staticScene && staticScene.config) {
-            const zStart = Math.max(0, Math.min(z.start, matrixWidth - 1));
-            const zEnd = Math.max(zStart, Math.min(z.end, matrixWidth - 1));
-            const zWidth = zEnd - zStart + 1;
-            const text = getProcessedMessageText(staticScene.config);
-            const isBold = staticScene.config.message?.bold;
-            const { grid: tGrid, width: tCols } = renderTextToBitmap(
-              text,
-              isBold,
-            );
-            const align = staticScene.config.message?.align || "center";
-            let offset = 0;
-            if (tCols < zWidth) {
-              if (align === "right") offset = zWidth - tCols;
-              else if (align === "center")
-                offset = Math.floor((zWidth - tCols) / 2);
-            }
-            for (let r = 0; r < 8; r++) {
-              for (let c = 0; c < tCols; c++) {
-                const px = zStart + offset + c;
-                if (px >= zStart && px <= zEnd && px < matrixWidth) {
-                  if (tGrid[r][c]) buffer[r][px] = 1;
-                }
-              }
-            }
-          }
-        });
       }
 
       /* Advances Animation by 1 Tick / Step */
@@ -2315,7 +2327,17 @@
           }
         }
 
-        overlayInactiveZones(renderResult.buffer, p.activeZone);
+        // Apply statically cached inactive zones with zero runtime computation
+        if (p.inactiveZonesBuffer) {
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < matrixWidth; c++) {
+              if (p.inactiveZonesBuffer[r][c]) {
+                renderResult.buffer[r][c] = 1;
+              }
+            }
+          }
+        }
+
         document.getElementById("sim-stage-label").innerText = stageLabel;
         document.getElementById("sim-zone-label").innerText =
           p.activeZone.name || "Zone 1";
@@ -2327,7 +2349,15 @@
         setupAnimationParameters();
         const p = currentAnimParams;
         const buf = p.staticBuffer.map((row) => [...row]);
-        overlayInactiveZones(buf, p.activeZone);
+        if (p.inactiveZonesBuffer) {
+          for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < matrixWidth; c++) {
+              if (p.inactiveZonesBuffer[r][c]) {
+                buf[r][c] = 1;
+              }
+            }
+          }
+        }
         document.getElementById("sim-stage-label").innerText = isPlaying
           ? "RUNNING"
           : "STOPPED";
@@ -2389,6 +2419,9 @@
         updatePlayButtonUI();
 
         if (isPlaying) {
+          if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+          }
           startAnimationTimer();
         } else {
           pauseSimulation();
@@ -2397,8 +2430,8 @@
 
       /* Step 1 Single Frame */
       function stepSingleFrame() {
-        pauseSimulation(); // Instantly stops all background animation
-        advanceAnimationFrame(true); // Advances exactly one frame
+        pauseSimulation();
+        advanceAnimationFrame(true);
       }
 
       function restartSimAnimation() {
@@ -2415,7 +2448,7 @@
         }
       }
 
-      /* Form Input Change Handler: Halts background scripts instantly */
+      /* Form Input Change Handler */
       function handleConfigFieldChange() {
         pauseSimulation();
         renderStaticPreview();
@@ -2503,7 +2536,7 @@
       }
 
       function selectSceneForEdit(id) {
-        pauseSimulation(); // Instantly stops animation
+        pauseSimulation();
         selectedSceneId = id;
 
         const scene = scenes.find((s) => s.id === id);
@@ -2618,7 +2651,7 @@
         document
           .getElementById("custom-text-box")
           .classList.toggle("hidden", type === "plain");
-        renderStaticPreview();
+        handleConfigFieldChange();
       }
 
       function handleLoopModeToggle() {
@@ -2627,6 +2660,7 @@
         document
           .getElementById("loop-count-wrapper")
           .classList.toggle("hidden", mode !== "num");
+        handleConfigFieldChange();
       }
 
       function insertTag(tag) {
@@ -2634,10 +2668,11 @@
         const input = document.getElementById("custom-text-val");
         input.value += `${tag}`;
         input.focus();
-        renderStaticPreview();
+        handleConfigFieldChange();
       }
 
       function handleBrightnessUpdate(val) {
+        pauseSimulation();
         ledBrightnessLevel = parseInt(val);
         document.getElementById("brightness-badge").innerText =
           `${ledBrightnessLevel} / 15`;
@@ -2645,15 +2680,13 @@
       }
 
       function setLedTheme(color, glow) {
+        pauseSimulation();
         ledColorOn = color;
         ledColorGlow = glow;
         showToast("Matrix LED Color Theme Changed");
         renderStaticPreview();
       }
 
-      const ZOOM_LEVELS = [
-        1.4, 1.2, 1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
-      ];
       function setCanvasScale(scale) {
         canvasScale = parseFloat(scale);
         applyCanvasScale();
@@ -2836,19 +2869,36 @@
         );
       }
 
-      /* Automatic Background Pause on Input Focus/Click */
+      /* Complete Stop of All Animation on ANY User Interaction */
       function attachInputStopListeners() {
-        const form = document.getElementById("message-form");
-        const zoneForm = document.getElementById("zone-form");
         const stopHandler = () => {
           if (isPlaying) {
             pauseSimulation();
           }
         };
 
-        ["focusin", "keydown", "input", "mousedown"].forEach((evt) => {
-          if (form) form.addEventListener(evt, stopHandler);
-          if (zoneForm) zoneForm.addEventListener(evt, stopHandler);
+        const targetElements = "input, select, textarea";
+        document.addEventListener("focusin", (e) => {
+          if (e.target.matches(targetElements)) stopHandler();
+        });
+        document.addEventListener("input", (e) => {
+          if (e.target.matches(targetElements)) stopHandler();
+        });
+        document.addEventListener("change", (e) => {
+          if (e.target.matches(targetElements)) stopHandler();
+        });
+
+        // Stops animation if user clicks tags, presets, chips, or styling buttons
+        document.addEventListener("click", (e) => {
+          const isPlayControl = e.target.closest(
+            "#btn-play, #btn-step, #btn-restart",
+          );
+          if (
+            !isPlayControl &&
+            e.target.closest("button, input, select, .cursor-pointer")
+          ) {
+            stopHandler();
+          }
         });
       }
 
@@ -2858,7 +2908,7 @@
         renderScenesUI();
         attachInputStopListeners();
 
-        // Stopped by default on page load
+        // Stopped by default on initial page load
         isPlaying = false;
         updatePlayButtonUI();
         renderStaticPreview();
