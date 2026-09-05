@@ -526,7 +526,7 @@
           id="message-form"
           onsubmit="
             event.preventDefault();
-            handleSendConfig(event);
+            handleAddScene();
           "
           class="space-y-5 text-xs"
         >
@@ -1052,6 +1052,7 @@
                 <input
                   type="text"
                   id="scene-name"
+                  oninput="handleSceneNameInput()"
                   onkeydown="
                     if (event.key === 'Enter') {
                       event.preventDefault();
@@ -1062,13 +1063,22 @@
                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-cyan-400 transition"
                 />
               </div>
-              <div class="flex items-end">
+              <div class="flex items-end gap-2">
                 <button
                   type="button"
+                  id="btn-add-scene"
                   onclick="handleAddScene()"
-                  class="w-full py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition"
+                  class="flex-1 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition"
                 >
-                  + Add / Update Scene
+                  + Add Scene
+                </button>
+                <button
+                  type="button"
+                  onclick="resetSceneForm()"
+                  title="Clear form to create a new scene"
+                  class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-semibold rounded-lg transition whitespace-nowrap"
+                >
+                  + New Scene
                 </button>
               </div>
             </div>
@@ -1285,8 +1295,8 @@
 
       let canvas, ctx;
       let animInterval = null;
-      let isPlaying = false; // STOPPED by default on initial load
-      let isPopulatingForm = false; // Lock flag to prevent overwriting scenes during load
+      let isPlaying = false;
+      let isPopulatingForm = false;
 
       let animPhase = 1;
       let phaseStep = 0;
@@ -1299,7 +1309,7 @@
         { id: "zone_0", name: "Zone 1", start: 0, end: matrixWidth - 1 },
       ];
       let scenes = [];
-      let selectedSceneId = null; // Targeted scene ID
+      let selectedSceneId = null;
       let currentAnimParams = null;
 
       function resetAnimState(startDelayMs = 0) {
@@ -1475,6 +1485,7 @@
         canvas.style.transform = "none";
       }
 
+      /* Renders with zone-specific alpha isolation (fixes global fade bug) */
       function drawMatrixFrame(
         buffer,
         alphaMultiplier = 1.0,
@@ -1512,16 +1523,22 @@
             ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
 
             if (isOn) {
+              // Apply fade alpha ONLY to the active zone; other zones remain 100% solid
+              const isColumnInActiveZone = activeZone
+                ? c >= activeZone.start && c <= activeZone.end
+                : true;
+              const currentAlpha = isColumnInActiveZone ? alphaMultiplier : 1.0;
+
               ctx.fillStyle = ledColorOn;
               ctx.shadowBlur = Math.round(12 * normBrightness);
               ctx.shadowColor = ledColorGlow;
-              ctx.globalAlpha = Math.min(1.0, normBrightness * alphaMultiplier);
+              ctx.globalAlpha = Math.min(1.0, normBrightness * currentAlpha);
               ctx.fill();
 
               ctx.beginPath();
               ctx.arc(x - 1, y - 1, dotRadius * 0.45, 0, Math.PI * 2);
               ctx.fillStyle = "#ffffff";
-              ctx.globalAlpha = 0.5 * normBrightness * alphaMultiplier;
+              ctx.globalAlpha = 0.5 * normBrightness * currentAlpha;
               ctx.fill();
               ctx.globalAlpha = 1.0;
               ctx.shadowBlur = 0;
@@ -2012,32 +2029,18 @@
         return { buffer: outBuffer, alpha };
       }
 
-      /* Active Target Identification without destructive side-effects */
+      /* Active Target Identification strictly from active form state */
       function getActiveSelection() {
         const currentFormConfig = getFormConfig();
-        let activeZone = null;
-        let activeConfig = currentFormConfig;
+        const targetZoneName = document.getElementById("target-zone")?.value;
+        const activeZone = zones.find((z) => z.name === targetZoneName) ||
+          zones[0] || {
+            start: 0,
+            end: matrixWidth - 1,
+            name: "Zone 1",
+          };
 
-        if (selectedSceneId) {
-          const sc = scenes.find((s) => s.id === selectedSceneId);
-          if (sc) {
-            activeZone =
-              zones.find((z) => z.name === sc.config?.zone?.name) || zones[0];
-            activeConfig = sc.config || currentFormConfig;
-          }
-        }
-
-        if (!activeZone) {
-          const targetZoneName = document.getElementById("target-zone")?.value;
-          activeZone = zones.find((z) => z.name === targetZoneName) ||
-            zones[0] || {
-              start: 0,
-              end: matrixWidth - 1,
-              name: "Zone 1",
-            };
-        }
-
-        return { activeZone, activeConfig };
+        return { activeZone, activeConfig: currentFormConfig };
       }
 
       function setupAnimationParameters() {
@@ -2147,7 +2150,6 @@
           activeConfig.animation.startDelayMs ?? 0,
         );
 
-        // Exact numerical hold pause checking (supports 0 ms delay completely)
         const endDelayMs =
           activeConfig.animation.endDelayMs !== undefined &&
           !isNaN(activeConfig.animation.endDelayMs)
@@ -2191,7 +2193,7 @@
           return buffer;
         }
 
-        // Cache inactive zones statically ONCE to eliminate CPU lag and dynamic text ticking
+        // Cache inactive zones statically from saved scenes
         const inactiveZonesBuffer = emptyBuffer();
         zones.forEach((z) => {
           if (activeZone && z.name === activeZone.name) return;
@@ -2256,7 +2258,6 @@
           alpha: 1,
         };
 
-        // If start delay is zero, immediately proceed into Phase 1 to completely avoid a 1-frame black blink
         if (animPhase === 0) {
           if (p.startDelayMs <= 0) {
             animPhase = 1;
@@ -2354,13 +2355,12 @@
                 pauseSimulation();
               }
             } else {
-              // Seamless loop transition
               animPhase = p.startDelayMs > 0 ? 0 : 1;
             }
           }
         }
 
-        // Apply statically cached inactive zones with zero runtime computation
+        // Overlay statically cached inactive zones
         if (p.inactiveZonesBuffer) {
           for (let r = 0; r < 8; r++) {
             for (let c = 0; c < matrixWidth; c++) {
@@ -2377,7 +2377,7 @@
         drawMatrixFrame(renderResult.buffer, renderResult.alpha, p.activeZone);
       }
 
-      /* Single Static Frame Preview without running any timers */
+      /* Single Static Frame Preview */
       function renderStaticPreview() {
         setupAnimationParameters();
         const p = currentAnimParams;
@@ -2410,7 +2410,6 @@
         }
       }
 
-      /* Instantly halts all background intervals and animation loops */
       function pauseSimulation() {
         if (animInterval) {
           clearInterval(animInterval);
@@ -2446,7 +2445,6 @@
         }, speed);
       }
 
-      /* On Demand Play / Pause Button */
       function togglePlayback() {
         isPlaying = !isPlaying;
         updatePlayButtonUI();
@@ -2468,13 +2466,12 @@
             animPhase = 1;
           }
           startAnimationTimer();
-          advanceAnimationFrame(false); // Instantly render frame without a 35ms delay
+          advanceAnimationFrame(false);
         } else {
           pauseSimulation();
         }
       }
 
-      /* Step 1 Single Frame */
       function stepSingleFrame() {
         pauseSimulation();
         advanceAnimationFrame(true);
@@ -2494,23 +2491,16 @@
         }
       }
 
-      /* Synchronize form inputs with active scene cleanly */
+      /* Synchronize form inputs without automatically mutating previously saved scenes */
       function handleConfigFieldChange() {
         if (isPopulatingForm) return;
         pauseSimulation();
-        if (selectedSceneId) {
-          const sc = scenes.find((s) => s.id === selectedSceneId);
-          if (sc) {
-            sc.config = getFormConfig();
-          }
-        }
         const startDelay =
           parseInt(document.getElementById("start-delay").value) || 0;
         resetAnimState(startDelay);
         renderStaticPreview();
       }
 
-      /* Dynamic default hold pause switching when changing effects */
       function handleAnimEffectChange() {
         const animIn = document.getElementById("animation-in").value;
         const animOut = document.getElementById("animation-out").value;
@@ -2576,7 +2566,22 @@
           showToast(`Zone "${name}" added.`);
         }
 
+        // Deselect previous scene and clear scene name so user can cleanly create a new scene for this zone
+        selectedSceneId = null;
+        document.getElementById("scene-name").value = "";
+
         renderZonesUI();
+
+        // Automatically point dropdown to the new zone
+        const targetSelect = document.getElementById("target-zone");
+        if (targetSelect) {
+          targetSelect.value = name;
+        }
+        const label = document.getElementById("sim-zone-label");
+        if (label) label.innerText = name;
+
+        renderScenesUI();
+        updateSceneButtons();
         renderStaticPreview();
         document.getElementById("zone-name").value = "";
       }
@@ -2587,7 +2592,17 @@
           showToast("At least one zone must remain configured.");
           return;
         }
+        const removedZone = zones.find((z) => z.id === id);
         zones = zones.filter((z) => z.id !== id);
+
+        const targetSelect = document.getElementById("target-zone");
+        if (
+          targetSelect &&
+          removedZone &&
+          targetSelect.value === removedZone.name
+        ) {
+          targetSelect.value = zones[0].name;
+        }
         renderZonesUI();
         renderStaticPreview();
       }
@@ -2611,6 +2626,48 @@
         renderStaticPreview();
       }
 
+      function handleSceneNameInput() {
+        const currentName = document.getElementById("scene-name").value.trim();
+        if (selectedSceneId) {
+          const sc = scenes.find((s) => s.id === selectedSceneId);
+          if (sc && sc.name.toLowerCase() !== currentName.toLowerCase()) {
+            selectedSceneId = null;
+            renderScenesUI();
+            updateSceneButtons();
+          }
+        } else {
+          const existing = scenes.find(
+            (s) => s.name.toLowerCase() === currentName.toLowerCase(),
+          );
+          if (existing) {
+            selectedSceneId = existing.id;
+            renderScenesUI();
+            updateSceneButtons();
+          }
+        }
+      }
+
+      function resetSceneForm() {
+        pauseSimulation();
+        selectedSceneId = null;
+        document.getElementById("scene-name").value = "";
+        renderScenesUI();
+        updateSceneButtons();
+        renderStaticPreview();
+        showToast("Ready to configure new scene.");
+      }
+
+      function updateSceneButtons() {
+        const btn = document.getElementById("btn-add-scene");
+        if (!btn) return;
+        if (selectedSceneId) {
+          const sc = scenes.find((s) => s.id === selectedSceneId);
+          btn.innerText = sc ? `✓ Update "${sc.name}"` : "+ Add / Update Scene";
+        } else {
+          btn.innerText = "+ Add Scene";
+        }
+      }
+
       function selectSceneForEdit(id) {
         pauseSimulation();
         selectedSceneId = id;
@@ -2618,7 +2675,7 @@
         const scene = scenes.find((s) => s.id === id);
         if (!scene || !scene.config) return;
 
-        isPopulatingForm = true; // Block handleConfigFieldChange from overwriting scene config during population
+        isPopulatingForm = true;
 
         document.getElementById("scene-name").value = scene.name;
         const cfg = scene.config;
@@ -2629,6 +2686,8 @@
             [...targetSelect.options].some((opt) => opt.value === cfg.zone.name)
           ) {
             targetSelect.value = cfg.zone.name;
+            const label = document.getElementById("sim-zone-label");
+            if (label) label.innerText = cfg.zone.name;
           }
         }
 
@@ -2672,7 +2731,6 @@
               cfg.animation.outEffect.startsWith("PA_SCROLL_"));
           const defaultHold = isScroll ? 0 : 1200;
 
-          // Accurately loads 0 or configured hold pause
           document.getElementById("end-delay").value =
             cfg.animation.endDelayMs !== undefined &&
             !isNaN(cfg.animation.endDelayMs)
@@ -2699,13 +2757,14 @@
             );
         }
 
-        isPopulatingForm = false; // Release lock
+        isPopulatingForm = false;
 
         const startDelay =
           parseInt(document.getElementById("start-delay").value) || 0;
         resetAnimState(startDelay);
 
         renderScenesUI();
+        updateSceneButtons();
         renderStaticPreview();
         showToast(`Scene "${scene.name}" active.`);
       }
@@ -2819,7 +2878,6 @@
         const isScroll =
           animIn.startsWith("PA_SCROLL_") || animOut.startsWith("PA_SCROLL_");
 
-        // Exact integer retrieval preventing "0" from turning into 1200
         const endDelayRaw = parseInt(
           document.getElementById("end-delay")?.value,
         );
@@ -2886,6 +2944,7 @@
 
         if (existingIdx >= 0) {
           scenes[existingIdx] = { id: scenes[existingIdx].id, name, config };
+          selectedSceneId = scenes[existingIdx].id;
           showToast(`Scene "${name}" updated.`);
         } else {
           const newId = `scene_${Date.now()}`;
@@ -2895,15 +2954,19 @@
         }
 
         renderScenesUI();
+        updateSceneButtons();
         renderStaticPreview();
-        document.getElementById("scene-name").value = "";
       }
 
       function removeScene(id) {
         pauseSimulation();
         scenes = scenes.filter((s) => s.id !== id);
-        if (selectedSceneId === id) selectedSceneId = null;
+        if (selectedSceneId === id) {
+          selectedSceneId = null;
+          document.getElementById("scene-name").value = "";
+        }
         renderScenesUI();
+        updateSceneButtons();
         renderStaticPreview();
         showToast("Scene removed.");
       }
@@ -3000,7 +3063,7 @@
         );
       }
 
-      /* Complete Stop of All Animation on ANY User Interaction */
+      /* Complete Stop of All Animation on User Interaction */
       function attachInputStopListeners() {
         const stopHandler = () => {
           if (isPlaying) {
@@ -3019,7 +3082,6 @@
           if (e.target.matches(targetElements)) stopHandler();
         });
 
-        // Stops animation if user clicks tags, presets, chips, or styling buttons
         document.addEventListener("click", (e) => {
           const isPlayControl = e.target.closest(
             "#btn-play, #btn-step, #btn-restart",
@@ -3037,9 +3099,9 @@
         initCanvas();
         renderZonesUI();
         renderScenesUI();
+        updateSceneButtons();
         attachInputStopListeners();
 
-        // Stopped by default on initial page load
         isPlaying = false;
         updatePlayButtonUI();
         resetAnimState(0);
