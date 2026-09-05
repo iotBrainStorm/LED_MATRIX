@@ -546,9 +546,7 @@
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
               >
                 <option value="plain">Plain Text</option>
-                <option value="custom">
-                  Custom Dynamic Text (Format Template)
-                </option>
+                <option value="custom">Custom Dynamic Text</option>
               </select>
             </div>
 
@@ -2634,7 +2632,7 @@
       function insertTag(tag) {
         pauseSimulation();
         const input = document.getElementById("custom-text-val");
-        input.value += ` ${tag}`;
+        input.value += `${tag}`;
         input.focus();
         renderStaticPreview();
       }
