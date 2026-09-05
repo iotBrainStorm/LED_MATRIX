@@ -849,7 +849,7 @@
               >
               <select
                 id="animation-in"
-                onchange="handleConfigFieldChange()"
+                onchange="handleAnimEffectChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
                 <option value="PA_PRINT">Static Print</option>
@@ -891,7 +891,7 @@
               >
               <select
                 id="animation-out"
-                onchange="handleConfigFieldChange()"
+                onchange="handleAnimEffectChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
                 <option value="PA_PRINT">Static Print</option>
@@ -973,7 +973,7 @@
               <input
                 type="number"
                 id="end-delay"
-                value="1200"
+                value="0"
                 min="0"
                 step="100"
                 onchange="handleConfigFieldChange()"
@@ -1286,6 +1286,7 @@
       let canvas, ctx;
       let animInterval = null;
       let isPlaying = false; // STOPPED by default on initial load
+      let isPopulatingForm = false; // Lock flag to prevent overwriting scenes during load
 
       let animPhase = 1;
       let phaseStep = 0;
@@ -1300,6 +1301,13 @@
       let scenes = [];
       let selectedSceneId = null; // Targeted scene ID
       let currentAnimParams = null;
+
+      function resetAnimState(startDelayMs = 0) {
+        animPhase = startDelayMs > 0 ? 0 : 1;
+        phaseStep = 0;
+        phaseHoldCounter = 0;
+        currentLoopCount = 0;
+      }
 
       function updateLiveClock() {
         const now = new Date();
@@ -1582,7 +1590,7 @@
 
         if (effectType === "PA_PRINT") {
           drawVirtual(alignedX);
-          return { buffer: outBuffer, alpha };
+          return { buffer: outBuffer, alpha: 1.0 };
         }
 
         if (effectType.startsWith("PA_SCROLL_")) {
@@ -2004,7 +2012,7 @@
         return { buffer: outBuffer, alpha };
       }
 
-      /* Active Target Identification with Live Form Sync */
+      /* Active Target Identification without destructive side-effects */
       function getActiveSelection() {
         const currentFormConfig = getFormConfig();
         let activeZone = null;
@@ -2013,10 +2021,9 @@
         if (selectedSceneId) {
           const sc = scenes.find((s) => s.id === selectedSceneId);
           if (sc) {
-            // Keep the active scene in sync with form inputs
-            sc.config = currentFormConfig;
             activeZone =
-              zones.find((z) => z.name === sc.config.zone?.name) || zones[0];
+              zones.find((z) => z.name === sc.config?.zone?.name) || zones[0];
+            activeConfig = sc.config || currentFormConfig;
           }
         }
 
@@ -2135,11 +2142,21 @@
 
         const animInType = activeConfig.animation.inEffect;
         const animOutType = activeConfig.animation.outEffect;
-        const startDelayMs = activeConfig.animation.startDelayMs || 0;
-        const endDelayMs = Math.max(
+        const startDelayMs = Math.max(
           0,
-          activeConfig.animation.endDelayMs || 1200,
+          activeConfig.animation.startDelayMs ?? 0,
         );
+
+        // Exact numerical hold pause checking (supports 0 ms delay completely)
+        const endDelayMs =
+          activeConfig.animation.endDelayMs !== undefined &&
+          !isNaN(activeConfig.animation.endDelayMs)
+            ? Math.max(0, activeConfig.animation.endDelayMs)
+            : animInType.startsWith("PA_SCROLL_") ||
+                animOutType.startsWith("PA_SCROLL_")
+              ? 0
+              : 1200;
+
         const targetLoops =
           activeConfig.display.repeat === -1
             ? Infinity
@@ -2239,22 +2256,37 @@
           alpha: 1,
         };
 
+        // If start delay is zero, immediately proceed into Phase 1 to completely avoid a 1-frame black blink
         if (animPhase === 0) {
-          stageLabel = "START_DELAY";
-          renderResult = { buffer: p.emptyBuffer(), alpha: 0 };
-          if (isStep) {
+          if (p.startDelayMs <= 0) {
             animPhase = 1;
             phaseStep = 0;
             phaseHoldCounter = 0;
           } else {
-            phaseHoldCounter += p.speed;
-            if (phaseHoldCounter >= p.startDelayMs) {
-              phaseHoldCounter = 0;
-              phaseStep = 0;
+            stageLabel = "START_DELAY";
+            renderResult = {
+              buffer:
+                p.animInType === "PA_PRINT"
+                  ? p.staticBuffer.map((r) => [...r])
+                  : p.emptyBuffer(),
+              alpha: 1,
+            };
+            if (isStep) {
               animPhase = 1;
+              phaseStep = 0;
+              phaseHoldCounter = 0;
+            } else {
+              phaseHoldCounter += p.speed;
+              if (phaseHoldCounter >= p.startDelayMs) {
+                phaseHoldCounter = 0;
+                phaseStep = 0;
+                animPhase = 1;
+              }
             }
           }
-        } else if (animPhase === 1) {
+        }
+
+        if (animPhase === 1) {
           stageLabel = `IN: ${p.animInType}`;
           renderResult = computeEffectBuffer(
             p.animInType,
@@ -2322,7 +2354,8 @@
                 pauseSimulation();
               }
             } else {
-              animPhase = 0;
+              // Seamless loop transition
+              animPhase = p.startDelayMs > 0 ? 0 : 1;
             }
           }
         }
@@ -2422,7 +2455,20 @@
           if (document.activeElement && document.activeElement.blur) {
             document.activeElement.blur();
           }
+          const startDelay =
+            (currentAnimParams
+              ? currentAnimParams.startDelayMs
+              : parseInt(document.getElementById("start-delay").value)) || 0;
+          if (
+            animPhase === 2 &&
+            currentLoopCount >= (currentAnimParams?.targetLoops || 1)
+          ) {
+            resetAnimState(startDelay);
+          } else if (animPhase === 0 && startDelay <= 0) {
+            animPhase = 1;
+          }
           startAnimationTimer();
+          advanceAnimationFrame(false); // Instantly render frame without a 35ms delay
         } else {
           pauseSimulation();
         }
@@ -2435,23 +2481,53 @@
       }
 
       function restartSimAnimation() {
-        animPhase = 0;
-        phaseStep = 0;
-        phaseHoldCounter = 0;
-        currentLoopCount = 0;
+        const startDelay =
+          parseInt(document.getElementById("start-delay").value) || 0;
+        resetAnimState(startDelay);
         setupAnimationParameters();
 
         if (isPlaying) {
           startAnimationTimer();
+          advanceAnimationFrame(false);
         } else {
           renderStaticPreview();
         }
       }
 
-      /* Form Input Change Handler */
+      /* Synchronize form inputs with active scene cleanly */
       function handleConfigFieldChange() {
+        if (isPopulatingForm) return;
         pauseSimulation();
+        if (selectedSceneId) {
+          const sc = scenes.find((s) => s.id === selectedSceneId);
+          if (sc) {
+            sc.config = getFormConfig();
+          }
+        }
+        const startDelay =
+          parseInt(document.getElementById("start-delay").value) || 0;
+        resetAnimState(startDelay);
         renderStaticPreview();
+      }
+
+      /* Dynamic default hold pause switching when changing effects */
+      function handleAnimEffectChange() {
+        const animIn = document.getElementById("animation-in").value;
+        const animOut = document.getElementById("animation-out").value;
+        const endDelayInput = document.getElementById("end-delay");
+        const isScroll =
+          animIn.startsWith("PA_SCROLL_") || animOut.startsWith("PA_SCROLL_");
+
+        if (isScroll && endDelayInput.value === "1200") {
+          endDelayInput.value = "0";
+        } else if (
+          !isScroll &&
+          animIn === "PA_PRINT" &&
+          (endDelayInput.value === "0" || endDelayInput.value === "")
+        ) {
+          endDelayInput.value = "1200";
+        }
+        handleConfigFieldChange();
       }
 
       function handleMatrixWidthChange() {
@@ -2542,6 +2618,8 @@
         const scene = scenes.find((s) => s.id === id);
         if (!scene || !scene.config) return;
 
+        isPopulatingForm = true; // Block handleConfigFieldChange from overwriting scene config during population
+
         document.getElementById("scene-name").value = scene.name;
         const cfg = scene.config;
 
@@ -2556,7 +2634,13 @@
 
         if (cfg.message) {
           document.getElementById("msg-type").value = cfg.message.type;
-          handleMsgTypeToggle();
+          document
+            .getElementById("plain-text-box")
+            .classList.toggle("hidden", cfg.message.type !== "plain");
+          document
+            .getElementById("custom-text-box")
+            .classList.toggle("hidden", cfg.message.type === "plain");
+
           if (cfg.message.type === "plain") {
             document.getElementById("plain-text-val").value =
               cfg.message.content || "";
@@ -2573,15 +2657,27 @@
 
         if (cfg.animation) {
           document.getElementById("animation-in").value =
-            cfg.animation.inEffect;
+            cfg.animation.inEffect || "PA_SCROLL_LEFT";
           document.getElementById("animation-out").value =
-            cfg.animation.outEffect;
+            cfg.animation.outEffect || "PA_SCROLL_LEFT";
           document.getElementById("anim-speed").value =
             cfg.animation.speedMs ?? 35;
           document.getElementById("start-delay").value =
             cfg.animation.startDelayMs ?? 0;
+
+          const isScroll =
+            (cfg.animation.inEffect &&
+              cfg.animation.inEffect.startsWith("PA_SCROLL_")) ||
+            (cfg.animation.outEffect &&
+              cfg.animation.outEffect.startsWith("PA_SCROLL_"));
+          const defaultHold = isScroll ? 0 : 1200;
+
+          // Accurately loads 0 or configured hold pause
           document.getElementById("end-delay").value =
-            cfg.animation.endDelayMs ?? 1200;
+            cfg.animation.endDelayMs !== undefined &&
+            !isNaN(cfg.animation.endDelayMs)
+              ? cfg.animation.endDelayMs
+              : defaultHold;
         }
 
         if (cfg.display) {
@@ -2595,8 +2691,19 @@
             document.getElementById("loop-count").value =
               cfg.display.repeat || 1;
           }
-          handleLoopModeToggle();
+          document
+            .getElementById("loop-count-wrapper")
+            .classList.toggle(
+              "hidden",
+              document.getElementById("loop-mode").value !== "num",
+            );
         }
+
+        isPopulatingForm = false; // Release lock
+
+        const startDelay =
+          parseInt(document.getElementById("start-delay").value) || 0;
+        resetAnimState(startDelay);
 
         renderScenesUI();
         renderStaticPreview();
@@ -2639,7 +2746,7 @@
         const zoneName = document.getElementById("target-zone")?.value;
         const label = document.getElementById("sim-zone-label");
         if (label && zoneName) label.innerText = zoneName;
-        renderStaticPreview();
+        handleConfigFieldChange();
       }
 
       function handleMsgTypeToggle() {
@@ -2705,6 +2812,33 @@
             end: matrixWidth - 1,
           };
 
+        const animIn =
+          document.getElementById("animation-in")?.value || "PA_SCROLL_LEFT";
+        const animOut =
+          document.getElementById("animation-out")?.value || "PA_SCROLL_LEFT";
+        const isScroll =
+          animIn.startsWith("PA_SCROLL_") || animOut.startsWith("PA_SCROLL_");
+
+        // Exact integer retrieval preventing "0" from turning into 1200
+        const endDelayRaw = parseInt(
+          document.getElementById("end-delay")?.value,
+        );
+        const endDelayMs = isNaN(endDelayRaw)
+          ? isScroll
+            ? 0
+            : 1200
+          : Math.max(0, endDelayRaw);
+
+        const startDelayRaw = parseInt(
+          document.getElementById("start-delay")?.value,
+        );
+        const startDelayMs = isNaN(startDelayRaw)
+          ? 0
+          : Math.max(0, startDelayRaw);
+
+        const speedRaw = parseInt(document.getElementById("anim-speed")?.value);
+        const speedMs = isNaN(speedRaw) ? 35 : Math.max(5, speedRaw);
+
         return {
           zone: {
             name: activeZone.name,
@@ -2721,21 +2855,18 @@
             align: document.getElementById("font-align").value,
           },
           animation: {
-            inEffect: document.getElementById("animation-in").value,
-            outEffect: document.getElementById("animation-out").value,
-            speedMs:
-              parseInt(document.getElementById("anim-speed").value) || 35,
-            startDelayMs:
-              parseInt(document.getElementById("start-delay").value) || 0,
-            endDelayMs:
-              parseInt(document.getElementById("end-delay").value) || 1200,
+            inEffect: animIn,
+            outEffect: animOut,
+            speedMs: speedMs,
+            startDelayMs: startDelayMs,
+            endDelayMs: endDelayMs,
           },
           display: {
             brightness: ledBrightnessLevel,
             repeat:
               document.getElementById("loop-mode").value === "inf"
                 ? -1
-                : parseInt(document.getElementById("loop-count").value),
+                : parseInt(document.getElementById("loop-count").value) || 1,
           },
         };
       }
@@ -2911,6 +3042,7 @@
         // Stopped by default on initial page load
         isPlaying = false;
         updatePlayButtonUI();
+        resetAnimState(0);
         renderStaticPreview();
       };
     </script>
