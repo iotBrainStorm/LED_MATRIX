@@ -2759,13 +2759,13 @@
           const chip = document.createElement("div");
           chip.className = `inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
             isSel
-              ? "bg-teal-500/20 text-teal-300 border-2 border-teal-400 font-bold"
+              ? "bg-teal-500/20 text-teal-300 border border-teal-400 font-bold"
               : "bg-slate-800 text-teal-400 border border-slate-700 hover:border-teal-400"
           }`;
           chip.title = "Click to select and preview this scene";
           chip.onclick = () => selectSceneForEdit(s.id);
           chip.innerHTML = `
-            <span>${isSel ? "▶ " : ""}<strong>${s.name}</strong> <span class="text-slate-400 font-normal mx-1">in</span> [${s.config.zone?.name || "Zone"}]</span>
+            <span class="font-normal">${isSel ? "▶ " : ""} ${s.name} <span class="text-slate-400 font-normal mx-1">in</span> [ ${s.config.zone?.name || "Zone"} ]</span>
             <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
           `;
           container.appendChild(chip);
