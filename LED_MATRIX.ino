@@ -344,27 +344,83 @@ void applyZoneConfiguration(uint8_t z) {
   P.displayReset(z);
 }
 
+// ==========================================
+// CONFIGURATION PERSISTENCE & HARDWARE SYNC
+// ==========================================
+void saveDefaultConfiguration() {
+  File file = SPIFFS.open(CONFIG_FILE, "w");
+  if (!file) {
+    Serial.println("[Config] Failed to create default /config.json");
+    return;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+  JsonDocument doc;
+#else
+  DynamicJsonDocument doc(2048);
+#endif
+
+  doc["device"] = "ESP_LED_MATRIX_MD_PAROLA";
+  JsonObject matrix = doc["matrix"].to<JsonObject>();
+  matrix["height"] = 8;
+  matrix["width"] = 40;
+  matrix["modules"] = 5;
+
+  JsonArray scenesArr = doc["scenes"].to<JsonArray>();
+
+  // Default Scene 1: Zone 1 (Cols 0 to 15 -> Modules 0 to 1)
+  JsonObject sc1 = scenesArr.add<JsonObject>();
+  sc1["sceneName"] = "Status Zone";
+  JsonObject z1 = sc1["zone"].to<JsonObject>();
+  z1["name"] = "Zone 1";
+  z1["startCol"] = 0;
+  z1["endCol"] = 15;
+  JsonObject m1 = sc1["message"].to<JsonObject>();
+  m1["type"] = "plain";
+  m1["content"] = "ESP";
+  m1["bold"] = false;
+  m1["align"] = "center";
+  JsonObject a1 = sc1["animation"].to<JsonObject>();
+  a1["inEffect"] = "PA_SCROLL_LEFT";
+  a1["outEffect"] = "PA_SCROLL_LEFT";
+  a1["speedMs"] = 35;
+  a1["startDelayMs"] = 0;
+  a1["endDelayMs"] = 0;
+  JsonObject d1 = sc1["display"].to<JsonObject>();
+  d1["brightness"] = 12;
+  d1["repeat"] = -1;
+
+  // Default Scene 2: Zone 2 (Cols 16 to 39 -> Modules 2 to 4)
+  JsonObject sc2 = scenesArr.add<JsonObject>();
+  sc2["sceneName"] = "Clock Zone";
+  JsonObject z2 = sc2["zone"].to<JsonObject>();
+  z2["name"] = "Zone 2";
+  z2["startCol"] = 16;
+  z2["endCol"] = 39;
+  JsonObject m2 = sc2["message"].to<JsonObject>();
+  m2["type"] = "custom";
+  m2["content"] = "{HH}:{mm}:{ss}";
+  m2["bold"] = false;
+  m2["align"] = "center";
+  JsonObject a2 = sc2["animation"].to<JsonObject>();
+  a2["inEffect"] = "PA_PRINT";
+  a2["outEffect"] = "PA_PRINT";
+  a2["speedMs"] = 35;
+  a2["startDelayMs"] = 0;
+  a2["endDelayMs"] = 1000;
+  JsonObject d2 = sc2["display"].to<JsonObject>();
+  d2["brightness"] = 12;
+  d2["repeat"] = -1;
+
+  serializeJson(doc, file);
+  file.close();
+  Serial.println("[Config] Fresh default /config.json created in SPIFFS.");
+}
+
 void loadConfiguration() {
   if (!SPIFFS.exists(CONFIG_FILE)) {
-    Serial.println("[Config] No saved config found. Initializing default.");
-    activeZoneCount = 1;
-    zones[0].inUse = true;
-    zones[0].startDev = 0;
-    zones[0].endDev = 3;
-    strncpy(zones[0].rawMessage, "ESP MATRIX", sizeof(zones[0].rawMessage));
-    zones[0].isCustom = false;
-    zones[0].isBold = false;
-    zones[0].align = PA_CENTER;
-    zones[0].inEffect = PA_SCROLL_LEFT;
-    zones[0].outEffect = PA_SCROLL_LEFT;
-    zones[0].speed = 35;
-    zones[0].pause = 0;
-    zones[0].brightness = 12;
-
-    P.displayClear();
-    P.setZone(0, zones[0].startDev, zones[0].endDev);
-    applyZoneConfiguration(0);
-    return;
+    Serial.println("[Config] No saved config found in flash. Generating defaults...");
+    saveDefaultConfiguration();
   }
 
   File file = SPIFFS.open(CONFIG_FILE, "r");
@@ -388,20 +444,40 @@ void loadConfiguration() {
   }
 
   JsonArray scenesArr = doc["scenes"].as<JsonArray>();
-  if (scenesArr.isNull() || scenesArr.size() == 0)
+  if (scenesArr.isNull() || scenesArr.size() == 0) {
+    Serial.println("[Config] 'scenes' array empty or invalid.");
     return;
+  }
 
   P.displayClear();
   activeZoneCount = min((int)scenesArr.size(), (int)MAX_ZONES);
+
+  Serial.println("========================================");
+  Serial.printf("[Config] Loading %d Scenes/Zones from Flash:\n", activeZoneCount);
 
   for (uint8_t i = 0; i < MAX_ZONES; i++) {
     if (i < activeZoneCount) {
       JsonObject sc = scenesArr[i];
       zones[i].inUse = true;
 
-      int startCol = sc["zone"]["startCol"] | 0;
-      int endCol = sc["zone"]["endCol"] | 31;
+      // Extract column boundaries (supports startCol/start and endCol/end)
+      int startCol = 0;
+      if (sc["zone"].is<JsonObject>()) {
+        if (sc["zone"]["startCol"].is<int>())
+          startCol = sc["zone"]["startCol"].as<int>();
+        else if (sc["zone"]["start"].is<int>())
+          startCol = sc["zone"]["start"].as<int>();
+      }
 
+      int endCol = (MAX_DEVICES * 8) - 1;
+      if (sc["zone"].is<JsonObject>()) {
+        if (sc["zone"]["endCol"].is<int>())
+          endCol = sc["zone"]["endCol"].as<int>();
+        else if (sc["zone"]["end"].is<int>())
+          endCol = sc["zone"]["end"].as<int>();
+      }
+
+      // Convert physical pixel columns to MAX7219 device indices
       zones[i].startDev = constrain(startCol / 8, 0, MAX_DEVICES - 1);
       zones[i].endDev = constrain(endCol / 8, zones[i].startDev, MAX_DEVICES - 1);
 
@@ -422,14 +498,22 @@ void loadConfiguration() {
       zones[i].repeat = sc["display"]["repeat"] | -1;
       zones[i].loopCounter = 0;
 
+      // Configure Parola hardware zone
       P.setZone(i, zones[i].startDev, zones[i].endDev);
       applyZoneConfiguration(i);
+
+      // Hardware verification log
+      Serial.printf("  -> Zone %u ('%s'): Cols [%d..%d] -> Modules [%u..%u] | Msg: '%s'\n",
+                    i,
+                    sc["zone"]["name"] | sc["sceneName"] | "Zone",
+                    startCol, endCol,
+                    zones[i].startDev, zones[i].endDev,
+                    zones[i].rawMessage);
     } else {
       zones[i].inUse = false;
     }
   }
-
-  Serial.printf("[Config] Applied %d active zones from flash.\n", activeZoneCount);
+  Serial.println("========================================");
 }
 
 // ==========================================

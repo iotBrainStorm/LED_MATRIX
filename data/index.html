@@ -2814,21 +2814,55 @@
         if (!scene || !scene.config) return;
 
         isPopulatingForm = true;
-
         document.getElementById("scene-name").value = scene.name;
         const cfg = scene.config;
 
-        if (cfg.zone && cfg.zone.name) {
-          const targetSelect = document.getElementById("target-zone");
-          if (
-            [...targetSelect.options].some((opt) => opt.value === cfg.zone.name)
-          ) {
-            targetSelect.value = cfg.zone.name;
-            const label = document.getElementById("sim-zone-label");
-            if (label) label.innerText = cfg.zone.name;
+        // 1. DYNAMICALLY RESTORE SCENE'S ACTUAL ZONE LIMITS
+        if (cfg.zone) {
+          const sCol =
+            cfg.zone.startCol !== undefined
+              ? cfg.zone.startCol
+              : cfg.zone.start !== undefined
+                ? cfg.zone.start
+                : 0;
+          const eCol =
+            cfg.zone.endCol !== undefined
+              ? cfg.zone.endCol
+              : cfg.zone.end !== undefined
+                ? cfg.zone.end
+                : matrixWidth - 1;
+          const zName = cfg.zone.name || `${scene.name} Zone`;
+
+          // Populate the input fields with the real columns
+          document.getElementById("zone-name").value = zName;
+          document.getElementById("zone-start").value = sCol;
+          document.getElementById("zone-end").value = eCol;
+
+          // Update zone representation
+          let existingZone = zones.find(
+            (z) => z.name.toLowerCase() === zName.toLowerCase(),
+          );
+          if (!existingZone) {
+            existingZone = {
+              id: `zone_${Date.now()}`,
+              name: zName,
+              start: sCol,
+              end: eCol,
+            };
+            zones.push(existingZone);
+          } else {
+            existingZone.start = sCol;
+            existingZone.end = eCol;
           }
+          renderZonesUI();
+
+          const targetSelect = document.getElementById("target-zone");
+          if (targetSelect) targetSelect.value = existingZone.name;
+          const label = document.getElementById("sim-zone-label");
+          if (label) label.innerText = existingZone.name;
         }
 
+        // 2. RESTORE MESSAGE
         if (cfg.message) {
           document.getElementById("msg-type").value = cfg.message.type;
           document
@@ -2852,6 +2886,7 @@
           );
         }
 
+        // 3. RESTORE ANIMATION
         if (cfg.animation) {
           document.getElementById("animation-in").value =
             cfg.animation.inEffect || "PA_SCROLL_LEFT";
@@ -2868,7 +2903,6 @@
             (cfg.animation.outEffect &&
               cfg.animation.outEffect.startsWith("PA_SCROLL_"));
           const defaultHold = isScroll ? 0 : 1200;
-
           document.getElementById("end-delay").value =
             cfg.animation.endDelayMs !== undefined &&
             !isNaN(cfg.animation.endDelayMs)
@@ -2876,10 +2910,12 @@
               : defaultHold;
         }
 
+        // 4. RESTORE DISPLAY
         if (cfg.display) {
           const bLevel = cfg.display.brightness ?? 12;
           document.getElementById("brightness").value = bLevel;
           handleBrightnessUpdate(bLevel);
+
           if (cfg.display.repeat === -1) {
             document.getElementById("loop-mode").value = "inf";
           } else {
@@ -2896,7 +2932,6 @@
         }
 
         isPopulatingForm = false;
-
         const startDelay =
           parseInt(document.getElementById("start-delay").value) || 0;
         resetAnimState(startDelay);
@@ -2904,7 +2939,6 @@
         renderScenesUI();
         updateSceneButtons();
         renderStaticPreview();
-        showToast(`Scene "${scene.name}" active.`);
       }
 
       function renderZonesUI() {
@@ -3004,12 +3038,33 @@
       function getFormConfig() {
         const msgType = document.getElementById("msg-type").value;
         const targetZoneName = document.getElementById("target-zone").value;
-        const activeZone = zones.find((z) => z.name === targetZoneName) ||
-          zones[0] || {
-            name: "Zone 1",
-            start: 0,
-            end: matrixWidth - 1,
-          };
+
+        // READ DIRECTLY FROM THE FORM INPUTS
+        const sColRaw = parseInt(document.getElementById("zone-start").value);
+        const eColRaw = parseInt(document.getElementById("zone-end").value);
+        const sCol = !isNaN(sColRaw) ? Math.max(0, sColRaw) : 0;
+        const eCol = !isNaN(eColRaw)
+          ? Math.min(matrixWidth - 1, eColRaw)
+          : matrixWidth - 1;
+
+        const zoneNameInput = document.getElementById("zone-name").value.trim();
+        const zoneName = zoneNameInput || targetZoneName || "Zone 1";
+
+        // Keep internal zones array in sync immediately
+        let existingZone = zones.find(
+          (z) => z.name.toLowerCase() === zoneName.toLowerCase(),
+        );
+        if (existingZone) {
+          existingZone.start = sCol;
+          existingZone.end = eCol;
+        } else {
+          zones.push({
+            id: `zone_${Date.now()}`,
+            name: zoneName,
+            start: sCol,
+            end: eCol,
+          });
+        }
 
         const animIn =
           document.getElementById("animation-in")?.value || "PA_SCROLL_LEFT";
@@ -3039,9 +3094,9 @@
 
         return {
           zone: {
-            name: activeZone.name,
-            startCol: activeZone.start,
-            endCol: activeZone.end,
+            name: zoneName,
+            startCol: sCol,
+            endCol: eCol,
           },
           message: {
             type: msgType,
@@ -3067,6 +3122,51 @@
                 : parseInt(document.getElementById("loop-count").value) || 1,
           },
         };
+      }
+
+      function handleAddScene() {
+        pauseSimulation();
+        const name = document.getElementById("scene-name").value.trim();
+        if (!name) {
+          showToast("Please enter a scene name.");
+          return;
+        }
+
+        const sCol = parseInt(document.getElementById("zone-start").value);
+        const eCol = parseInt(document.getElementById("zone-end").value);
+        if (
+          isNaN(sCol) ||
+          isNaN(eCol) ||
+          sCol < 0 ||
+          eCol >= matrixWidth ||
+          sCol > eCol
+        ) {
+          showToast(
+            `Invalid Columns: Must be 0 to ${matrixWidth - 1} with Start ≤ End.`,
+          );
+          return;
+        }
+
+        const config = getFormConfig();
+        const existingIdx = scenes.findIndex(
+          (s) => s.name.toLowerCase() === name.toLowerCase(),
+        );
+
+        if (existingIdx >= 0) {
+          scenes[existingIdx] = { id: scenes[existingIdx].id, name, config };
+          selectedSceneId = scenes[existingIdx].id;
+          showToast(`Scene "${name}" updated.`);
+        } else {
+          const newId = `scene_${Date.now()}`;
+          scenes.push({ id: newId, name, config });
+          selectedSceneId = newId;
+          showToast(`Scene "${name}" added.`);
+        }
+
+        renderZonesUI();
+        renderScenesUI();
+        updateSceneButtons();
+        renderStaticPreview();
       }
 
       function handleAddScene() {
@@ -3151,6 +3251,7 @@
             width: matrixWidth,
             modules: Math.floor(matrixWidth / 8),
           },
+          zones: zones, // Preserves configured zones across loads
           scenes: finalScenes,
         };
       }
@@ -3312,22 +3413,66 @@
           const res = await fetch("/api/matrix/config", { cache: "no-store" });
           if (!res.ok) return;
           const data = await res.json();
+
           if (data && data.matrix && data.matrix.width) {
             matrixWidth = data.matrix.width;
             document.getElementById("matrix-width").value = matrixWidth;
             updateCanvasGeometry();
           }
+
           if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
+            const restoredZones = [];
+            data.scenes.forEach((sc, idx) => {
+              if (sc.zone) {
+                const zName = sc.zone.name || `Zone ${idx + 1}`;
+                const sCol =
+                  sc.zone.startCol !== undefined
+                    ? sc.zone.startCol
+                    : sc.zone.start !== undefined
+                      ? sc.zone.start
+                      : 0;
+                const eCol =
+                  sc.zone.endCol !== undefined
+                    ? sc.zone.endCol
+                    : sc.zone.end !== undefined
+                      ? sc.zone.end
+                      : matrixWidth - 1;
+
+                let zMatch = restoredZones.find(
+                  (z) => z.name.toLowerCase() === zName.toLowerCase(),
+                );
+                if (!zMatch) {
+                  restoredZones.push({
+                    id: `zone_sync_${idx}`,
+                    name: zName,
+                    start: sCol,
+                    end: eCol,
+                  });
+                } else {
+                  zMatch.start = sCol;
+                  zMatch.end = eCol;
+                }
+              }
+            });
+
+            if (restoredZones.length > 0) {
+              zones = restoredZones;
+              renderZonesUI();
+            }
+
             scenes = data.scenes.map((s, idx) => ({
               id: `scene_init_${idx}`,
               name: s.sceneName || `Scene ${idx + 1}`,
               config: s,
             }));
             renderScenesUI();
-            if (scenes[0]) selectSceneForEdit(scenes[0].id);
+
+            if (scenes.length > 0) {
+              selectSceneForEdit(scenes[0].id);
+            }
           }
         } catch (e) {
-          // Running in isolated simulator / disconnected mode
+          // Simulator offline mode
         }
       }
 
