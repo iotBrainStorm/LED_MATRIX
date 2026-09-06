@@ -1093,13 +1093,14 @@
           >
             <button
               type="button"
+              id="btn-send-esp"
               onclick="handleSendConfig(event)"
               class="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 hover:from-sky-400 hover:to-teal-300 text-slate-950 font-extrabold text-sm uppercase tracking-wider shadow-[0_0_20px_rgba(0,242,254,0.4)] transition transform active:scale-[0.99] flex items-center justify-center gap-2"
             >
               <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
-              <span>Send Config to ESP Webserver</span>
+              <span id="btn-send-text">Send Config to ESP Webserver</span>
             </button>
 
             <button
@@ -1385,7 +1386,6 @@
       let ledColorGlow = "rgba(0, 242, 254, 0.65)";
       let ledBrightnessLevel = 12;
 
-      // Offscreen Cached Sprite for ON LED (eliminates heavy canvas shadowBlur calculation per dot)
       let ledSpriteCanvas = null;
       let ledSpriteRadius = 0;
 
@@ -1426,7 +1426,6 @@
         const sCtx = ledSpriteCanvas.getContext("2d");
         sCtx.clearRect(0, 0, size, size);
 
-        // Render Glowing LED body once
         sCtx.beginPath();
         sCtx.arc(center, center, dotRadius, 0, Math.PI * 2);
         sCtx.fillStyle = ledColorOn;
@@ -1435,7 +1434,6 @@
         sCtx.globalAlpha = Math.min(1.0, normBrightness);
         sCtx.fill();
 
-        // Render Highlight Core
         sCtx.beginPath();
         sCtx.arc(center - 1, center - 1, dotRadius * 0.45, 0, Math.PI * 2);
         sCtx.fillStyle = "#ffffff";
@@ -1573,7 +1571,6 @@
           for (let i = 0; i < text.length; i++) {
             const char = text[i];
             const startCol = i * charWidth;
-
             const glyph =
               FONT_8x6_BOLD[char] ||
               FONT_8x6_BOLD[char.toUpperCase()] ||
@@ -1614,7 +1611,6 @@
           const char = upper[i];
           const glyph = FONT_5x7[char] ||
             FONT_5x7["?"] || [0x00, 0x00, 0x00, 0x00, 0x00];
-
           for (let col = 0; col < glyph.length; col++) {
             columns.push(glyph[col]);
           }
@@ -1668,7 +1664,6 @@
         canvas.style.transform = "none";
       }
 
-      /* Ultra High Performance Matrix Renderer (Sprite Blitting + Single-Path Batched OFF dots) */
       function drawMatrixFrame(
         buffer,
         alphaMultiplier = 1.0,
@@ -1686,7 +1681,6 @@
         const startX = 6 + dotGap;
         const startY = 6 + dotGap;
 
-        // 1. Grid Module Separators
         ctx.strokeStyle = "#1b2434";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -1697,7 +1691,6 @@
         }
         ctx.stroke();
 
-        // 2. Batch Draw ALL OFF LEDs in a SINGLE canvas draw call
         ctx.beginPath();
         for (let r = 0; r < matrixHeight; r++) {
           const rowBuf = buffer[r];
@@ -1715,7 +1708,6 @@
         ctx.globalAlpha = 1.0;
         ctx.fill();
 
-        // 3. Blit ON LEDs from pre-rendered hardware-accelerated sprite cache
         const spriteOffset = ledSpriteRadius;
         for (let r = 0; r < matrixHeight; r++) {
           const rowBuf = buffer[r];
@@ -1740,7 +1732,6 @@
         }
         ctx.globalAlpha = 1.0;
 
-        // 4. Active Zone Indicator Border
         if (activeZone) {
           const zStartX = startX + activeZone.start * pitch - dotGap / 2;
           const zEndX = startX + (activeZone.end + 1) * pitch - dotGap / 2;
@@ -1777,7 +1768,6 @@
 
         const alignedX = getAlignedX();
 
-        // High Speed Clamped Projection (Never iterates thousands of off-screen text columns)
         function drawVirtual(virtualX, virtualY = 0) {
           const minC = Math.max(0, -virtualX, -zStart - virtualX);
           const maxC = Math.min(
@@ -1848,7 +1838,6 @@
           return { buffer: outBuffer, alpha };
         }
 
-        // Clamped Loop Range Helper for Non-Scrolling Effects
         const startTextCol = Math.max(0, -alignedX);
         const endTextCol = Math.min(textWidth, zWidth - alignedX);
 
@@ -2033,10 +2022,9 @@
             : Math.floor(8 * (1 - progress));
 
           for (let r = 0; r < 8; r++) {
-            const isScanRow = r === scanRow;
             for (let c = startTextCol; c < endTextCol; c++) {
               const screenCol = alignedX + c;
-              const visible = !isBlank ? isScanRow : !isScanRow;
+              const visible = !isBlank ? r === scanRow : r !== scanRow;
               if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
             }
           }
@@ -2390,7 +2378,6 @@
         };
       }
 
-      /* Advances Animation by 1 Tick / Step */
       function advanceAnimationFrame(isStep = false) {
         if (!currentAnimParams) setupAnimationParameters();
         const p = currentAnimParams;
@@ -2564,7 +2551,6 @@
         if (stage) stage.innerText = "PAUSED";
       }
 
-      // Smooth VSync Animation Loop via requestAnimationFrame
       function animLoop(timestamp) {
         if (!isPlaying) return;
 
@@ -3169,19 +3155,33 @@
         };
       }
 
+      /* Native Async REST Push */
       function handleSendConfig(e) {
         if (e) e.preventDefault();
         const payload = generatePayload();
+        const sendBtn = document.getElementById("btn-send-esp");
+        const sendText = document.getElementById("btn-send-text");
+
+        if (sendBtn) sendBtn.disabled = true;
+        if (sendText) sendText.innerText = "Transmitting to Flash...";
+
         fetch("/api/matrix/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
           .then((res) => {
-            if (res.ok) showToast("Config uploaded directly to ESP hardware!");
-            else showToast("Offline: Payload generated successfully.");
+            if (res.ok) {
+              showToast("✓ Config written to ESP32 Flash Memory!");
+            } else {
+              showToast(`Server returned status: ${res.status}`);
+            }
           })
-          .catch(() => showToast("Offline mode: Payload generated!"));
+          .catch(() => showToast("Offline mode: Payload generated locally."))
+          .finally(() => {
+            if (sendBtn) sendBtn.disabled = false;
+            if (sendText) sendText.innerText = "Send Config to ESP Webserver";
+          });
       }
 
       function showJsonPayloadModal() {
@@ -3197,7 +3197,6 @@
         document.getElementById("json-modal").classList.add("hidden");
       }
 
-      /* Bulletproof Mobile Clipboard Copy (Works on HTTP / Local ESP IP Addresses) */
       function copyPayloadToClipboard() {
         const text = document.getElementById("json-code-view").innerText;
         const btn = document.getElementById("btn-copy-json");
@@ -3300,7 +3299,6 @@
           }
         });
 
-        // Background script saver: Pause animation when user switches tabs on mobile/desktop
         document.addEventListener("visibilitychange", () => {
           if (document.hidden && isPlaying) {
             pauseSimulation();
@@ -3308,7 +3306,32 @@
         });
       }
 
-      window.onload = function () {
+      /* Auto-restore configuration from ESP32 on load */
+      async function syncConfigFromHardware() {
+        try {
+          const res = await fetch("/api/matrix/config", { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.matrix && data.matrix.width) {
+            matrixWidth = data.matrix.width;
+            document.getElementById("matrix-width").value = matrixWidth;
+            updateCanvasGeometry();
+          }
+          if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
+            scenes = data.scenes.map((s, idx) => ({
+              id: `scene_init_${idx}`,
+              name: s.sceneName || `Scene ${idx + 1}`,
+              config: s,
+            }));
+            renderScenesUI();
+            if (scenes[0]) selectSceneForEdit(scenes[0].id);
+          }
+        } catch (e) {
+          // Running in isolated simulator / disconnected mode
+        }
+      }
+
+      window.onload = async function () {
         initCanvas();
         renderZonesUI();
         renderScenesUI();
@@ -3319,6 +3342,8 @@
         updatePlayButtonUI();
         resetAnimState(0);
         renderStaticPreview();
+
+        await syncConfigFromHardware();
       };
     </script>
   </body>
