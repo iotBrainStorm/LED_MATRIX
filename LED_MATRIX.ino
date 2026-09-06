@@ -417,9 +417,9 @@ void setupWebServer() {
   // 1. Root index.html directly from SPIFFS with ETag validation & 7-day caching
   server.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     if (request->hasHeader("If-None-Match")) {
-      AsyncWebHeader* h = request->getHeader("If-None-Match");
-      if (h->value() == BUILD_ETAG) {
-        request->send(304); // Browser uses cached version
+      const AsyncWebHeader* h = request->getHeader("If-None-Match");
+      if (h && h->value() == BUILD_ETAG) {
+        request->send(304); // Browser uses cached version (0 bytes transferred)
         return;
       }
     }
