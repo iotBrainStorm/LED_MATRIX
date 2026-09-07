@@ -35,6 +35,12 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
+bool webServerStarted = false;
+
+const char *ntpServer1 = "pool.ntp.org";
+const char *ntpServer2 = "time.google.com";
+const long gmtOffset_sec = 19800; // IST = UTC+5:30 -> 19800 sec
+const int daylightOffset_sec = 0;
 
 bool ahtFound = false;
 volatile bool configUpdated = false;
@@ -517,9 +523,195 @@ void loadConfiguration() {
 }
 
 // ==========================================
+// WIFI SETUP
+// ==========================================
+bool connectToSavedWiFi() {
+  Serial.println("\n==============================");
+  Serial.println("WiFi Connection Started");
+  Serial.println("==============================");
+
+  WiFiManager wm;
+  bool success = false;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();
+
+  int attempts = 0;
+  const int MAX_ATTEMPTS = 5;
+
+  while (attempts < MAX_ATTEMPTS) {
+
+    char attemptStr[16];
+    snprintf(attemptStr, sizeof(attemptStr), "Attempt: %d/5", attempts + 1);
+    Serial.printf("[INFO] %s\n", attemptStr);
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n[SUCCESS] Connected to Saved WiFi");
+      Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
+      Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
+      Serial.println("==============================\n");
+      delay(2000);
+      return true;
+    }
+
+    delay(2000);
+    attempts++;
+  }
+
+  // Failed to connect
+  Serial.println("\n[WARNING] No saved WiFi found!");
+  Serial.println("[INFO] Starting Config Portal...");
+  Serial.println("AP SSID    : LED STUDIO");
+  Serial.println("AP IP      : 192.168.4.1");
+  Serial.println("Timeout    : 180 seconds");
+  Serial.println("------------------------------");
+  delay(1500);
+
+  wm.setConfigPortalTimeout(180);
+  success = wm.autoConnect("LED STUDIO");
+
+  if (success) {
+    Serial.println("\n[SUCCESS] WiFi Connected via Config Portal");
+    Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
+    Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
+    Serial.println("==============================\n");
+    delay(2000);
+    return true;
+  } else {
+    Serial.println("\n[ERROR] Config Portal Timeout!");
+    Serial.println("Device not connected to WiFi.");
+    Serial.println("==============================\n");
+    delay(1000);
+    return false; // Better logic than returning true
+  }
+}
+
+// ==========================================
+// NTP TIME SYNCING
+// ==========================================
+void configDateTime() {
+
+  Serial.println("\n==============================");
+  Serial.println("Date & Time Configuration");
+  Serial.println("==============================");
+
+  if (WiFi.status() != WL_CONNECTED) {
+
+    Serial.println("[WARNING] WiFi not connected!");
+    Serial.println("[INFO] Running in offline mode.");
+    Serial.println("[INFO] Setting default time: 01/01/2025 12:00:00");
+
+    unsigned long start = millis();
+    while (millis() - start < 2000)
+      yield();
+
+    struct tm tm;
+    tm.tm_year = 2025 - 1900;
+    tm.tm_mon = 0;
+    tm.tm_mday = 1;
+    tm.tm_hour = 12;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+
+    time_t t = mktime(&tm);
+    struct timeval now = {.tv_sec = t};
+    settimeofday(&now, nullptr);
+
+    Serial.println("[SUCCESS] Default time applied.");
+    Serial.println("==============================\n");
+    return;
+  }
+
+  Serial.println("[INFO] WiFi connected.");
+  Serial.println("[INFO] Starting NTP sync...");
+
+  unsigned long start = millis();
+  while (millis() - start < 1000)
+    yield();
+
+  int attempts = 0;
+  const int MAX_ATTEMPTS = 5;
+  struct tm timeinfo;
+
+  while (attempts < MAX_ATTEMPTS) {
+
+    Serial.printf("[INFO] NTP Attempt %d/%d\n", attempts + 1, MAX_ATTEMPTS);
+
+    char attemptStr[16];
+    snprintf(attemptStr, sizeof(attemptStr), "Attempt: %d/5", attempts + 1);
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
+
+    start = millis();
+    while (millis() - start < 1000)
+      yield();
+
+    if (getLocalTime(&timeinfo)) {
+      Serial.println("[SUCCESS] Time synced from NTP");
+      break;
+    }
+
+    attempts++;
+  }
+
+  if (getLocalTime(&timeinfo)) {
+
+    char timeStr[16];
+    char dateStr[18];
+    char gmtStr[30];
+
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
+    strftime(dateStr, sizeof(dateStr), "%d.%m.%Y", &timeinfo);
+    strftime(gmtStr, sizeof(gmtStr), "%z %Z", &timeinfo);
+
+    Serial.println("-------- Current Time --------");
+    Serial.printf("Time : %s\n", timeStr);
+    Serial.printf("Date : %s\n", dateStr);
+    Serial.printf("Zone : %s\n", gmtStr);
+    Serial.println("==============================\n");
+
+    strftime(timeStr, sizeof(timeStr), "Time: %H:%M:%S", &timeinfo);
+    strftime(dateStr, sizeof(dateStr), "Date: %d.%m.%Y", &timeinfo);
+    strftime(gmtStr, sizeof(gmtStr), "GMT: %z %Z", &timeinfo);
+
+    start = millis();
+    while (millis() - start < 2000)
+      yield();
+  } else {
+
+    Serial.println("[ERROR] NTP sync failed!");
+    Serial.println("[INFO] Applying default offline time.");
+    Serial.println("[INFO] Default: 01/01/2025 12:00:00");
+
+    struct tm tm;
+    tm.tm_year = 2025 - 1900;
+    tm.tm_mon = 0;
+    tm.tm_mday = 1;
+    tm.tm_hour = 12;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+
+    time_t t = mktime(&tm);
+    struct timeval now = {.tv_sec = t};
+    settimeofday(&now, nullptr);
+
+    Serial.println("[SUCCESS] Default time applied.");
+    Serial.println("==============================\n");
+
+    start = millis();
+    while (millis() - start < 2000)
+      yield();
+  }
+}
+
+// ==========================================
 // ASYNC HTTP SERVER ROUTING
 // ==========================================
 void setupWebServer() {
+  if (webServerStarted) {
+    return; // already started
+  }
+
   // 1. Root index.html directly from SPIFFS with ETag validation & 7-day caching
   server.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     if (request->hasHeader("If-None-Match")) {
@@ -581,7 +773,58 @@ void setupWebServer() {
       });
 
   server.begin();
+  webServerStarted = true;
   Serial.println("[HTTP] AsyncWebServer online.");
+}
+
+// ==========================================
+// RECONNECT WIFI & RESTARTING WEBSERVER
+// ==========================================
+void checkWiFiAndStartServer() {
+  static unsigned long lastCheck = 0;
+  static bool wasConnected = (WiFi.status() == WL_CONNECTED);
+  static unsigned long lastReconnectAttempt = 0;
+
+  if (millis() - lastCheck < 3000)
+    return; // Check every 3s
+  lastCheck = millis();
+
+  bool isConnected = (WiFi.status() == WL_CONNECTED);
+
+  // WiFi Just Connected (or reconnected)
+  if (isConnected && !wasConnected) {
+    Serial.println("\n[WiFi] Connected!");
+    Serial.printf("[WiFi] SSID: %s\n", WiFi.SSID().c_str());
+    Serial.printf("[WiFi] IP  : %s\n", WiFi.localIP().toString().c_str());
+
+    // Start Web Server if not already running
+    if (!webServerStarted) {
+      Serial.println("[WiFi] Restarting WebServer...");
+      setupWebServer();
+    }
+
+    // Re-sync NTP time after reconnection
+    configDateTime();
+  }
+
+  // WiFi Lost
+  if (!isConnected && wasConnected) {
+    Serial.println("\n[WiFi] Disconnected!");
+    webServerStarted = false; // allow restart after reconnection
+  }
+
+  // Attempt Reconnect
+  if (!isConnected) {
+    if (millis() - lastReconnectAttempt > 15000) { // every 15 sec
+      lastReconnectAttempt = millis();
+      Serial.println("[WiFi] Attempting reconnection...");
+      WiFi.disconnect(false, false); // don't erase credentials
+      WiFi.mode(WIFI_STA);
+      WiFi.begin();
+    }
+  }
+
+  wasConnected = isConnected;
 }
 
 // ==========================================
@@ -619,23 +862,10 @@ void setup() {
   P.displayClear();
 
   // 5. WiFiManager: captive portal without hardcoded credentials
-  WiFiManager wm;
-  wm.setConfigPortalTimeout(180);
-  bool connected = wm.autoConnect("ESP_MATRIX_AP", "12345678");
-
-  if (!connected) {
-    Serial.println("[WiFi] Portal timed out. Running standalone SoftAP.");
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("ESP_MATRIX_AP", "12345678");
-    Serial.print("[WiFi] Access Point IP: ");
-    Serial.println(WiFi.softAPIP());
-  } else {
-    Serial.print("[WiFi] Connected! IP: ");
-    Serial.println(WiFi.localIP());
-  }
+  connectToSavedWiFi();
 
   // 6. NTP Clock Synchronization (IST = UTC+5:30 -> 19800 sec)
-  configTime(19800, 0, "pool.ntp.org", "time.google.com");
+  configDateTime();
 
   // 7. Mount Web Server routes
   setupWebServer();
@@ -675,4 +905,6 @@ void loop() {
       }
     }
   }
+
+  checkWiFiAndStartServer();
 }
