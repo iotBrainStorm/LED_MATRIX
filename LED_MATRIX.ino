@@ -1,3 +1,4 @@
+#include "esp_sntp.h"       // Non-blocking SNTP event callbacks
 #include "time.h"           // Time & NTP management
 #include <Adafruit_AHT10.h> // AHT10 Temperature & Humidity sensor
 #include <Arduino.h>
@@ -21,8 +22,8 @@
 // ==========================================
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 24 // Max possible physical 8x8 modules supported
-#define CLK_PIN 18     // SPI SCK (VSPI default)
-#define DATA_PIN 23    // SPI MOSI (VSPI default)
+#define CLK_PIN 18     // SPI SCK
+#define DATA_PIN 23    // SPI MOSI
 #define CS_PIN 5       // SPI SS / Chip Select
 
 #define MAX_ZONES 4 // Max simultaneous Parola zones supported
@@ -35,7 +36,6 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
-bool webServerStarted = false;
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.google.com";
@@ -263,10 +263,6 @@ textPosition_t parseAlign(const char *str) {
   return PA_CENTER;
 }
 
-/**
- * High-performance dynamic template parser.
- * Combines AHT10 sensor readings with C-standard strftime formatting.
- */
 String processTemplate(const String &tmpl) {
   time_t now = time(nullptr);
   struct tm t;
@@ -283,7 +279,6 @@ String processTemplate(const String &tmpl) {
 
   String out = tmpl;
 
-  // 1. Replace sensor placeholders first
   char sensorBuf[16];
   snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", temp);
   out.replace("{TEMP}", sensorBuf);
@@ -291,27 +286,23 @@ String processTemplate(const String &tmpl) {
   snprintf(sensorBuf, sizeof(sensorBuf), "%.0f", hum);
   out.replace("{HUM}", sensorBuf);
 
-  // 2. Escape literal '%' to '%%' so strftime doesn't choke on tokens like {HUM}%
   out.replace("%", "%%");
 
-  // 3. Map custom web tags to standard POSIX strftime format specifiers
-  // Note: 4-character tokens are replaced before shorter ones to prevent partial matches
-  out.replace("{HH}", "%H");   // 24-hr [00-23]
-  out.replace("{hh}", "%I");   // 12-hr [01-12]
-  out.replace("{mm}", "%M");   // Minute [00-59]
-  out.replace("{ss}", "%S");   // Second [00-59]
-  out.replace("{AMPM}", "%p"); // AM / PM
-  out.replace("{DD}", "%d");   // Day [01-31]
-  out.replace("{dd}", "%e");   // Day [1-31]
-  out.replace("{MM}", "%m");   // Month [01-12]
-  out.replace("{MMMM}", "%B"); // Full month (e.g. January)
-  out.replace("{MMM}", "%b");  // Abbr month (e.g. Jan)
-  out.replace("{YYYY}", "%Y"); // Year (e.g. 2026)
-  out.replace("{YY}", "%y");   // Year 2-digit (e.g. 26)
-  out.replace("{WWWW}", "%A"); // Full weekday (e.g. Sunday)
-  out.replace("{WWW}", "%a");  // Abbr weekday (e.g. Sun)
+  out.replace("{HH}", "%H");
+  out.replace("{hh}", "%I");
+  out.replace("{mm}", "%M");
+  out.replace("{ss}", "%S");
+  out.replace("{AMPM}", "%p");
+  out.replace("{DD}", "%d");
+  out.replace("{dd}", "%e");
+  out.replace("{MM}", "%m");
+  out.replace("{MMMM}", "%B");
+  out.replace("{MMM}", "%b");
+  out.replace("{YYYY}", "%Y");
+  out.replace("{YY}", "%y");
+  out.replace("{WWWW}", "%A");
+  out.replace("{WWW}", "%a");
 
-  // 4. Single-pass C-standard string formatting
   char formatted[160];
   if (strftime(formatted, sizeof(formatted), out.c_str(), &t) > 0) {
     return String(formatted);
@@ -350,9 +341,6 @@ void applyZoneConfiguration(uint8_t z) {
   P.displayReset(z);
 }
 
-// ==========================================
-// CONFIGURATION PERSISTENCE & HARDWARE SYNC
-// ==========================================
 void saveDefaultConfiguration() {
   File file = SPIFFS.open(CONFIG_FILE, "w");
   if (!file) {
@@ -374,7 +362,6 @@ void saveDefaultConfiguration() {
 
   JsonArray scenesArr = doc["scenes"].to<JsonArray>();
 
-  // Default Scene 1: Zone 1 (Cols 0 to 15 -> Modules 0 to 1)
   JsonObject sc1 = scenesArr.add<JsonObject>();
   sc1["sceneName"] = "ESP";
   JsonObject z1 = sc1["zone"].to<JsonObject>();
@@ -396,7 +383,6 @@ void saveDefaultConfiguration() {
   d1["brightness"] = 12;
   d1["repeat"] = -1;
 
-  // Default Scene 2: Zone 2 (Cols 16 to 39 -> Modules 2 to 4)
   JsonObject sc2 = scenesArr.add<JsonObject>();
   sc2["sceneName"] = "32";
   JsonObject z2 = sc2["zone"].to<JsonObject>();
@@ -466,7 +452,6 @@ void loadConfiguration() {
       JsonObject sc = scenesArr[i];
       zones[i].inUse = true;
 
-      // Extract column boundaries (supports startCol/start and endCol/end)
       int startCol = 0;
       if (sc["zone"].is<JsonObject>()) {
         if (sc["zone"]["startCol"].is<int>())
@@ -483,7 +468,6 @@ void loadConfiguration() {
           endCol = sc["zone"]["end"].as<int>();
       }
 
-      // Convert physical pixel columns to MAX7219 device indices
       zones[i].startDev = constrain(startCol / 8, 0, MAX_DEVICES - 1);
       zones[i].endDev = constrain(endCol / 8, zones[i].startDev, MAX_DEVICES - 1);
 
@@ -504,11 +488,9 @@ void loadConfiguration() {
       zones[i].repeat = sc["display"]["repeat"] | -1;
       zones[i].loopCounter = 0;
 
-      // Configure Parola hardware zone
       P.setZone(i, zones[i].startDev, zones[i].endDev);
       applyZoneConfiguration(i);
 
-      // Hardware verification log
       Serial.printf("  -> Zone %u ('%s'): Cols [%d..%d] -> Modules [%u..%u] | Msg: '%s'\n",
                     i,
                     sc["zone"]["name"] | sc["sceneName"] | "Zone",
@@ -523,7 +505,38 @@ void loadConfiguration() {
 }
 
 // ==========================================
-// WIFI SETUP
+// NON-BLOCKING NTP TIME INITIALIZATION
+// ==========================================
+void timeSyncCallback(struct timeval *tv) {
+  time_t now = tv->tv_sec;
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  char buf[32];
+  strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S", &timeinfo);
+  Serial.printf("\n[NTP Callback] Synchronized successfully: %s\n", buf);
+}
+
+void initNTP() {
+  // Set fallback offline time (01/01/2026 12:00:00) without blocking
+  struct tm tmFallback = {0};
+  tmFallback.tm_year = 2026 - 1900;
+  tmFallback.tm_mon = 0;
+  tmFallback.tm_mday = 1;
+  tmFallback.tm_hour = 12;
+  time_t tFallback = mktime(&tmFallback);
+  struct timeval tvFallback = {.tv_sec = tFallback, .tv_usec = 0};
+  settimeofday(&tvFallback, nullptr);
+
+  // Hook non-blocking ESP-IDF background SNTP callback
+  sntp_set_time_sync_notification_cb(timeSyncCallback);
+
+  // Starts SNTP daemon in background lwIP task (instant non-blocking call)
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
+  Serial.println("[NTP] Background SNTP service started.");
+}
+
+// ==========================================
+// WIFI SETUP (SETUP ONLY)
 // ==========================================
 bool connectToSavedWiFi() {
   Serial.println("\n==============================");
@@ -531,198 +544,53 @@ bool connectToSavedWiFi() {
   Serial.println("==============================");
 
   WiFiManager wm;
-  bool success = false;
-
   WiFi.mode(WIFI_STA);
   WiFi.begin();
 
   int attempts = 0;
-  const int MAX_ATTEMPTS = 5;
+  const int MAX_ATTEMPTS = 10;
 
+  // Rapid check during boot (3 seconds max before portal)
   while (attempts < MAX_ATTEMPTS) {
-
-    char attemptStr[16];
-    snprintf(attemptStr, sizeof(attemptStr), "Attempt: %d/5", attempts + 1);
-    Serial.printf("[INFO] %s\n", attemptStr);
-
     if (WiFi.status() == WL_CONNECTED) {
       Serial.println("\n[SUCCESS] Connected to Saved WiFi");
       Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
       Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
       Serial.println("==============================\n");
-      delay(2000);
       return true;
     }
-
-    delay(2000);
+    delay(300);
     attempts++;
   }
 
-  // Failed to connect
-  Serial.println("\n[WARNING] No saved WiFi found!");
-  Serial.println("[INFO] Starting Config Portal...");
-  Serial.println("AP SSID    : LED STUDIO");
-  Serial.println("AP IP      : 192.168.4.1");
-  Serial.println("Timeout    : 180 seconds");
-  Serial.println("------------------------------");
-  delay(1500);
-
+  Serial.println("\n[WARNING] No saved WiFi found! Starting Portal...");
   wm.setConfigPortalTimeout(180);
-  success = wm.autoConnect("LED STUDIO");
+  bool success = wm.autoConnect("LED STUDIO");
 
   if (success) {
-    Serial.println("\n[SUCCESS] WiFi Connected via Config Portal");
-    Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
+    Serial.println("\n[SUCCESS] Connected via Portal");
     Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
-    Serial.println("==============================\n");
-    delay(2000);
     return true;
-  } else {
-    Serial.println("\n[ERROR] Config Portal Timeout!");
-    Serial.println("Device not connected to WiFi.");
-    Serial.println("==============================\n");
-    delay(1000);
-    return false; // Better logic than returning true
   }
+
+  Serial.println("\n[INFO] Portal Timeout - Continuing in Offline Mode.");
+  return false;
 }
 
 // ==========================================
-// NTP TIME SYNCING
-// ==========================================
-void configDateTime() {
-
-  Serial.println("\n==============================");
-  Serial.println("Date & Time Configuration");
-  Serial.println("==============================");
-
-  if (WiFi.status() != WL_CONNECTED) {
-
-    Serial.println("[WARNING] WiFi not connected!");
-    Serial.println("[INFO] Running in offline mode.");
-    Serial.println("[INFO] Setting default time: 01/01/2025 12:00:00");
-
-    unsigned long start = millis();
-    while (millis() - start < 2000)
-      yield();
-
-    struct tm tm;
-    tm.tm_year = 2025 - 1900;
-    tm.tm_mon = 0;
-    tm.tm_mday = 1;
-    tm.tm_hour = 12;
-    tm.tm_min = 0;
-    tm.tm_sec = 0;
-
-    time_t t = mktime(&tm);
-    struct timeval now = {.tv_sec = t};
-    settimeofday(&now, nullptr);
-
-    Serial.println("[SUCCESS] Default time applied.");
-    Serial.println("==============================\n");
-    return;
-  }
-
-  Serial.println("[INFO] WiFi connected.");
-  Serial.println("[INFO] Starting NTP sync...");
-
-  unsigned long start = millis();
-  while (millis() - start < 1000)
-    yield();
-
-  int attempts = 0;
-  const int MAX_ATTEMPTS = 5;
-  struct tm timeinfo;
-
-  while (attempts < MAX_ATTEMPTS) {
-
-    Serial.printf("[INFO] NTP Attempt %d/%d\n", attempts + 1, MAX_ATTEMPTS);
-
-    char attemptStr[16];
-    snprintf(attemptStr, sizeof(attemptStr), "Attempt: %d/5", attempts + 1);
-
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
-
-    start = millis();
-    while (millis() - start < 1000)
-      yield();
-
-    if (getLocalTime(&timeinfo)) {
-      Serial.println("[SUCCESS] Time synced from NTP");
-      break;
-    }
-
-    attempts++;
-  }
-
-  if (getLocalTime(&timeinfo)) {
-
-    char timeStr[16];
-    char dateStr[18];
-    char gmtStr[30];
-
-    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
-    strftime(dateStr, sizeof(dateStr), "%d.%m.%Y", &timeinfo);
-    strftime(gmtStr, sizeof(gmtStr), "%z %Z", &timeinfo);
-
-    Serial.println("-------- Current Time --------");
-    Serial.printf("Time : %s\n", timeStr);
-    Serial.printf("Date : %s\n", dateStr);
-    Serial.printf("Zone : %s\n", gmtStr);
-    Serial.println("==============================\n");
-
-    strftime(timeStr, sizeof(timeStr), "Time: %H:%M:%S", &timeinfo);
-    strftime(dateStr, sizeof(dateStr), "Date: %d.%m.%Y", &timeinfo);
-    strftime(gmtStr, sizeof(gmtStr), "GMT: %z %Z", &timeinfo);
-
-    start = millis();
-    while (millis() - start < 2000)
-      yield();
-  } else {
-
-    Serial.println("[ERROR] NTP sync failed!");
-    Serial.println("[INFO] Applying default offline time.");
-    Serial.println("[INFO] Default: 01/01/2025 12:00:00");
-
-    struct tm tm;
-    tm.tm_year = 2025 - 1900;
-    tm.tm_mon = 0;
-    tm.tm_mday = 1;
-    tm.tm_hour = 12;
-    tm.tm_min = 0;
-    tm.tm_sec = 0;
-
-    time_t t = mktime(&tm);
-    struct timeval now = {.tv_sec = t};
-    settimeofday(&now, nullptr);
-
-    Serial.println("[SUCCESS] Default time applied.");
-    Serial.println("==============================\n");
-
-    start = millis();
-    while (millis() - start < 2000)
-      yield();
-  }
-}
-
-// ==========================================
-// ASYNC HTTP SERVER ROUTING
+// ASYNC HTTP SERVER ROUTING (RUN ONCE)
 // ==========================================
 void setupWebServer() {
-  if (webServerStarted) {
-    return; // already started
-  }
-
-  // 1. Root index.html directly from SPIFFS with ETag validation & 7-day caching
   server.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     if (request->hasHeader("If-None-Match")) {
       const AsyncWebHeader *h = request->getHeader("If-None-Match");
       if (h && h->value() == BUILD_ETAG) {
-        request->send(304); // Browser uses cached version (0 bytes transferred)
+        request->send(304);
         return;
       }
     }
     if (!SPIFFS.exists("/index.html")) {
-      request->send(404, "text/plain", "index.html missing from SPIFFS! Please flash data folder.");
+      request->send(404, "text/plain", "index.html missing from SPIFFS!");
       return;
     }
     AsyncWebServerResponse *res = request->beginResponse(SPIFFS, "/index.html", "text/html");
@@ -731,10 +599,8 @@ void setupWebServer() {
     request->send(res);
   });
 
-  // 2. Static Resources (Icons / Images)
   server.serveStatic("/icon.svg", SPIFFS, "/icon.svg").setCacheControl("max-age=604800");
 
-  // 3. GET /api/matrix/config -> Direct flash file streaming
   server.on("/api/matrix/config", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     if (SPIFFS.exists(CONFIG_FILE)) {
       AsyncWebServerResponse *res = request->beginResponse(SPIFFS, CONFIG_FILE, "application/json");
@@ -745,7 +611,6 @@ void setupWebServer() {
     }
   });
 
-  // 4. POST /api/matrix/config -> Direct flash streaming upload
   server.on(
       "/api/matrix/config",
       WebRequestMethod::HTTP_POST,
@@ -768,76 +633,65 @@ void setupWebServer() {
             uploadFile.close();
             Serial.printf("[SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
           }
-          configUpdated = true; // Reload settings in loop()
+          configUpdated = true;
         }
       });
 
   server.begin();
-  webServerStarted = true;
   Serial.println("[HTTP] AsyncWebServer online.");
 }
 
 // ==========================================
-// RECONNECT WIFI & RESTARTING WEBSERVER
+// FULLY NON-BLOCKING RUNTIME WIFI SUPERVISOR
 // ==========================================
 void checkWiFiAndStartServer() {
   static unsigned long lastCheck = 0;
-  static bool wasConnected = (WiFi.status() == WL_CONNECTED);
   static unsigned long lastReconnectAttempt = 0;
+  static bool wasConnected = (WiFi.status() == WL_CONNECTED);
 
+  // Poll state only once every 3 seconds to preserve CPU cycles
   if (millis() - lastCheck < 3000)
-    return; // Check every 3s
+    return;
   lastCheck = millis();
 
   bool isConnected = (WiFi.status() == WL_CONNECTED);
 
-  // WiFi Just Connected (or reconnected)
+  // Reconnected Event
   if (isConnected && !wasConnected) {
-    Serial.println("\n[WiFi] Connected!");
-    Serial.printf("[WiFi] SSID: %s\n", WiFi.SSID().c_str());
-    Serial.printf("[WiFi] IP  : %s\n", WiFi.localIP().toString().c_str());
-
-    // Start Web Server if not already running
-    if (!webServerStarted) {
-      Serial.println("[WiFi] Restarting WebServer...");
-      setupWebServer();
-    }
-
-    // Re-sync NTP time after reconnection
-    configDateTime();
+    Serial.println("\n[WiFi] Reconnected!");
+    Serial.printf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
+    // Note: AsyncWebServer keeps running automatically; no need to restart routes.
+    wasConnected = true;
   }
 
-  // WiFi Lost
+  // Disconnected Event
   if (!isConnected && wasConnected) {
-    Serial.println("\n[WiFi] Disconnected!");
-    webServerStarted = false; // allow restart after reconnection
+    Serial.println("\n[WiFi] Disconnected! Background reconnect active.");
+    wasConnected = false;
   }
 
-  // Attempt Reconnect
+  // Periodic non-blocking reconnection attempt if offline
   if (!isConnected) {
-    if (millis() - lastReconnectAttempt > 15000) { // every 15 sec
+    if (millis() - lastReconnectAttempt > 15000) {
       lastReconnectAttempt = millis();
-      Serial.println("[WiFi] Attempting reconnection...");
-      WiFi.disconnect(false, false); // don't erase credentials
-      WiFi.mode(WIFI_STA);
-      WiFi.begin();
+      Serial.println("[WiFi] Reconnect trigger...");
+      WiFi.reconnect(); // Initiates background reconnect without blocking
     }
   }
-
-  wasConnected = isConnected;
 }
 
 // ==========================================
-// SETUP & INITIALIZATION
+// SETUP
 // ==========================================
 void setup() {
   Serial.begin(115200);
-  delay(200);
-  Serial.println("\n======================================");
-  Serial.println("   ESP32 LED Matrix Controller        ");
-  Serial.println("======================================");
+  delay(100);
 
-  // 1. Build and map custom 8x6 bold font table
+  Serial.println("\n==============================");
+  Serial.println("ESP32 LED Matrix Controller");
+  Serial.println("==============================");
+
+  // 1. Build custom font table
   buildCustomBoldFont();
 
   // 2. Initialize SPIFFS
@@ -861,24 +715,24 @@ void setup() {
   P.setIntensity(12);
   P.displayClear();
 
-  // 5. WiFiManager: captive portal without hardcoded credentials
+  // 5. Connect WiFi or run Captive Portal (blocking is fine during initial boot)
   connectToSavedWiFi();
 
-  // 6. NTP Clock Synchronization (IST = UTC+5:30 -> 19800 sec)
-  configDateTime();
+  // 6. Initialize Non-Blocking NTP Time Engine
+  initNTP();
 
-  // 7. Mount Web Server routes
+  // 7. Mount Web Server Routes (Registered ONCE only)
   setupWebServer();
 
-  // 8. Load persistent matrix zones & scene config
+  // 8. Load matrix zones & scene config from flash
   loadConfiguration();
 }
 
 // ==========================================
-// MAIN LOOP
+// MAIN LOOP (MICROSECOND EXECUTION SPEED)
 // ==========================================
 void loop() {
-  // 1. Handle live configuration updates from the web UI
+  // 1. Apply config changes pushed via web portal
   if (configUpdated) {
     configUpdated = false;
     loadConfiguration();
@@ -906,5 +760,6 @@ void loop() {
     }
   }
 
+  // 3. Non-blocking WiFi & network management
   checkWiFiAndStartServer();
 }
