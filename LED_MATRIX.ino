@@ -370,15 +370,15 @@ void saveDefaultConfiguration() {
 
   // Default Scene 1: Zone 1 (Cols 0 to 15 -> Modules 0 to 1)
   JsonObject sc1 = scenesArr.add<JsonObject>();
-  sc1["sceneName"] = "Status Zone";
+  sc1["sceneName"] = "ESP";
   JsonObject z1 = sc1["zone"].to<JsonObject>();
   z1["name"] = "Zone 1";
   z1["startCol"] = 0;
-  z1["endCol"] = 15;
+  z1["endCol"] = 23;
   JsonObject m1 = sc1["message"].to<JsonObject>();
   m1["type"] = "plain";
   m1["content"] = "ESP";
-  m1["bold"] = false;
+  m1["bold"] = true;
   m1["align"] = "center";
   JsonObject a1 = sc1["animation"].to<JsonObject>();
   a1["inEffect"] = "PA_SCROLL_LEFT";
@@ -392,15 +392,15 @@ void saveDefaultConfiguration() {
 
   // Default Scene 2: Zone 2 (Cols 16 to 39 -> Modules 2 to 4)
   JsonObject sc2 = scenesArr.add<JsonObject>();
-  sc2["sceneName"] = "Clock Zone";
+  sc2["sceneName"] = "32";
   JsonObject z2 = sc2["zone"].to<JsonObject>();
   z2["name"] = "Zone 2";
-  z2["startCol"] = 16;
+  z2["startCol"] = 24;
   z2["endCol"] = 39;
   JsonObject m2 = sc2["message"].to<JsonObject>();
-  m2["type"] = "custom";
-  m2["content"] = "{HH}:{mm}:{ss}";
-  m2["bold"] = false;
+  m2["type"] = "plain";
+  m2["content"] = "32";
+  m2["bold"] = true;
   m2["align"] = "center";
   JsonObject a2 = sc2["animation"].to<JsonObject>();
   a2["inEffect"] = "PA_PRINT";
@@ -540,7 +540,7 @@ void setupWebServer() {
   });
 
   // 2. Static Resources (Icons / Images)
-  server.serveStatic("/icon.png", SPIFFS, "/icon.png").setCacheControl("max-age=604800");
+  server.serveStatic("/icon.svg", SPIFFS, "/icon.svg").setCacheControl("max-age=604800");
 
   // 3. GET /api/matrix/config -> Direct flash file streaming
   server.on("/api/matrix/config", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
