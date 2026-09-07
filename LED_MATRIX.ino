@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>       // JSON parsing and serialization
 #include <EEPROM.h>            // EEPROM emulation
 #include <ESPAsyncWebServer.h> // Non-blocking async web server
+#include <ESPmDNS.h>           // Local domain name resolution (.local)
 #include <HTTPClient.h>        // HTTP client utility
 #include <HardwareSerial.h>    // Hardware Serial
 #include <MD_MAX72xx.h>        // LED Matrix MAX72XX hardware driver
@@ -36,6 +37,7 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
+const char *mdnsHostname = "ledstudio"; // Resolves to http://ledstudio.local
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.google.com";
@@ -578,6 +580,22 @@ bool connectToSavedWiFi() {
 }
 
 // ==========================================
+// MDNS SERVER INIT
+// =========================================
+void initMDNS() {
+  // If already running, stop it before restarting
+  MDNS.end();
+
+  if (MDNS.begin(mdnsHostname)) {
+    Serial.printf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
+    // Broadcast service so network scanners/bonjour can discover it
+    MDNS.addService("http", "tcp", 80);
+  } else {
+    Serial.println("[mDNS] Error setting up MDNS responder!");
+  }
+}
+
+// ==========================================
 // ASYNC HTTP SERVER ROUTING (RUN ONCE)
 // ==========================================
 void setupWebServer() {
@@ -661,6 +679,10 @@ void checkWiFiAndStartServer() {
     Serial.println("\n[WiFi] Reconnected!");
     Serial.printf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
     // Note: AsyncWebServer keeps running automatically; no need to restart routes.
+
+    // Refresh mDNS with the new IP address
+    initMDNS();
+
     wasConnected = true;
   }
 
@@ -715,8 +737,10 @@ void setup() {
   P.setIntensity(12);
   P.displayClear();
 
-  // 5. Connect WiFi or run Captive Portal (blocking is fine during initial boot)
-  connectToSavedWiFi();
+  // 5. Connect WiFi or run Captive Portal
+  if (connectToSavedWiFi()) {
+    initMDNS(); // Start mDNS only if connected to local network
+  }
 
   // 6. Initialize Non-Blocking NTP Time Engine
   initNTP();
