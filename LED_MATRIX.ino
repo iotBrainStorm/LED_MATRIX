@@ -16,16 +16,24 @@
 #include <WiFi.h>
 #include <WiFiManager.h> // Config portal for WiFi credentials
 #include <Wire.h>        // I2C communication for sensors
+#include <arduinoFFT.h>  // Audio FFT frequency analysis
+#include <driver/i2s.h>  // ESP32 I2S driver for INMP441
 #include <math.h>
 
 // ==========================================
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 30 // Use one SN74HCT125 logic level shifter ic for data, cs and clk
+#define MAX_DEVICES 30 // Max MAX7219 modules (30 * 8 = 240 cols max)
 #define CLK_PIN 18     // SPI SCK
 #define DATA_PIN 23    // SPI MOSI
 #define CS_PIN 5       // SPI SS / Chip Select
+
+// INMP441 I2S MEMS Microphone Pins
+#define I2S_SCK 14 // Serial Clock (BCLK)
+#define I2S_WS 15  // Word Select (LRCK)
+#define I2S_SD 32  // Serial Data (DOUT)
+#define I2S_PORT I2S_NUM_0
 
 #define MAX_ZONES 4 // Max simultaneous Parola zones supported
 #define CONFIG_FILE "/config.json"
@@ -37,15 +45,48 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
-const char *mdnsHostname = "ledstudio"; // Resolves to http://ledstudio.local
+const char *mdnsHostname = "ledstudio";
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.google.com";
-const long gmtOffset_sec = 19800; // IST = UTC+5:30 -> 19800 sec
+const long gmtOffset_sec = 19800; // IST (UTC+5:30)
 const int daylightOffset_sec = 0;
 
 bool ahtFound = false;
 volatile bool configUpdated = false;
+
+// ==========================================
+// MUSIC SYNC CONFIGURATION & FFT STATE
+// ==========================================
+struct MusicSyncConfig {
+  bool enabled = false;
+  char zone[32] = "Zone 1";
+  int startCol = 0;
+  int endCol = 39;
+  char animation[32] = "VU Bar";
+  int sensitivity = 60;
+  char peakDecay[16] = "Medium";
+};
+
+MusicSyncConfig musicSync;
+bool isMusicSyncActive = false;
+
+// I2S & FFT Parameters
+#define FFT_SAMPLES 64      // Must be a power of 2
+#define SAMPLING_FREQ 16000 // 16 kHz sampling
+double vReal[FFT_SAMPLES];
+double vImag[FFT_SAMPLES];
+ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, FFT_SAMPLES, SAMPLING_FREQ);
+
+// Animation smoothing and physics buffers
+float smoothVol = 0.0f;
+float peakPos = 0.0f;
+unsigned long lastPeakDropTime = 0;
+float bouncePos = 0.0f;
+float bounceVel = 0.0f;
+float waveHistory[MAX_DEVICES * 8] = {0};
+float bandPeaks[MAX_DEVICES * 8] = {0};
+unsigned long lastBandDropTime = 0;
 
 // ==========================================
 // 8x6 BOLD BITMAP FONT TABLE (ASCII 32-126)
@@ -314,6 +355,298 @@ String processTemplate(const String &tmpl) {
 }
 
 // ==========================================
+// I2S HARDWARE INITIALIZATION (INMP441)
+// ==========================================
+void initI2S() {
+  const i2s_config_t i2s_config = {
+      .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+      .sample_rate = SAMPLING_FREQ,
+      .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+      .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
+      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+      .dma_buf_count = 4,
+      .dma_buf_len = FFT_SAMPLES,
+      .use_apll = false,
+      .tx_desc_auto_clear = false,
+      .fixed_mclk = 0};
+
+  const i2s_pin_config_t pin_config = {
+      .bck_io_num = I2S_SCK,
+      .ws_io_num = I2S_WS,
+      .data_out_num = I2S_PIN_NO_CHANGE,
+      .data_in_num = I2S_SD};
+
+  esp_err_t err = i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Driver install failed: 0x%x\n", err);
+    return;
+  }
+
+  err = i2s_set_pin(I2S_PORT, &pin_config);
+  if (err != ESP_OK) {
+    Serial.printf("[I2S] Pin configuration failed: 0x%x\n", err);
+    return;
+  }
+
+  i2s_start(I2S_PORT);
+  Serial.println("[I2S] INMP441 MEMS microphone initialized successfully.");
+}
+
+// Helper: Set matrix point with orientation mapping (r=0 is bottom, r=7 is top)
+inline void setVUMatrixPoint(MD_MAX72XX *mx, int r, int c, bool state) {
+  if (c >= 0 && c < MAX_DEVICES * 8 && r >= 0 && r < 8) {
+    mx->setPoint(7 - r, c, state);
+  }
+}
+
+// Clear only the columns inside designated zone
+void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
+  for (int c = startCol; c <= endCol; c++) {
+    for (int r = 0; r < 8; r++) {
+      setVUMatrixPoint(mx, r, c, false);
+    }
+  }
+}
+
+// ==========================================
+// REAL-TIME AUDIO SAMPLING & VU DRAWING
+// ==========================================
+void runMusicSyncFrame() {
+  MD_MAX72XX *mx = P.getGraphicObject();
+  if (!mx)
+    return;
+
+  int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
+  int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
+  int zWidth = zEnd - zStart + 1;
+
+  // 1. Read I2S audio samples into buffer
+  int32_t i2sRawBuffer[FFT_SAMPLES];
+  size_t bytesRead = 0;
+  esp_err_t res = i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, pdMS_TO_TICKS(15));
+  if (res != ESP_OK || bytesRead == 0)
+    return;
+
+  // 2. Compute RMS Amplitude & fill FFT Real array
+  float sumSquares = 0.0f;
+  int sampleCount = bytesRead / sizeof(int32_t);
+
+  for (int i = 0; i < sampleCount; i++) {
+    int32_t sample = i2sRawBuffer[i] >> 14; // INMP441 uses top 24 bits
+    vReal[i] = (double)sample;
+    vImag[i] = 0.0;
+    sumSquares += (float)sample * sample;
+  }
+
+  float rms = sqrt(sumSquares / sampleCount);
+
+  // Noise floor suppression & sensitivity scaling
+  const float noiseFloor = 30.0f;
+  if (rms < noiseFloor)
+    rms = 0.0f;
+  else
+    rms -= noiseFloor;
+
+  float gain = (musicSync.sensitivity / 50.0f);
+  float rawVol = (rms * gain) / 3200.0f;
+  rawVol = constrain(rawVol, 0.0f, 1.0f);
+
+  // Fast attack, smooth decay volume envelope
+  if (rawVol > smoothVol)
+    smoothVol = rawVol;
+  else
+    smoothVol = (smoothVol * 0.75f) + (rawVol * 0.25f);
+
+  // Peak decay interval based on configuration
+  unsigned long decayInterval = 60; // Medium
+  if (strcmp(musicSync.peakDecay, "Fast") == 0)
+    decayInterval = 30;
+  else if (strcmp(musicSync.peakDecay, "Smooth") == 0)
+    decayInterval = 120;
+
+  // Begin direct hardware frame
+  mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
+  clearVUZone(mx, zStart, zEnd);
+
+  // ========================================
+  // ANIMATION 1: VU Bar
+  // ========================================
+  if (strcmp(musicSync.animation, "VU Bar") == 0) {
+    int fillCols = (int)round(smoothVol * zWidth);
+    for (int i = 0; i < zWidth; i++) {
+      int c = zStart + i;
+      if (i < fillCols) {
+        int height = constrain(map(i, 0, zWidth - 1, 3, 8), 1, 8);
+        for (int r = 0; r < height; r++) {
+          setVUMatrixPoint(mx, r, c, true);
+        }
+      }
+    }
+  }
+
+  // ========================================
+  // ANIMATION 2: VU Peak
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Peak") == 0) {
+    int fillCols = (int)round(smoothVol * zWidth);
+    if (fillCols > peakPos) {
+      peakPos = fillCols;
+      lastPeakDropTime = millis();
+    } else if (millis() - lastPeakDropTime >= decayInterval) {
+      if (peakPos > 0)
+        peakPos -= 0.5f;
+      lastPeakDropTime = millis();
+    }
+
+    for (int i = 0; i < zWidth; i++) {
+      int c = zStart + i;
+      if (i < fillCols) {
+        for (int r = 0; r < 7; r++) {
+          setVUMatrixPoint(mx, r, c, true);
+        }
+      }
+    }
+    int pCol = zStart + (int)peakPos;
+    if (pCol <= zEnd) {
+      for (int r = 0; r < 8; r++) {
+        setVUMatrixPoint(mx, r, pCol, true);
+      }
+    }
+  }
+
+  // ========================================
+  // ANIMATION 3: VU Mirror
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Mirror") == 0) {
+    int center = zStart + (zWidth / 2);
+    int halfSpan = (int)round(smoothVol * (zWidth / 2.0f));
+
+    for (int i = 0; i <= halfSpan; i++) {
+      int leftCol = center - i;
+      int rightCol = center + i;
+      int height = constrain(8 - (i * 8 / (zWidth / 2 + 1)), 2, 8);
+
+      for (int r = 0; r < height; r++) {
+        if (leftCol >= zStart)
+          setVUMatrixPoint(mx, r, leftCol, true);
+        if (rightCol <= zEnd)
+          setVUMatrixPoint(mx, r, rightCol, true);
+      }
+    }
+  }
+
+  // ========================================
+  // ANIMATION 4: VU Bounce
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
+    float targetPos = smoothVol * (zWidth - 2);
+    if (targetPos > bouncePos) {
+      bounceVel = (targetPos - bouncePos) * 0.45f + 1.2f;
+    }
+    bounceVel -= 0.35f; // Gravity
+    bouncePos += bounceVel;
+    bouncePos = constrain(bouncePos, 0.0f, (float)(zWidth - 2));
+
+    int bCol = zStart + (int)bouncePos;
+    // Draw bouncing 2-pixel head
+    for (int r = 2; r < 6; r++) {
+      setVUMatrixPoint(mx, r, bCol, true);
+      if (bCol + 1 <= zEnd)
+        setVUMatrixPoint(mx, r, bCol + 1, true);
+    }
+    // Subtle trailing base
+    for (int c = zStart; c <= bCol; c += 2) {
+      setVUMatrixPoint(mx, 0, c, true);
+    }
+  }
+
+  // ========================================
+  // ANIMATION 5: VU Pulse
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Pulse") == 0) {
+    int center = zStart + (zWidth / 2);
+    int radius = (int)round(smoothVol * (zWidth / 2.0f));
+    int vertHeight = (int)round(smoothVol * 4.0f);
+
+    for (int d = 0; d <= radius; d++) {
+      int c1 = center - d;
+      int c2 = center + d;
+      int h = constrain(vertHeight - (d / 2), 0, 4);
+
+      for (int r = 3 - h; r <= 4 + h; r++) {
+        if (c1 >= zStart)
+          setVUMatrixPoint(mx, r, c1, true);
+        if (c2 <= zEnd)
+          setVUMatrixPoint(mx, r, c2, true);
+      }
+    }
+  }
+
+  // ========================================
+  // ANIMATION 6: VU Wave (Oscilloscope Ripple)
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Wave") == 0) {
+    // Shift historical waveform horizontally
+    for (int i = 0; i < zWidth - 1; i++) {
+      waveHistory[i] = waveHistory[i + 1];
+    }
+    waveHistory[zWidth - 1] = smoothVol;
+
+    for (int i = 0; i < zWidth; i++) {
+      int c = zStart + i;
+      int waveH = (int)round(waveHistory[i] * 3.5f);
+      for (int r = 3 - waveH; r <= 4 + waveH; r++) {
+        setVUMatrixPoint(mx, r, c, true);
+      }
+    }
+  }
+
+  // ========================================
+  // ANIMATION 7: VU Spectrum (arduinoFFT)
+  // ========================================
+  else if (strcmp(musicSync.animation, "VU Spectrum") == 0) {
+    FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+    FFT.compute(FFTDirection::Forward);
+    FFT.complexToMagnitude();
+
+    // Decay band peaks
+    if (millis() - lastBandDropTime >= decayInterval) {
+      for (int i = 0; i < zWidth; i++) {
+        if (bandPeaks[i] > 0)
+          bandPeaks[i] -= 0.5f;
+      }
+      lastBandDropTime = millis();
+    }
+
+    int usableBins = FFT_SAMPLES / 2; // 32 frequency bins
+    for (int i = 0; i < zWidth; i++) {
+      int c = zStart + i;
+      int binIdx = map(i, 0, zWidth - 1, 1, usableBins - 2);
+      double magnitude = vReal[binIdx] * (musicSync.sensitivity / 40.0f);
+
+      int height = constrain((int)(magnitude / 350.0), 0, 8);
+      if (height > bandPeaks[i]) {
+        bandPeaks[i] = height;
+      }
+
+      // Draw spectrum vertical column
+      for (int r = 0; r < height; r++) {
+        setVUMatrixPoint(mx, r, c, true);
+      }
+
+      // Draw falling peak point on top of column
+      int peakRow = (int)bandPeaks[i];
+      if (peakRow > 0 && peakRow < 8) {
+        setVUMatrixPoint(mx, peakRow, c, true);
+      }
+    }
+  }
+
+  mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
+}
+
+// ==========================================
 // CONFIGURATION PERSISTENCE & HARDWARE SYNC
 // ==========================================
 void applyZoneConfiguration(uint8_t z) {
@@ -361,6 +694,16 @@ void saveDefaultConfiguration() {
   matrix["height"] = 8;
   matrix["width"] = 40;
   matrix["modules"] = 5;
+
+  // Dedicated Music Sync Default Root Settings
+  JsonObject ms = doc["music_sync"].to<JsonObject>();
+  ms["enabled"] = false;
+  ms["zone"] = "Zone 1";
+  ms["start_col"] = 0;
+  ms["end_col"] = 39;
+  ms["animation"] = "VU Bar";
+  ms["sensitivity"] = 60;
+  ms["peak_decay"] = "Medium";
 
   JsonArray scenesArr = doc["scenes"].to<JsonArray>();
 
@@ -436,6 +779,40 @@ void loadConfiguration() {
     Serial.printf("[Config] JSON Deserialization error: %s\n", err.c_str());
     return;
   }
+
+  // =========================================================================
+  // STEP 1: FIRST CHECK MUSIC SYNC STATUS
+  // =========================================================================
+  if (doc["music_sync"].is<JsonObject>()) {
+    musicSync.enabled = doc["music_sync"]["enabled"] | false;
+    const char *zName = doc["music_sync"]["zone"] | "Zone 1";
+    strncpy(musicSync.zone, zName, sizeof(musicSync.zone) - 1);
+    musicSync.startCol = doc["music_sync"]["start_col"] | 0;
+    musicSync.endCol = doc["music_sync"]["end_col"] | 39;
+    const char *anim = doc["music_sync"]["animation"] | "VU Bar";
+    strncpy(musicSync.animation, anim, sizeof(musicSync.animation) - 1);
+    musicSync.sensitivity = doc["music_sync"]["sensitivity"] | 60;
+    const char *decay = doc["music_sync"]["peak_decay"] | "Medium";
+    strncpy(musicSync.peakDecay, decay, sizeof(musicSync.peakDecay) - 1);
+  } else {
+    musicSync.enabled = false;
+  }
+
+  // If Music Sync is ON: Focus ONLY on VU Meter Task
+  if (musicSync.enabled) {
+    isMusicSyncActive = true;
+    P.displayClear();
+    Serial.println("========================================");
+    Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
+    Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
+    Serial.printf(" -> Zone Mapped    : '%s' [Cols %d -> %d]\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
+    Serial.printf(" -> Animation      : %s | Gain: %d%% | Decay: %s\n", musicSync.animation, musicSync.sensitivity, musicSync.peakDecay);
+    Serial.println("========================================");
+    return; // Exit early: do not load or animate Parola scenes!
+  }
+
+  // If Music Sync is OFF: Run normal multi-scene / zone renderer
+  isMusicSyncActive = false;
 
   JsonArray scenesArr = doc["scenes"].as<JsonArray>();
   if (scenesArr.isNull() || scenesArr.size() == 0) {
@@ -519,7 +896,6 @@ void timeSyncCallback(struct timeval *tv) {
 }
 
 void initNTP() {
-  // Set fallback offline time (01/01/2026 12:00:00) without blocking
   struct tm tmFallback = {0};
   tmFallback.tm_year = 2026 - 1900;
   tmFallback.tm_mon = 0;
@@ -529,16 +905,13 @@ void initNTP() {
   struct timeval tvFallback = {.tv_sec = tFallback, .tv_usec = 0};
   settimeofday(&tvFallback, nullptr);
 
-  // Hook non-blocking ESP-IDF background SNTP callback
   sntp_set_time_sync_notification_cb(timeSyncCallback);
-
-  // Starts SNTP daemon in background lwIP task (instant non-blocking call)
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
   Serial.println("[NTP] Background SNTP service started.");
 }
 
 // ==========================================
-// WIFI SETUP (SETUP ONLY)
+// WIFI SETUP
 // ==========================================
 bool connectToSavedWiFi() {
   Serial.println("\n==============================");
@@ -552,7 +925,6 @@ bool connectToSavedWiFi() {
   int attempts = 0;
   const int MAX_ATTEMPTS = 10;
 
-  // Rapid check during boot (3 seconds max before portal)
   while (attempts < MAX_ATTEMPTS) {
     if (WiFi.status() == WL_CONNECTED) {
       Serial.println("\n[SUCCESS] Connected to Saved WiFi");
@@ -581,14 +953,11 @@ bool connectToSavedWiFi() {
 
 // ==========================================
 // MDNS SERVER INIT
-// =========================================
+// ==========================================
 void initMDNS() {
-  // If already running, stop it before restarting
   MDNS.end();
-
   if (MDNS.begin(mdnsHostname)) {
     Serial.printf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
-    // Broadcast service so network scanners/bonjour can discover it
     MDNS.addService("http", "tcp", 80);
   } else {
     Serial.println("[mDNS] Error setting up MDNS responder!");
@@ -596,7 +965,7 @@ void initMDNS() {
 }
 
 // ==========================================
-// ASYNC HTTP SERVER ROUTING (RUN ONCE)
+// ASYNC HTTP SERVER ROUTING
 // ==========================================
 void setupWebServer() {
   server.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -660,44 +1029,36 @@ void setupWebServer() {
 }
 
 // ==========================================
-// FULLY NON-BLOCKING RUNTIME WIFI SUPERVISOR
+// RUNTIME WIFI SUPERVISOR
 // ==========================================
 void checkWiFiAndStartServer() {
   static unsigned long lastCheck = 0;
   static unsigned long lastReconnectAttempt = 0;
   static bool wasConnected = (WiFi.status() == WL_CONNECTED);
 
-  // Poll state only once every 3 seconds to preserve CPU cycles
   if (millis() - lastCheck < 3000)
     return;
   lastCheck = millis();
 
   bool isConnected = (WiFi.status() == WL_CONNECTED);
 
-  // Reconnected Event
   if (isConnected && !wasConnected) {
     Serial.println("\n[WiFi] Reconnected!");
     Serial.printf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
-    // Note: AsyncWebServer keeps running automatically; no need to restart routes.
-
-    // Refresh mDNS with the new IP address
     initMDNS();
-
     wasConnected = true;
   }
 
-  // Disconnected Event
   if (!isConnected && wasConnected) {
     Serial.println("\n[WiFi] Disconnected! Background reconnect active.");
     wasConnected = false;
   }
 
-  // Periodic non-blocking reconnection attempt if offline
   if (!isConnected) {
     if (millis() - lastReconnectAttempt > 15000) {
       lastReconnectAttempt = millis();
       Serial.println("[WiFi] Reconnect trigger...");
-      WiFi.reconnect(); // Initiates background reconnect without blocking
+      WiFi.reconnect();
     }
   }
 }
@@ -710,10 +1071,10 @@ void setup() {
   delay(100);
 
   Serial.println("\n==============================");
-  Serial.println("ESP32 LED Matrix Controller");
+  Serial.println("ESP32 LED Matrix + Music Sync");
   Serial.println("==============================");
 
-  // 1. Build custom font table
+  // 1. Build font table
   buildCustomBoldFont();
 
   // 2. Initialize SPIFFS
@@ -732,58 +1093,67 @@ void setup() {
     Serial.println("[Sensor] AHT10 not found. Defaulting to virtual readings.");
   }
 
-  // 4. Initialize Parola Matrix Display
+  // 4. Initialize Parola Display & MAX72XX
   P.begin(MAX_ZONES);
   P.setIntensity(12);
   P.displayClear();
 
-  // 5. Connect WiFi or run Captive Portal
+  // 5. Initialize I2S for INMP441 MEMS microphone
+  initI2S();
+
+  // 6. Connect WiFi
   if (connectToSavedWiFi()) {
-    initMDNS(); // Start mDNS only if connected to local network
+    initMDNS();
   }
 
-  // 6. Initialize Non-Blocking NTP Time Engine
+  // 7. Non-blocking NTP
   initNTP();
 
-  // 7. Mount Web Server Routes (Registered ONCE only)
+  // 8. Mount Web Server
   setupWebServer();
 
-  // 8. Load matrix zones & scene config from flash
+  // 9. Load config (Evaluates music_sync.enabled first)
   loadConfiguration();
 }
 
 // ==========================================
-// MAIN LOOP (MICROSECOND EXECUTION SPEED)
+// MAIN LOOP
 // ==========================================
 void loop() {
-  // 1. Apply config changes pushed via web portal
+  // 1. Handle live config updates pushed from browser
   if (configUpdated) {
     configUpdated = false;
     loadConfiguration();
   }
 
-  // 2. Step Parola animation frames
-  if (P.displayAnimate()) {
-    for (uint8_t z = 0; z < activeZoneCount; z++) {
-      if (zones[z].inUse && P.getZoneStatus(z)) {
-        if (zones[z].repeat != -1) {
-          zones[z].loopCounter++;
-          if (zones[z].loopCounter >= zones[z].repeat) {
-            continue;
+  // 2. TASK EXECUTION BRANCHING
+  if (isMusicSyncActive) {
+    // DEDICATED TASK: Microsecond real-time audio sampling & VU Meter
+    runMusicSyncFrame();
+  } else {
+    // DEFAULT TASK: Multi-zone scene text and animation rendering
+    if (P.displayAnimate()) {
+      for (uint8_t z = 0; z < activeZoneCount; z++) {
+        if (zones[z].inUse && P.getZoneStatus(z)) {
+          if (zones[z].repeat != -1) {
+            zones[z].loopCounter++;
+            if (zones[z].loopCounter >= zones[z].repeat) {
+              continue;
+            }
           }
-        }
 
-        if (zones[z].isCustom) {
-          String resolved = processTemplate(zones[z].rawMessage);
-          strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
-          zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
-        }
+          if (zones[z].isCustom) {
+            String resolved = processTemplate(zones[z].rawMessage);
+            strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
+            zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
+          }
 
-        P.displayReset(z);
+          P.displayReset(z);
+        }
       }
     }
   }
 
-  // 3. Non-blocking WiFi & network management
+  // 3. Non-blocking background network supervisor
   checkWiFiAndStartServer();
 }
