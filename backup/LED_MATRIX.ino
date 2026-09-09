@@ -22,7 +22,7 @@
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 30 // Use one SN74HCT125 logic level shifter ic for data, cs and clk
+#define MAX_DEVICES 24 // Max possible physical 8x8 modules supported
 #define CLK_PIN 18     // SPI SCK
 #define DATA_PIN 23    // SPI MOSI
 #define CS_PIN 5       // SPI SS / Chip Select

@@ -8,7 +8,7 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
-    <link rel="preconnect" href="https://fonts.preconnect.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap"
@@ -500,134 +500,7 @@
         </section>
       </div>
 
-      <!-- Option 3: Music Sync (Audio Reactive VU Meter) -->
-      <section
-        class="glass-panel rounded-2xl p-5 sm:p-6 border border-slate-800"
-      >
-        <div
-          class="flex items-center justify-between pb-3 mb-4 border-b border-slate-800"
-        >
-          <div class="flex items-center gap-3">
-            <span
-              class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
-              >3</span
-            >
-            <div>
-              <h2
-                class="text-sm sm:text-base font-bold text-white flex items-center gap-2"
-              >
-                Music Sync
-              </h2>
-            </div>
-          </div>
-
-          <!-- Music Sync Toggle Switch (Default: OFF) -->
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              id="music-sync-enable"
-              class="sr-only peer"
-              onchange="handleMusicSyncToggle()"
-            />
-            <div
-              class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"
-            ></div>
-          </label>
-        </div>
-
-        <!-- Music Sync Parameters Container (Visible only when ON) -->
-        <div id="music-sync-params" class="hidden space-y-4 pt-1">
-          <div
-            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs"
-          >
-            <!-- Parameter 1: Zone Select (Single Selection Only) -->
-            <div>
-              <label
-                for="ms-zone"
-                class="block text-slate-300 mb-1 font-medium"
-              >
-                1. Dedicated Target Zone
-              </label>
-              <select
-                id="ms-zone"
-                onchange="handleMusicSyncChange()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-cyan-300 font-mono-code text-xs focus:border-cyan-400 outline-none transition"
-              ></select>
-            </div>
-
-            <!-- Parameter 2: VU Animation Type -->
-            <div>
-              <label
-                for="ms-animation"
-                class="block text-slate-300 mb-1 font-medium"
-              >
-                2. VU Animation Pattern
-              </label>
-              <select
-                id="ms-animation"
-                onchange="handleMusicSyncChange()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
-              >
-                <option value="VU Bar">VU Bar (Solid Level)</option>
-                <option value="VU Peak">VU Peak (Falling Peak Dot)</option>
-                <option value="VU Mirror">VU Mirror (Center Outward)</option>
-                <option value="VU Bounce">VU Bounce (Dynamic Gravity)</option>
-                <option value="VU Pulse">VU Pulse (Intensity Pulse)</option>
-                <option value="VU Wave">VU Wave (Frequency Ripple)</option>
-                <option value="VU Spectrum">VU Spectrum (Multi-Band EQ)</option>
-              </select>
-            </div>
-
-            <!-- Parameter 3: Sensitivity / Gain -->
-            <div>
-              <div class="flex justify-between items-center mb-1">
-                <label for="ms-sensitivity" class="text-slate-300 font-medium"
-                  >3. Mic Sensitivity / Gain</label
-                >
-                <span
-                  id="ms-sens-val"
-                  class="font-mono-code text-cyan-400 font-bold"
-                  >60%</span
-                >
-              </div>
-              <input
-                type="range"
-                id="ms-sensitivity"
-                min="1"
-                max="100"
-                value="60"
-                oninput="
-                  document.getElementById('ms-sens-val').innerText =
-                    this.value + '%';
-                  handleMusicSyncChange();
-                "
-                class="w-full mt-2 cursor-pointer"
-              />
-            </div>
-
-            <!-- Parameter 4: Peak Decay Speed -->
-            <div>
-              <label
-                for="ms-peak-decay"
-                class="block text-slate-300 mb-1 font-medium"
-              >
-                4. Peak Fall Speed / Decay
-              </label>
-              <select
-                id="ms-peak-decay"
-                onchange="handleMusicSyncChange()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
-              >
-                <option value="Fast">Fast Drop</option>
-                <option value="Medium" selected>Medium Decay</option>
-                <option value="Smooth">Smooth / Slow Decay</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Option 4: Animation Configuration -->
+      <!-- Option 3: Animation Configuration -->
       <section
         class="glass-panel rounded-2xl p-5 sm:p-6 border border-slate-800"
       >
@@ -639,7 +512,7 @@
           >
             <span
               class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs"
-              >4</span
+              >3</span
             >
             Animation Configuration
           </h2>
@@ -1538,15 +1411,6 @@
       let selectedSceneId = null;
       let currentAnimParams = null;
 
-      /* Separate Root-Level Music Sync Configuration */
-      let musicSyncConfig = {
-        enabled: false,
-        zone: "Zone 1",
-        animation: "VU Bar",
-        sensitivity: 60,
-        peakSpeed: "Medium",
-      };
-
       function updateLedSprite() {
         const normBrightness = Math.max(0.08, ledBrightnessLevel / 15.0);
         const blur = Math.round(12 * normBrightness);
@@ -1603,60 +1467,6 @@
       }
       setInterval(updateLiveClock, 1000);
       updateLiveClock();
-
-      /* Music Sync Management */
-      function handleMusicSyncToggle() {
-        const isChecked = document.getElementById("music-sync-enable").checked;
-        musicSyncConfig.enabled = isChecked;
-
-        const paramsDiv = document.getElementById("music-sync-params");
-
-        if (paramsDiv) {
-          paramsDiv.classList.toggle("hidden", !isChecked);
-        }
-
-        showToast(
-          isChecked
-            ? "Music Sync Enabled"
-            : "Music Sync Disabled: Normal Scene Mode",
-        );
-      }
-
-      function handleMusicSyncChange() {
-        const zoneSel = document.getElementById("ms-zone");
-        const animSel = document.getElementById("ms-animation");
-        const sensInput = document.getElementById("ms-sensitivity");
-        const peakSel = document.getElementById("ms-peak-decay");
-
-        if (zoneSel) musicSyncConfig.zone = zoneSel.value;
-        if (animSel) musicSyncConfig.animation = animSel.value;
-        if (sensInput)
-          musicSyncConfig.sensitivity = parseInt(sensInput.value) || 60;
-        if (peakSel) musicSyncConfig.peakSpeed = peakSel.value;
-      }
-
-      function updateMusicSyncZoneOptions() {
-        const msZoneSelect = document.getElementById("ms-zone");
-        if (!msZoneSelect) return;
-
-        const currentSelected = msZoneSelect.value || musicSyncConfig.zone;
-        msZoneSelect.innerHTML = "";
-
-        zones.forEach((z) => {
-          const opt = document.createElement("option");
-          opt.value = z.name;
-          opt.innerText = `${z.name} (Cols: ${z.start} → ${z.end})`;
-          msZoneSelect.appendChild(opt);
-        });
-
-        if (zones.some((z) => z.name === currentSelected)) {
-          msZoneSelect.value = currentSelected;
-          musicSyncConfig.zone = currentSelected;
-        } else if (zones.length > 0) {
-          msZoneSelect.value = zones[0].name;
-          musicSyncConfig.zone = zones[0].name;
-        }
-      }
 
       function getProcessedMessageText(cfg = null) {
         const msgType = cfg
@@ -3007,7 +2817,7 @@
         document.getElementById("scene-name").value = scene.name;
         const cfg = scene.config;
 
-        // Restore Zone
+        // 1. DYNAMICALLY RESTORE SCENE'S ACTUAL ZONE LIMITS
         if (cfg.zone) {
           const sCol =
             cfg.zone.startCol !== undefined
@@ -3023,10 +2833,12 @@
                 : matrixWidth - 1;
           const zName = cfg.zone.name || `${scene.name} Zone`;
 
+          // Populate the input fields with the real columns
           document.getElementById("zone-name").value = zName;
           document.getElementById("zone-start").value = sCol;
           document.getElementById("zone-end").value = eCol;
 
+          // Update zone representation
           let existingZone = zones.find(
             (z) => z.name.toLowerCase() === zName.toLowerCase(),
           );
@@ -3050,7 +2862,7 @@
           if (label) label.innerText = existingZone.name;
         }
 
-        // Restore Message
+        // 2. RESTORE MESSAGE
         if (cfg.message) {
           document.getElementById("msg-type").value = cfg.message.type;
           document
@@ -3074,7 +2886,7 @@
           );
         }
 
-        // Restore Animation
+        // 3. RESTORE ANIMATION
         if (cfg.animation) {
           document.getElementById("animation-in").value =
             cfg.animation.inEffect || "PA_SCROLL_LEFT";
@@ -3098,7 +2910,7 @@
               : defaultHold;
         }
 
-        // Restore Display
+        // 4. RESTORE DISPLAY
         if (cfg.display) {
           const bLevel = cfg.display.brightness ?? 12;
           document.getElementById("brightness").value = bLevel;
@@ -3158,9 +2970,6 @@
         if (zones.some((z) => z.name === currentSelected)) {
           targetSelect.value = currentSelected;
         }
-
-        // Keep Music Sync Single-Zone dropdown perfectly in sync
-        updateMusicSyncZoneOptions();
       }
 
       function handleZoneSelectionChange() {
@@ -3230,6 +3039,7 @@
         const msgType = document.getElementById("msg-type").value;
         const targetZoneName = document.getElementById("target-zone").value;
 
+        // READ DIRECTLY FROM THE FORM INPUTS
         const sColRaw = parseInt(document.getElementById("zone-start").value);
         const eColRaw = parseInt(document.getElementById("zone-end").value);
         const sCol = !isNaN(sColRaw) ? Math.max(0, sColRaw) : 0;
@@ -3240,6 +3050,7 @@
         const zoneNameInput = document.getElementById("zone-name").value.trim();
         const zoneName = zoneNameInput || targetZoneName || "Zone 1";
 
+        // Keep internal zones array in sync immediately
         let existingZone = zones.find(
           (z) => z.name.toLowerCase() === zoneName.toLowerCase(),
         );
@@ -3358,6 +3169,35 @@
         renderStaticPreview();
       }
 
+      function handleAddScene() {
+        pauseSimulation();
+        const name = document.getElementById("scene-name").value.trim();
+        if (!name) {
+          showToast("Please enter a scene name.");
+          return;
+        }
+
+        const existingIdx = scenes.findIndex(
+          (s) => s.name.toLowerCase() === name.toLowerCase(),
+        );
+        const config = getFormConfig();
+
+        if (existingIdx >= 0) {
+          scenes[existingIdx] = { id: scenes[existingIdx].id, name, config };
+          selectedSceneId = scenes[existingIdx].id;
+          showToast(`Scene "${name}" updated.`);
+        } else {
+          const newId = `scene_${Date.now()}`;
+          scenes.push({ id: newId, name, config });
+          selectedSceneId = newId;
+          showToast(`Scene "${name}" added.`);
+        }
+
+        renderScenesUI();
+        updateSceneButtons();
+        renderStaticPreview();
+      }
+
       function removeScene(id) {
         pauseSimulation();
         scenes = scenes.filter((s) => s.id !== id);
@@ -3397,19 +3237,11 @@
         });
       }
 
-      /* Generate Complete REST Payload including dedicated music_sync root settings */
       function generatePayload() {
         const finalScenes =
           scenes.length > 0
             ? scenes.map((s) => ({ sceneName: s.name, ...s.config }))
             : [{ sceneName: "Default Live Scene", ...getFormConfig() }];
-
-        const msZoneObj = zones.find((z) => z.name === musicSyncConfig.zone) ||
-          zones[0] || {
-            name: "Zone 1",
-            start: 0,
-            end: matrixWidth - 1,
-          };
 
         return {
           timestamp: new Date().toISOString(),
@@ -3419,23 +3251,7 @@
             width: matrixWidth,
             modules: Math.floor(matrixWidth / 8),
           },
-          /* MUSIC SYNC SETTINGS STORED SEPARATELY AT ROOT LEVEL */
-          music_sync: {
-            enabled: musicSyncConfig.enabled,
-            zone: msZoneObj.name,
-            start_col:
-              msZoneObj.start !== undefined
-                ? msZoneObj.start
-                : msZoneObj.startCol || 0,
-            end_col:
-              msZoneObj.end !== undefined
-                ? msZoneObj.end
-                : msZoneObj.endCol || matrixWidth - 1,
-            animation: musicSyncConfig.animation,
-            sensitivity: musicSyncConfig.sensitivity,
-            peak_decay: musicSyncConfig.peakSpeed,
-          },
-          zones: zones,
+          zones: zones, // Preserves configured zones across loads
           scenes: finalScenes,
         };
       }
@@ -3591,7 +3407,7 @@
         });
       }
 
-      /* Auto-restore configuration including music_sync from ESP32 on load */
+      /* Auto-restore configuration from ESP32 on load */
       async function syncConfigFromHardware() {
         try {
           const res = await fetch("/api/matrix/config", { cache: "no-store" });
@@ -3602,39 +3418,6 @@
             matrixWidth = data.matrix.width;
             document.getElementById("matrix-width").value = matrixWidth;
             updateCanvasGeometry();
-          }
-
-          if (data && data.music_sync) {
-            musicSyncConfig.enabled = Boolean(data.music_sync.enabled);
-            musicSyncConfig.zone = data.music_sync.zone || "Zone 1";
-            musicSyncConfig.animation = data.music_sync.animation || "VU Bar";
-            musicSyncConfig.sensitivity = data.music_sync.sensitivity || 60;
-            musicSyncConfig.peakSpeed = data.music_sync.peak_decay || "Medium";
-
-            const toggle = document.getElementById("music-sync-enable");
-            if (toggle) toggle.checked = musicSyncConfig.enabled;
-            const paramsDiv = document.getElementById("music-sync-params");
-            if (paramsDiv)
-              paramsDiv.classList.toggle("hidden", !musicSyncConfig.enabled);
-
-            const badge = document.getElementById("ms-status-badge");
-            if (badge) {
-              badge.innerText = musicSyncConfig.enabled
-                ? "ACTIVE (VU MODE)"
-                : "OFF";
-              badge.className = musicSyncConfig.enabled
-                ? "text-[10px] uppercase font-mono-code text-cyan-400 bg-cyan-950/80 border border-cyan-700 px-2 py-0.5 rounded font-bold shadow-[0_0_8px_rgba(0,242,254,0.3)]"
-                : "text-[10px] uppercase font-mono-code text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded";
-            }
-
-            const animSel = document.getElementById("ms-animation");
-            if (animSel) animSel.value = musicSyncConfig.animation;
-            const sensInp = document.getElementById("ms-sensitivity");
-            if (sensInp) sensInp.value = musicSyncConfig.sensitivity;
-            const sensLbl = document.getElementById("ms-sens-val");
-            if (sensLbl) sensLbl.innerText = musicSyncConfig.sensitivity + "%";
-            const peakSel = document.getElementById("ms-peak-decay");
-            if (peakSel) peakSel.value = musicSyncConfig.peakSpeed;
           }
 
           if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
@@ -3689,7 +3472,7 @@
             }
           }
         } catch (e) {
-          // Offline mode
+          // Simulator offline mode
         }
       }
 
