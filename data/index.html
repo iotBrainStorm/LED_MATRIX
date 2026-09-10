@@ -1639,7 +1639,7 @@
         const msZoneSelect = document.getElementById("ms-zone");
         if (!msZoneSelect) return;
 
-        const currentSelected = msZoneSelect.value || musicSyncConfig.zone;
+        const currentSelected = musicSyncConfig.zone || msZoneSelect.value;
         msZoneSelect.innerHTML = "";
 
         zones.forEach((z) => {
@@ -3637,23 +3637,20 @@
             if (peakSel) peakSel.value = musicSyncConfig.peakSpeed;
           }
 
-          if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
+          // 1. Restore all zones directly from saved data.zones (preserves VU Meter)
+          if (data && Array.isArray(data.zones) && data.zones.length > 0) {
+            zones = data.zones;
+          } else if (
+            data &&
+            Array.isArray(data.scenes) &&
+            data.scenes.length > 0
+          ) {
             const restoredZones = [];
             data.scenes.forEach((sc, idx) => {
               if (sc.zone) {
                 const zName = sc.zone.name || `Zone ${idx + 1}`;
-                const sCol =
-                  sc.zone.startCol !== undefined
-                    ? sc.zone.startCol
-                    : sc.zone.start !== undefined
-                      ? sc.zone.start
-                      : 0;
-                const eCol =
-                  sc.zone.endCol !== undefined
-                    ? sc.zone.endCol
-                    : sc.zone.end !== undefined
-                      ? sc.zone.end
-                      : matrixWidth - 1;
+                const sCol = sc.zone.startCol ?? sc.zone.start ?? 0;
+                const eCol = sc.zone.endCol ?? sc.zone.end ?? matrixWidth - 1;
 
                 let zMatch = restoredZones.find(
                   (z) => z.name.toLowerCase() === zName.toLowerCase(),
@@ -3671,12 +3668,35 @@
                 }
               }
             });
+            zones = restoredZones;
+          }
 
-            if (restoredZones.length > 0) {
-              zones = restoredZones;
-              renderZonesUI();
-            }
+          // 2. Safety check: ensure music_sync zone is not missing from zones array
+          if (
+            musicSyncConfig.zone &&
+            !zones.some(
+              (z) =>
+                z.name.toLowerCase() === musicSyncConfig.zone.toLowerCase(),
+            )
+          ) {
+            zones.push({
+              id: `zone_ms_${Date.now()}`,
+              name: musicSyncConfig.zone,
+              start: data.music_sync?.start_col ?? 0,
+              end: data.music_sync?.end_col ?? matrixWidth - 1,
+            });
+          }
 
+          renderZonesUI();
+
+          // 3. Explicitly set ms-zone dropdown to the synced zone
+          const msZoneSelect = document.getElementById("ms-zone");
+          if (msZoneSelect && musicSyncConfig.zone) {
+            msZoneSelect.value = musicSyncConfig.zone;
+          }
+
+          // 4. Restore scenes
+          if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
             scenes = data.scenes.map((s, idx) => ({
               id: `scene_init_${idx}`,
               name: s.sceneName || `Scene ${idx + 1}`,
