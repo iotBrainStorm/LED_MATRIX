@@ -23,11 +23,11 @@
 // ==========================================
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
-#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 30 // Max MAX7219 modules (30 * 8 = 240 cols max)
-#define CLK_PIN 18     // SPI SCK
-#define DATA_PIN 23    // SPI MOSI
-#define CS_PIN 5       // SPI SS / Chip Select
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW // PAROLA_HW, GENERIC_HW, ICSTATION_HW, FC16_HW
+#define MAX_DEVICES 8                     // Max MAX7219 modules (30 * 8 = 240 cols max)
+#define CLK_PIN 18                        // SPI SCK
+#define DATA_PIN 23                       // SPI MOSI
+#define CS_PIN 5                          // SPI SS / Chip Select
 
 // INMP441 I2S MEMS Microphone Pins
 #define I2S_SCK 14 // Serial Clock (BCLK)
@@ -45,7 +45,7 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
-const char *mdnsHostname = "ledstudio";
+char mdnsHostname[32]; // Buffer to store the generated hostname
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.google.com";
@@ -188,16 +188,20 @@ const uint8_t PROGMEM FONT_8x6_RAW[95][8] = {
     /* 125 } */ {0x30, 0x18, 0x18, 0x0c, 0x18, 0x18, 0x30, 0x00},
     /* 126 ~ */ {0x00, 0x00, 0x00, 0x32, 0x7e, 0x4c, 0x00, 0x00}};
 
-uint8_t customBoldFont[3 + (95 * 7)];
+// Size: 32 bytes (ASCII 0..31 with width 0) + 95 chars * (1 width byte + 6 col bytes) = 697 bytes
+uint8_t customBoldFont[32 + (95 * 7)];
 
 void buildCustomBoldFont() {
-  customBoldFont[0] = 32;  // First character
-  customBoldFont[1] = 126; // Last character
-  customBoldFont[2] = 8;   // Height in pixels
+  uint16_t ptr = 0;
 
-  uint16_t ptr = 3;
+  // 1. ASCII 0 to 31 have width 0 (no column data)
+  for (uint8_t i = 0; i < 32; i++) {
+    customBoldFont[ptr++] = 0;
+  }
+
+  // 2. ASCII 32 to 126 (95 characters from FONT_8x6_RAW)
   for (uint8_t i = 0; i < 95; i++) {
-    customBoldFont[ptr++] = 6; // 6 columns width
+    customBoldFont[ptr++] = 6; // Width: 6 columns
     for (uint8_t col = 1; col <= 6; col++) {
       uint8_t colByte = 0;
       for (uint8_t row = 0; row < 8; row++) {
@@ -362,7 +366,7 @@ void initI2S() {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = SAMPLING_FREQ,
       .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, // L/R pin should connect with GND for left chanel
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 4,
@@ -396,7 +400,9 @@ void initI2S() {
 // Helper: Set matrix point with orientation mapping (r=0 is bottom, r=7 is top)
 inline void setVUMatrixPoint(MD_MAX72XX *mx, int r, int c, bool state) {
   if (c >= 0 && c < MAX_DEVICES * 8 && r >= 0 && r < 8) {
-    mx->setPoint(7 - r, c, state);
+    // Invert column coordinate to translate Web UI (0=Left) to FC16 (0=Right)
+    int physC = (MAX_DEVICES * 8 - 1) - c;
+    mx->setPoint(7 - r, physC, state);
   }
 }
 
@@ -847,8 +853,15 @@ void loadConfiguration() {
           endCol = sc["zone"]["end"].as<int>();
       }
 
-      zones[i].startDev = constrain(startCol / 8, 0, MAX_DEVICES - 1);
-      zones[i].endDev = constrain(endCol / 8, zones[i].startDev, MAX_DEVICES - 1);
+      // Convert web column ranges (0=Left) to physical FC16 module ranges (0=Right)
+      int webStartDev = startCol / 8;
+      int webEndDev = endCol / 8;
+
+      int physStartDev = (MAX_DEVICES - 1) - webEndDev;
+      int physEndDev = (MAX_DEVICES - 1) - webStartDev;
+
+      zones[i].startDev = constrain(physStartDev, 0, MAX_DEVICES - 1);
+      zones[i].endDev = constrain(physEndDev, zones[i].startDev, MAX_DEVICES - 1);
 
       const char *mType = sc["message"]["type"] | "plain";
       zones[i].isCustom = (strcmp(mType, "custom") == 0);
@@ -956,6 +969,15 @@ bool connectToSavedWiFi() {
 // ==========================================
 void initMDNS() {
   MDNS.end();
+
+  // 1. Get the 6-byte Wi-Fi station MAC address
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+
+  // 2. Format: "ledstudio-" followed by the last two MAC octets (e.g., A1B2)
+  snprintf(mdnsHostname, sizeof(mdnsHostname), "ledstudio-%02X%02X", mac[4], mac[5]);
+
+  // 3. Start mDNS with the unique name
   if (MDNS.begin(mdnsHostname)) {
     Serial.printf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
     MDNS.addService("http", "tcp", 80);

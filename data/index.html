@@ -538,7 +538,7 @@
         <!-- Music Sync Parameters Container (Visible only when ON) -->
         <div id="music-sync-params" class="hidden space-y-4 pt-1">
           <div
-            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs"
           >
             <!-- Parameter 1: Zone Select (Single Selection Only) -->
             <div>
@@ -578,11 +578,30 @@
               </select>
             </div>
 
-            <!-- Parameter 3: Sensitivity / Gain -->
+            <!-- Parameter 3: Peak Decay Speed -->
+            <div>
+              <label
+                for="ms-peak-decay"
+                class="block text-slate-300 mb-1 font-medium"
+              >
+                3. Peak Fall Speed / Decay
+              </label>
+              <select
+                id="ms-peak-decay"
+                onchange="handleMusicSyncChange()"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
+              >
+                <option value="Fast">Fast Drop</option>
+                <option value="Medium" selected>Medium Decay</option>
+                <option value="Smooth">Smooth / Slow Decay</option>
+              </select>
+            </div>
+
+            <!-- Parameter 4: Sensitivity / Gain -->
             <div>
               <div class="flex justify-between items-center mb-1">
                 <label for="ms-sensitivity" class="text-slate-300 font-medium"
-                  >3. Mic Sensitivity / Gain</label
+                  >4. Mic Sensitivity / Gain</label
                 >
                 <span
                   id="ms-sens-val"
@@ -603,25 +622,6 @@
                 "
                 class="w-full mt-2 cursor-pointer"
               />
-            </div>
-
-            <!-- Parameter 4: Peak Decay Speed -->
-            <div>
-              <label
-                for="ms-peak-decay"
-                class="block text-slate-300 mb-1 font-medium"
-              >
-                4. Peak Fall Speed / Decay
-              </label>
-              <select
-                id="ms-peak-decay"
-                onchange="handleMusicSyncChange()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
-              >
-                <option value="Fast">Fast Drop</option>
-                <option value="Medium" selected>Medium Decay</option>
-                <option value="Smooth">Smooth / Slow Decay</option>
-              </select>
             </div>
           </div>
         </div>
@@ -670,7 +670,7 @@
                 id="target-zone"
                 onchange="handleZoneSelectionChange()"
                 required
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               ></select>
             </div>
 
@@ -684,7 +684,7 @@
               <select
                 id="msg-type"
                 onchange="handleMsgTypeToggle()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               >
                 <option value="plain">Plain Text</option>
                 <option value="custom">Custom Dynamic Text</option>
@@ -702,7 +702,7 @@
               <select
                 id="font-align"
                 onchange="handleConfigFieldChange()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               >
                 <option value="left">Left</option>
                 <option value="center" selected>Center</option>
@@ -1137,7 +1137,7 @@
               <select
                 id="loop-mode"
                 onchange="handleLoopModeToggle()"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-cyan-400 outline-none transition"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
               >
                 <option value="inf">Infinite Loop (Continuous Loop)</option>
                 <option value="num">Specific Iteration Count</option>
