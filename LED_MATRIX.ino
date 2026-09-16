@@ -24,7 +24,8 @@
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW // PAROLA_HW, GENERIC_HW, ICSTATION_HW, FC16_HW
-#define MAX_DEVICES 8                     // Max MAX7219 modules (30 * 8 = 240 cols max)
+#define ABSOLUTE_MAX_DEVICES 30           // Absolute hardware limit for memory buffers
+uint8_t MAX_DEVICES = 5;                  // Default dynamic size, will load from flash
 #define CLK_PIN 18                        // SPI SCK
 #define DATA_PIN 23                       // SPI MOSI
 #define CS_PIN 5                          // SPI SS / Chip Select
@@ -42,7 +43,8 @@ const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 // ==========================================
 // GLOBAL OBJECTS & STATE
 // ==========================================
-MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+MD_Parola *P_ptr = nullptr; // Setup dynamically during boot
+#define P (*P_ptr)          // Macro trick: Lets you keep using "P." everywhere without rewriting your code!
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
 char mdnsHostname[32]; // Buffer to store the generated hostname
@@ -84,8 +86,8 @@ float peakPos = 0.0f;
 unsigned long lastPeakDropTime = 0;
 float bouncePos = 0.0f;
 float bounceVel = 0.0f;
-float waveHistory[MAX_DEVICES * 8] = {0};
-float bandPeaks[MAX_DEVICES * 8] = {0};
+float waveHistory[ABSOLUTE_MAX_DEVICES * 8] = {0};
+float bandPeaks[ABSOLUTE_MAX_DEVICES * 8] = {0};
 unsigned long lastBandDropTime = 0;
 
 // ==========================================
@@ -786,6 +788,16 @@ void loadConfiguration() {
     return;
   }
 
+  // Check if the user changed the matrix size from the Web UI
+  if (doc["matrix"].is<JsonObject>() && doc["matrix"]["modules"].is<int>()) {
+    uint8_t newMax = doc["matrix"]["modules"].as<uint8_t>();
+    if (newMax != MAX_DEVICES) {
+      Serial.println("[Config] Matrix size changed! Rebooting ESP memory to apply safely...");
+      delay(500);
+      ESP.restart(); // Automatically restarts to cleanly expand/shrink the LED buffers
+    }
+  }
+
   // =========================================================================
   // STEP 1: FIRST CHECK MUSIC SYNC STATUS
   // =========================================================================
@@ -1116,6 +1128,22 @@ void setup() {
   }
 
   // 4. Initialize Parola Display & MAX72XX
+  if (SPIFFS.exists(CONFIG_FILE)) {
+    File file = SPIFFS.open(CONFIG_FILE, "r");
+    if (file) {
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+      JsonDocument tempDoc;
+#else
+      DynamicJsonDocument tempDoc(1024);
+#endif
+      if (!deserializeJson(tempDoc, file) && tempDoc["matrix"]["modules"]) {
+        MAX_DEVICES = tempDoc["matrix"]["modules"].as<uint8_t>();
+      }
+      file.close();
+    }
+  }
+  // Dynamically allocate matrix memory based on user's saved web settings
+  P_ptr = new MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
   P.begin(MAX_ZONES);
   P.setIntensity(12);
   P.displayClear();
