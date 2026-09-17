@@ -74,7 +74,7 @@ MusicSyncConfig musicSync;
 bool isMusicSyncActive = false;
 
 // I2S & FFT Parameters
-#define FFT_SAMPLES 128     // Must be a power of 2
+#define FFT_SAMPLES 64      // Must be a power of 2
 #define SAMPLING_FREQ 16000 // 16 kHz sampling
 double vReal[FFT_SAMPLES];
 double vImag[FFT_SAMPLES];
@@ -559,11 +559,9 @@ void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
 // REAL-TIME AUDIO SAMPLING & VU DRAWING
 // ==========================================
 void runMusicSyncFrame() {
-  // --- CPU SAVING HACK: MOVE FPS CAP TO THE VERY TOP ---
-  // Limits processing to ~35 FPS. This skips the heavy math
-  // and frees up 90% of the ESP32 CPU for a blazing fast Web UI!
+  // 1. Cut frame interval from 28ms (~35 FPS) to 15ms (~66 FPS) for instant response
   static unsigned long lastVUDraw = 0;
-  if (millis() - lastVUDraw < 28)
+  if (millis() - lastVUDraw < 15)
     return;
   lastVUDraw = millis();
 
@@ -575,53 +573,72 @@ void runMusicSyncFrame() {
   int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
   int zWidth = zEnd - zStart + 1;
 
-  // 1. Read I2S audio samples into buffer
+  // 2. FLUSH STALE DMA BUFFERS (Eliminates the audio buffer queue delay)
   int32_t i2sRawBuffer[FFT_SAMPLES];
   size_t bytesRead = 0;
 
-  // FIX: Use portMAX_DELAY to ensure we get a complete chunk instantly without timing out
-  esp_err_t res = i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, portMAX_DELAY);
-  if (res != ESP_OK || bytesRead == 0)
+  // Drain any queued older buffers to capture the exact current millisecond
+  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {
+    // Keep reading until we reach the newest audio packet
+  }
+  if (bytesRead == 0) {
+    i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 10 / portTICK_PERIOD_MS);
+  }
+  if (bytesRead == 0)
     return;
 
-  // 2. Compute RMS Amplitude & fill FFT Real array
-  float sumSquares = 0.0f;
+  // 3. Remove DC Offset & Compute True AC RMS Amplitude
+  int64_t sum = 0;
   int sampleCount = bytesRead / sizeof(int32_t);
 
+  // Pass 1: Find the DC bias (average value)
   for (int i = 0; i < sampleCount; i++) {
-    int32_t sample = i2sRawBuffer[i] >> 14; // INMP441 uses top 24 bits
-    vReal[i] = (double)sample;
+    int32_t sample = i2sRawBuffer[i] >> 14;
+    sum += sample;
+  }
+  int32_t dcOffset = sum / sampleCount;
+
+  // Pass 2: Subtract DC bias so resting baseline is 0
+  float sumSquares = 0.0f;
+  for (int i = 0; i < sampleCount; i++) {
+    int32_t acSample = (i2sRawBuffer[i] >> 14) - dcOffset;
+    vReal[i] = (double)acSample;
     vImag[i] = 0.0;
-    sumSquares += (float)sample * sample;
+    sumSquares += (float)acSample * acSample;
   }
 
-  float rms = sqrt(sumSquares / sampleCount);
+  float rms = sqrtf(sumSquares / sampleCount);
 
-  // Noise floor suppression & sensitivity scaling
-  const float noiseFloor = 30.0f;
-  if (rms < noiseFloor)
+  // 4. Noise Gate & Proper Scaling
+  const float noiseFloor = 30.0f; // Blocks ambient room hiss
+  if (rms < noiseFloor) {
     rms = 0.0f;
-  else
+  } else {
     rms -= noiseFloor;
+  }
 
-  float gain = (musicSync.sensitivity / 50.0f);
-  float rawVol = (rms * gain) / 3200.0f;
+  // Divisor raised to 2800.0f so normal audio stays centered
+  float gain = (float)musicSync.sensitivity / 50.0f;
+  float rawVol = (rms * gain) / 2800.0f;
   rawVol = constrain(rawVol, 0.0f, 1.0f);
 
-  // Fast attack, smooth decay volume envelope
-  if (rawVol > smoothVol)
-    smoothVol = rawVol;
-  else
-    smoothVol = (smoothVol * 0.75f) + (rawVol * 0.25f);
+  // Gentle expansion curve (prevents clipping to 100% too easily)
+  rawVol = powf(rawVol, 0.85f);
+
+  // 5. Instantaneous Attack with Fast Snappy Release (Replaces sluggish 0.75 decay)
+  if (rawVol > smoothVol) {
+    smoothVol = rawVol; // Instant zero-lag rise
+  } else {
+    smoothVol = (smoothVol * 0.45f) + (rawVol * 0.55f); // Fast release
+  }
 
   // Peak decay interval based on configuration
-  unsigned long decayInterval = 60; // Medium
+  unsigned long decayInterval = 60;
   if (strcmp(musicSync.peakDecay, "Fast") == 0)
     decayInterval = 30;
   else if (strcmp(musicSync.peakDecay, "Smooth") == 0)
     decayInterval = 120;
 
-  // Begin direct hardware frame
   mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
   clearVUZone(mx, zStart, zEnd);
 
@@ -629,13 +646,17 @@ void runMusicSyncFrame() {
   // ANIMATION 1: VU Bar
   // ========================================
   if (strcmp(musicSync.animation, "VU Bar") == 0) {
-    int fillCols = (int)round(smoothVol * zWidth);
+
+    float level = constrain(smoothVol, 0.0f, 1.0f);
+    int fillCols = (int)round(level * zWidth);
+
     for (int i = 0; i < zWidth; i++) {
+
       int c = zStart + i;
-      if (i < fillCols) {
-        for (int r = 0; r < 8; r++) {
-          setVUMatrixPoint(mx, r, c, true);
-        }
+      bool on = (i < fillCols);
+
+      for (int r = 0; r < 8; r++) {
+        setVUMatrixPoint(mx, r, c, on);
       }
     }
   }
@@ -644,51 +665,83 @@ void runMusicSyncFrame() {
   // ANIMATION 2: VU Peak
   // ========================================
   else if (strcmp(musicSync.animation, "VU Peak") == 0) {
-    int fillCols = (int)round(smoothVol * zWidth);
-    if (fillCols >= peakPos) {
+
+    // Keep volume safely within 0.0 - 1.0
+    float level = constrain(smoothVol, 0.0f, 1.0f);
+
+    // Calculate current VU bar length
+    int fillCols = (int)round(level * zWidth);
+
+    // Keep fillCols within zone boundaries
+    fillCols = constrain(fillCols, 0, zWidth);
+
+    // Update peak position
+    if (fillCols > peakPos) {
+
+      // Volume increased -> peak jumps immediately
       peakPos = fillCols;
       lastPeakDropTime = millis();
+
     } else if (millis() - lastPeakDropTime >= decayInterval) {
-      if (peakPos > 0)
+
+      // Volume decreased -> peak slowly falls
+      if (peakPos > 0.0f) {
         peakPos -= 1.0f;
+      }
+
       lastPeakDropTime = millis();
     }
 
+    // Keep peak inside zone
+    peakPos = constrain(peakPos, 0.0f, (float)zWidth);
+
+    // Draw VU bar
     for (int i = 0; i < zWidth; i++) {
+
       int c = zStart + i;
-      if (i < fillCols) {
-        for (int r = 0; r < 8; r++) {
-          setVUMatrixPoint(mx, r, c, true);
-        }
+
+      // Explicitly turn LEDs ON/OFF
+      bool on = (i < fillCols);
+
+      for (int r = 0; r < 8; r++) {
+        setVUMatrixPoint(mx, r, c, on);
       }
     }
-    if (peakPos > 0) {
-      int pCol = zStart + (int)peakPos;
-      if (pCol <= zEnd) {
+
+    // Draw peak indicator
+    if (peakPos > 0.0f) {
+
+      // Convert peak position to column
+      int peakCol = (int)peakPos - 1;
+
+      // Safety check
+      if (peakCol >= 0 && peakCol < zWidth) {
+
+        int c = zStart + peakCol;
+
         for (int r = 0; r < 8; r++) {
-          setVUMatrixPoint(mx, r, pCol, true);
+          setVUMatrixPoint(mx, r, c, true);
         }
       }
     }
   }
 
   // ========================================
-  // ANIMATION 3: VU Mirror
+  // ANIMATION 3: VU Mirror (Instant & Ultra-Responsive)
   // ========================================
-  else if (strcmp(musicSync.animation, "VU Mirror") == 0) {
-    int center = zStart + (zWidth / 2);
-    int halfSpan = (int)round(smoothVol * (zWidth / 2.0f));
+  if (strcmp(musicSync.animation, "VU Mirror") == 0) {
+    float level = constrain(smoothVol, 0.0f, 1.0f);
+    float maxHalfWidth = zWidth / 2.0f;
+    float halfSpan = level * maxHalfWidth;
+    float center = ((float)zWidth - 1.0f) / 2.0f;
 
-    for (int i = 0; i <= halfSpan; i++) {
-      int leftCol = center - i;
-      int rightCol = center + i;
-      int height = constrain(8 - (i * 8 / (zWidth / 2 + 1)), 2, 8);
+    for (int i = 0; i < zWidth; i++) {
+      float distance = fabsf((float)i - center);
+      bool on = (distance <= halfSpan);
+      int c = zStart + i;
 
-      for (int r = 0; r < height; r++) {
-        if (leftCol >= zStart)
-          setVUMatrixPoint(mx, r, leftCol, true);
-        if (rightCol <= zEnd)
-          setVUMatrixPoint(mx, r, rightCol, true);
+      for (int r = 0; r < 8; r++) {
+        setVUMatrixPoint(mx, r, c, on);
       }
     }
   }
