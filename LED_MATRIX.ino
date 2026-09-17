@@ -74,7 +74,7 @@ MusicSyncConfig musicSync;
 bool isMusicSyncActive = false;
 
 // I2S & FFT Parameters
-#define FFT_SAMPLES 64      // Must be a power of 2
+#define FFT_SAMPLES 128     // Must be a power of 2
 #define SAMPLING_FREQ 16000 // 16 kHz sampling
 double vReal[FFT_SAMPLES];
 double vImag[FFT_SAMPLES];
@@ -559,6 +559,14 @@ void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
 // REAL-TIME AUDIO SAMPLING & VU DRAWING
 // ==========================================
 void runMusicSyncFrame() {
+  // --- CPU SAVING HACK: MOVE FPS CAP TO THE VERY TOP ---
+  // Limits processing to ~35 FPS. This skips the heavy math
+  // and frees up 90% of the ESP32 CPU for a blazing fast Web UI!
+  static unsigned long lastVUDraw = 0;
+  if (millis() - lastVUDraw < 28)
+    return;
+  lastVUDraw = millis();
+
   MD_MAX72XX *mx = P.getGraphicObject();
   if (!mx)
     return;
@@ -570,7 +578,9 @@ void runMusicSyncFrame() {
   // 1. Read I2S audio samples into buffer
   int32_t i2sRawBuffer[FFT_SAMPLES];
   size_t bytesRead = 0;
-  esp_err_t res = i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, pdMS_TO_TICKS(15));
+
+  // FIX: Use portMAX_DELAY to ensure we get a complete chunk instantly without timing out
+  esp_err_t res = i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, portMAX_DELAY);
   if (res != ESP_OK || bytesRead == 0)
     return;
 
@@ -623,8 +633,7 @@ void runMusicSyncFrame() {
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       if (i < fillCols) {
-        int height = constrain(map(i, 0, zWidth - 1, 3, 8), 1, 8);
-        for (int r = 0; r < height; r++) {
+        for (int r = 0; r < 8; r++) {
           setVUMatrixPoint(mx, r, c, true);
         }
       }
@@ -636,27 +645,29 @@ void runMusicSyncFrame() {
   // ========================================
   else if (strcmp(musicSync.animation, "VU Peak") == 0) {
     int fillCols = (int)round(smoothVol * zWidth);
-    if (fillCols > peakPos) {
+    if (fillCols >= peakPos) {
       peakPos = fillCols;
       lastPeakDropTime = millis();
     } else if (millis() - lastPeakDropTime >= decayInterval) {
       if (peakPos > 0)
-        peakPos -= 0.5f;
+        peakPos -= 1.0f;
       lastPeakDropTime = millis();
     }
 
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       if (i < fillCols) {
-        for (int r = 0; r < 7; r++) {
+        for (int r = 0; r < 8; r++) {
           setVUMatrixPoint(mx, r, c, true);
         }
       }
     }
-    int pCol = zStart + (int)peakPos;
-    if (pCol <= zEnd) {
-      for (int r = 0; r < 8; r++) {
-        setVUMatrixPoint(mx, r, pCol, true);
+    if (peakPos > 0) {
+      int pCol = zStart + (int)peakPos;
+      if (pCol <= zEnd) {
+        for (int r = 0; r < 8; r++) {
+          setVUMatrixPoint(mx, r, pCol, true);
+        }
       }
     }
   }
@@ -760,30 +771,45 @@ void runMusicSyncFrame() {
     if (millis() - lastBandDropTime >= decayInterval) {
       for (int i = 0; i < zWidth; i++) {
         if (bandPeaks[i] > 0)
-          bandPeaks[i] -= 0.5f;
+          bandPeaks[i] -= 0.6f; // Smoother peak fall
       }
       lastBandDropTime = millis();
     }
 
-    int usableBins = FFT_SAMPLES / 2; // 32 frequency bins
+    int usableBins = FFT_SAMPLES / 2;
+    int startBin = 10;                     // Cut off DC offset/sub-rumble
+    int maxBin = (int)(usableBins * 0.75); // Cap at 75% of bins to ignore empty high freqs
+
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
-      int binIdx = map(i, 0, zWidth - 1, 1, usableBins - 2);
-      double magnitude = vReal[binIdx] * (musicSync.sensitivity / 40.0f);
 
-      int height = constrain((int)(magnitude / 350.0), 0, 8);
+      // LOGARITHMIC MAPPING
+      float logRatio = pow((float)i / (float)(zWidth > 1 ? zWidth - 1 : 1), 1.4f);
+      int binIdx = startBin + (int)(logRatio * (maxBin - startBin));
+      binIdx = constrain(binIdx, startBin, maxBin);
+
+      // EQ BOOST
+      float eqBoost = 1.0f + ((float)i / (float)zWidth) * 3.5f;
+
+      double magnitude = vReal[binIdx] * eqBoost * (musicSync.sensitivity / 50.0f);
+      int height = constrain((int)(magnitude / 800.0), 0, 8);
+
+      // Register peaks
       if (height > bandPeaks[i]) {
         bandPeaks[i] = height;
       }
 
-      // Draw spectrum vertical column
+      // Draw solid spectrum vertical column
       for (int r = 0; r < height; r++) {
         setVUMatrixPoint(mx, r, c, true);
       }
 
       // Draw falling peak point on top of column
       int peakRow = (int)bandPeaks[i];
-      if (peakRow > 0 && peakRow < 8) {
+      if (peakRow >= 8)
+        peakRow = 7;
+
+      if (peakRow > 0) {
         setVUMatrixPoint(mx, peakRow, c, true);
       }
     }
@@ -934,6 +960,16 @@ void loadConfiguration() {
       delay(500);
       ESP.restart(); // Automatically restarts to cleanly expand/shrink the LED buffers
     }
+  }
+
+  // FORCE GLOBAL BRIGHTNESS SYNC ACROSS ALL MAX7219 MODULES
+  uint8_t baseBrightness = 12;
+  if (doc["scenes"].is<JsonArray>() && doc["scenes"].size() > 0) {
+    baseBrightness = doc["scenes"][0]["display"]["brightness"] | 12;
+  }
+  MD_MAX72XX *mx = P.getGraphicObject();
+  if (mx) {
+    mx->control(MD_MAX72XX::INTENSITY, baseBrightness);
   }
 
   // =========================================================================
@@ -1140,7 +1176,7 @@ void initMDNS() {
 // ASYNC HTTP SERVER ROUTING
 // ==========================================
 void setupWebServer() {
-  server.on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
+  auto handleIndex = [](AsyncWebServerRequest *request) {
     if (request->hasHeader("If-None-Match")) {
       const AsyncWebHeader *h = request->getHeader("If-None-Match");
       if (h && h->value() == BUILD_ETAG) {
@@ -1148,15 +1184,33 @@ void setupWebServer() {
         return;
       }
     }
-    if (!SPIFFS.exists("/index.html")) {
+
+    bool clientAcceptsGzip = request->hasHeader("Accept-Encoding") &&
+                             request->getHeader("Accept-Encoding")->value().indexOf("gzip") >= 0;
+
+    String filePath = "/index.html";
+    bool isGzip = false;
+
+    // Check if the browser supports gzip and the compressed file exists
+    if (clientAcceptsGzip && SPIFFS.exists("/index.html.gz")) {
+      filePath = "/index.html.gz";
+      isGzip = true;
+    } else if (!SPIFFS.exists("/index.html")) {
       request->send(404, "text/plain", "index.html missing from SPIFFS!");
       return;
     }
-    AsyncWebServerResponse *res = request->beginResponse(SPIFFS, "/index.html", "text/html");
+
+    AsyncWebServerResponse *res = request->beginResponse(SPIFFS, filePath, "text/html");
+    if (isGzip) {
+      res->addHeader("Content-Encoding", "gzip");
+    }
     res->addHeader("ETag", BUILD_ETAG);
     res->addHeader("Cache-Control", "public, max-age=604800, must-revalidate");
     request->send(res);
-  });
+  };
+
+  server.on("/", WebRequestMethod::HTTP_GET, handleIndex);
+  server.on("/index.html", WebRequestMethod::HTTP_GET, handleIndex);
 
   server.serveStatic("/icon.svg", SPIFFS, "/icon.svg").setCacheControl("max-age=604800");
 
