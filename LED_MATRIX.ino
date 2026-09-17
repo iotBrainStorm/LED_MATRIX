@@ -190,31 +190,60 @@ const uint8_t PROGMEM FONT_8x6_RAW[95][8] = {
     /* 125 } */ {0x30, 0x18, 0x18, 0x0c, 0x18, 0x18, 0x30, 0x00},
     /* 126 ~ */ {0x00, 0x00, 0x00, 0x32, 0x7e, 0x4c, 0x00, 0x00}};
 
-// Size: 32 bytes (ASCII 0..31 with width 0) + 95 chars * (1 width byte + 6 col bytes) = 697 bytes
-uint8_t customBoldFont[32 + (95 * 7)];
+// Size: 32 bytes (ASCII 0..31 with width 0) + 96 chars * (1 width byte + up to 6 col bytes) = 704 bytes
+uint8_t customBoldFont[32 + (96 * 7)];
 
 void buildCustomBoldFont() {
   uint16_t ptr = 0;
 
-  // 1. ASCII 0 to 31 have width 0 (no column data)
+  // 1. ASCII 0 to 31: width 0 (control characters)
   for (uint8_t i = 0; i < 32; i++) {
     customBoldFont[ptr++] = 0;
   }
 
-  // 2. ASCII 32 to 126 (95 characters from FONT_8x6_RAW)
+  // 2. ASCII 32 to 126: trim leading & trailing blank columns for exact alignment
   for (uint8_t i = 0; i < 95; i++) {
-    customBoldFont[ptr++] = 6; // Width: 6 columns
-    for (uint8_t col = 1; col <= 6; col++) {
-      uint8_t colByte = 0;
+    uint8_t cols[6];
+    for (uint8_t col = 0; col < 6; col++) {
+      cols[col] = 0;
       for (uint8_t row = 0; row < 8; row++) {
         uint8_t rowByte = pgm_read_byte(&FONT_8x6_RAW[i][row]);
-        if ((rowByte >> (7 - col)) & 1) {
-          colByte |= (1 << row);
+        if ((rowByte >> (6 - col)) & 1) {
+          cols[col] |= (1 << row);
         }
       }
-      customBoldFont[ptr++] = colByte;
+    }
+
+    int firstCol = 0;
+    while (firstCol < 6 && cols[firstCol] == 0)
+      firstCol++;
+
+    int lastCol = 5;
+    while (lastCol >= 0 && cols[lastCol] == 0)
+      lastCol--;
+
+    if (firstCol > lastCol) {
+      // Space character: 4 empty columns
+      customBoldFont[ptr++] = 4;
+      customBoldFont[ptr++] = 0x00;
+      customBoldFont[ptr++] = 0x00;
+      customBoldFont[ptr++] = 0x00;
+      customBoldFont[ptr++] = 0x00;
+    } else {
+      uint8_t width = lastCol - firstCol + 1;
+      customBoldFont[ptr++] = width;
+      for (int c = firstCol; c <= lastCol; c++) {
+        customBoldFont[ptr++] = cols[c];
+      }
     }
   }
+
+  // 3. ASCII 127: '°' (Degree Symbol - 4 columns)
+  customBoldFont[ptr++] = 4;
+  customBoldFont[ptr++] = 0x06;
+  customBoldFont[ptr++] = 0x09;
+  customBoldFont[ptr++] = 0x09;
+  customBoldFont[ptr++] = 0x06;
 }
 
 // ==========================================
@@ -770,7 +799,7 @@ void applyZoneConfiguration(uint8_t z) {
   if (z >= MAX_ZONES || !zones[z].inUse)
     return;
 
- if (zones[z].isBold) {
+  if (zones[z].isBold) {
     P.setFont(z, customBoldFont);
   } else {
     P.setFont(z, customThinFont);

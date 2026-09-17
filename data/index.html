@@ -1440,6 +1440,7 @@
         "!": [0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00, 0x18],
         '"': [0x6c, 0x6c, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00],
         "#": [0x24, 0x24, 0x7e, 0x24, 0x24, 0x7e, 0x24, 0x24],
+        $: [0x18, 0x3c, 0x7a, 0x3c, 0x5e, 0x7c, 0x38, 0x18],
         "%": [0x00, 0x62, 0x66, 0x0c, 0x18, 0x30, 0x66, 0x06],
         "&": [0x18, 0x24, 0x24, 0x18, 0x30, 0x6a, 0x64, 0x3a],
         "'": [0x18, 0x18, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00],
@@ -1769,6 +1770,49 @@
         return template || " ";
       }
 
+      function getBoldCharColumns(char) {
+        // Handle physical space character separately
+        if (char === " ") return [0x00, 0x00, 0x00, 0x00];
+
+        // Fetch bold glyph matching exact case, then fallback
+        const glyph =
+          FONT_8x6_BOLD[char] ||
+          FONT_8x6_BOLD[char.toUpperCase()] ||
+          FONT_8x6_BOLD[char.toLowerCase()] ||
+          FONT_8x6_BOLD["?"];
+
+        // Return a blank array if character somehow doesn't exist
+        if (!glyph) {
+          return [0x00, 0x00, 0x00];
+        }
+
+        const cols = [];
+
+        // Parse the exact 6-column layout
+        for (let c = 1; c <= 6; c++) {
+          let colByte = 0;
+          for (let r = 0; r < 8; r++) {
+            if ((glyph[r] >> (7 - c)) & 1) {
+              colByte |= 1 << r;
+            }
+          }
+          cols.push(colByte);
+        }
+
+        // TRIM LOGIC: Dynamically strip empty leading/trailing columns
+        // This removes the alignment gap for Left and Right alignments!
+        let first = 0;
+        while (first < 6 && cols[first] === 0) first++;
+        let last = 5;
+        while (last >= 0 && cols[last] === 0) last--;
+
+        // If the character is completely empty, fallback
+        if (first > last) return [0x00, 0x00, 0x00, 0x00];
+
+        // Return exactly the proportional bounding box of the letter
+        return cols.slice(first, last + 1);
+      }
+
       function renderTextToBitmap(text, isBold = false) {
         if (!text || text.length === 0) {
           return {
@@ -1779,61 +1823,21 @@
           };
         }
 
-        if (isBold) {
-          const charWidth = 8;
-          const totalWidth = Math.max(1, text.length * charWidth);
-          const grid = Array(8)
-            .fill(0)
-            .map(() => Array(totalWidth).fill(0));
-
-          for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const startCol = i * charWidth;
-            const glyph =
-              FONT_8x6_BOLD[char] ||
-              FONT_8x6_BOLD[char.toUpperCase()] ||
-              FONT_8x6_BOLD[char.toLowerCase()];
-
-            if (glyph) {
-              for (let r = 0; r < 8; r++) {
-                const rowByte = glyph[r] || 0;
-                for (let c = 0; c < 8; c++) {
-                  if ((rowByte >> (7 - c)) & 1) {
-                    grid[r][startCol + c] = 1;
-                  }
-                }
-              }
-            } else {
-              const fallback =
-                FONT_5x7[char] || FONT_5x7[char.toUpperCase()] || FONT_5x7["?"];
-              if (fallback) {
-                for (let c = 0; c < fallback.length; c++) {
-                  let colByte = fallback[c];
-                  if (c > 0) colByte |= fallback[c - 1];
-                  for (let r = 0; r < 8; r++) {
-                    if ((colByte >> r) & 1) {
-                      grid[r][startCol + c] = 1;
-                    }
-                  }
-                }
-              }
-            }
-          }
-          return { grid, width: totalWidth };
-        }
-
         let columns = [];
 
-        // Note: Removed the text.toUpperCase() forced conversion here
         for (let i = 0; i < text.length; i++) {
           const char = text[i];
-          const glyph = FONT_5x7[char] ||
-            FONT_5x7[char.toUpperCase()] ||
-            FONT_5x7["?"] || [0x00, 0x00, 0x00, 0x00, 0x00];
-          for (let col = 0; col < glyph.length; col++) {
-            columns.push(glyph[col]);
+          const glyphCols = isBold
+            ? getBoldCharColumns(char)
+            : FONT_5x7[char] ||
+              FONT_5x7[char.toUpperCase()] ||
+              FONT_5x7["?"] || [0x00, 0x00, 0x00];
+
+          for (let col = 0; col < glyphCols.length; col++) {
+            columns.push(glyphCols[col]);
           }
-          // Only add space gap if it's NOT the last character (fixes 1-col offset misalignment)
+
+          // Single-column spacing between characters (no trailing column on last char)
           if (i < text.length - 1) {
             columns.push(0x00);
           }
@@ -1847,9 +1851,8 @@
         for (let c = 0; c < w; c++) {
           const byte = columns[c] || 0;
           for (let r = 0; r < 8; r++) {
-            // Changed from r < 7 to render full 8 rows
             if ((byte >> r) & 1) {
-              grid[r][c] = 1; // Changed from grid[r + 1] to anchor to top pixel correctly
+              grid[r][c] = 1;
             }
           }
         }
