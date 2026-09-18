@@ -346,6 +346,7 @@ const uint8_t PROGMEM customThinFont[] = {
 // SCENE & ZONE CONFIGURATION STRUCTURES
 // ==========================================
 struct SceneConfig {
+  char name[32] = "";
   char zoneName[32] = "";
   int startCol = 0;
   int endCol = 39;
@@ -357,8 +358,8 @@ struct SceneConfig {
   textEffect_t inEffect = PA_SCROLL_LEFT;
   textEffect_t outEffect = PA_SCROLL_LEFT;
   uint16_t speed = 35;
-  uint16_t pause = 0;        // endDelayMs
-  uint16_t startDelay = 0;   // startDelayMs
+  uint16_t pause = 0;      // endDelayMs
+  uint16_t startDelay = 0; // startDelayMs
   uint8_t brightness = 12;
   int repeat = -1;
 };
@@ -379,6 +380,9 @@ struct ZoneConfig {
   uint8_t sceneCount = 0;
   uint8_t currentSceneIdx = 0; // Index in sceneList
 
+  int playlistRepeat = 1;
+  int playlistLoopCounter = 0;
+
   int loopCounter = 0;
   ZoneAnimState state = ZSTATE_PLAYING;
   unsigned long stateStartTime = 0;
@@ -394,41 +398,72 @@ uint8_t activeZoneCount = 0;
 // STRING & TEMPLATE PARSING UTILITIES
 // ==========================================
 textEffect_t parseEffect(const char *str) {
-  if (strcmp(str, "PA_NO_EFFECT") == 0) return PA_NO_EFFECT;
-  if (strcmp(str, "PA_PRINT") == 0) return PA_PRINT;
-  if (strcmp(str, "PA_SCROLL_LEFT") == 0) return PA_SCROLL_LEFT;
-  if (strcmp(str, "PA_SCROLL_RIGHT") == 0) return PA_SCROLL_RIGHT;
-  if (strcmp(str, "PA_SCROLL_UP") == 0) return PA_SCROLL_UP;
-  if (strcmp(str, "PA_SCROLL_DOWN") == 0) return PA_SCROLL_DOWN;
-  if (strcmp(str, "PA_SCROLL_UP_LEFT") == 0) return PA_SCROLL_UP_LEFT;
-  if (strcmp(str, "PA_SCROLL_UP_RIGHT") == 0) return PA_SCROLL_UP_RIGHT;
-  if (strcmp(str, "PA_SCROLL_DOWN_LEFT") == 0) return PA_SCROLL_DOWN_LEFT;
-  if (strcmp(str, "PA_SCROLL_DOWN_RIGHT") == 0) return PA_SCROLL_DOWN_RIGHT;
-  if (strcmp(str, "PA_SPRITE") == 0) return PA_SPRITE;
-  if (strcmp(str, "PA_SLICE") == 0) return PA_SLICE;
-  if (strcmp(str, "PA_MESH") == 0) return PA_MESH;
-  if (strcmp(str, "PA_FADE") == 0) return PA_FADE;
-  if (strcmp(str, "PA_DISSOLVE") == 0) return PA_DISSOLVE;
-  if (strcmp(str, "PA_BLINDS") == 0) return PA_BLINDS;
-  if (strcmp(str, "PA_RANDOM") == 0) return PA_RANDOM;
-  if (strcmp(str, "PA_WIPE") == 0) return PA_WIPE;
-  if (strcmp(str, "PA_WIPE_CURSOR") == 0) return PA_WIPE_CURSOR;
-  if (strcmp(str, "PA_OPENING") == 0) return PA_OPENING;
-  if (strcmp(str, "PA_OPENING_CURSOR") == 0) return PA_OPENING_CURSOR;
-  if (strcmp(str, "PA_CLOSING") == 0) return PA_CLOSING;
-  if (strcmp(str, "PA_CLOSING_CURSOR") == 0) return PA_CLOSING_CURSOR;
-  if (strcmp(str, "PA_SCAN_HORIZ") == 0) return PA_SCAN_HORIZ;
-  if (strcmp(str, "PA_SCAN_HORIZX") == 0) return PA_SCAN_HORIZX;
-  if (strcmp(str, "PA_SCAN_VERT") == 0) return PA_SCAN_VERT;
-  if (strcmp(str, "PA_SCAN_VERTX") == 0) return PA_SCAN_VERTX;
-  if (strcmp(str, "PA_GROW_UP") == 0) return PA_GROW_UP;
-  if (strcmp(str, "PA_GROW_DOWN") == 0) return PA_GROW_DOWN;
+  if (strcmp(str, "PA_NO_EFFECT") == 0)
+    return PA_NO_EFFECT;
+  if (strcmp(str, "PA_PRINT") == 0)
+    return PA_PRINT;
+  if (strcmp(str, "PA_SCROLL_LEFT") == 0)
+    return PA_SCROLL_LEFT;
+  if (strcmp(str, "PA_SCROLL_RIGHT") == 0)
+    return PA_SCROLL_RIGHT;
+  if (strcmp(str, "PA_SCROLL_UP") == 0)
+    return PA_SCROLL_UP;
+  if (strcmp(str, "PA_SCROLL_DOWN") == 0)
+    return PA_SCROLL_DOWN;
+  if (strcmp(str, "PA_SCROLL_UP_LEFT") == 0)
+    return PA_SCROLL_UP_LEFT;
+  if (strcmp(str, "PA_SCROLL_UP_RIGHT") == 0)
+    return PA_SCROLL_UP_RIGHT;
+  if (strcmp(str, "PA_SCROLL_DOWN_LEFT") == 0)
+    return PA_SCROLL_DOWN_LEFT;
+  if (strcmp(str, "PA_SCROLL_DOWN_RIGHT") == 0)
+    return PA_SCROLL_DOWN_RIGHT;
+  if (strcmp(str, "PA_SPRITE") == 0)
+    return PA_SPRITE;
+  if (strcmp(str, "PA_SLICE") == 0)
+    return PA_SLICE;
+  if (strcmp(str, "PA_MESH") == 0)
+    return PA_MESH;
+  if (strcmp(str, "PA_FADE") == 0)
+    return PA_FADE;
+  if (strcmp(str, "PA_DISSOLVE") == 0)
+    return PA_DISSOLVE;
+  if (strcmp(str, "PA_BLINDS") == 0)
+    return PA_BLINDS;
+  if (strcmp(str, "PA_RANDOM") == 0)
+    return PA_RANDOM;
+  if (strcmp(str, "PA_WIPE") == 0)
+    return PA_WIPE;
+  if (strcmp(str, "PA_WIPE_CURSOR") == 0)
+    return PA_WIPE_CURSOR;
+  if (strcmp(str, "PA_OPENING") == 0)
+    return PA_OPENING;
+  if (strcmp(str, "PA_OPENING_CURSOR") == 0)
+    return PA_OPENING_CURSOR;
+  if (strcmp(str, "PA_CLOSING") == 0)
+    return PA_CLOSING;
+  if (strcmp(str, "PA_CLOSING_CURSOR") == 0)
+    return PA_CLOSING_CURSOR;
+  if (strcmp(str, "PA_SCAN_HORIZ") == 0)
+    return PA_SCAN_HORIZ;
+  if (strcmp(str, "PA_SCAN_HORIZX") == 0)
+    return PA_SCAN_HORIZX;
+  if (strcmp(str, "PA_SCAN_VERT") == 0)
+    return PA_SCAN_VERT;
+  if (strcmp(str, "PA_SCAN_VERTX") == 0)
+    return PA_SCAN_VERTX;
+  if (strcmp(str, "PA_GROW_UP") == 0)
+    return PA_GROW_UP;
+  if (strcmp(str, "PA_GROW_DOWN") == 0)
+    return PA_GROW_DOWN;
   return PA_SCROLL_LEFT;
 }
 
 textPosition_t parseAlign(const char *str) {
-  if (strcmp(str, "left") == 0) return PA_LEFT;
-  if (strcmp(str, "right") == 0) return PA_RIGHT;
+  if (strcmp(str, "left") == 0)
+    return PA_LEFT;
+  if (strcmp(str, "right") == 0)
+    return PA_RIGHT;
   return PA_CENTER;
 }
 
@@ -542,11 +577,13 @@ void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
 // ==========================================
 void runMusicSyncFrame() {
   static unsigned long lastVUDraw = 0;
-  if (millis() - lastVUDraw < 15) return;
+  if (millis() - lastVUDraw < 15)
+    return;
   lastVUDraw = millis();
 
   MD_MAX72XX *mx = P.getGraphicObject();
-  if (!mx) return;
+  if (!mx)
+    return;
 
   int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
   int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
@@ -555,11 +592,13 @@ void runMusicSyncFrame() {
   int32_t i2sRawBuffer[FFT_SAMPLES];
   size_t bytesRead = 0;
 
-  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {}
+  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {
+  }
   if (bytesRead == 0) {
     i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 10 / portTICK_PERIOD_MS);
   }
-  if (bytesRead == 0) return;
+  if (bytesRead == 0)
+    return;
 
   int64_t sum = 0;
   int sampleCount = bytesRead / sizeof(int32_t);
@@ -581,8 +620,10 @@ void runMusicSyncFrame() {
   float rms = sqrtf(sumSquares / sampleCount);
 
   const float noiseFloor = 30.0f;
-  if (rms < noiseFloor) rms = 0.0f;
-  else rms -= noiseFloor;
+  if (rms < noiseFloor)
+    rms = 0.0f;
+  else
+    rms -= noiseFloor;
 
   float gain = (float)musicSync.sensitivity / 50.0f;
   float rawVol = (rms * gain) / 2800.0f;
@@ -596,8 +637,10 @@ void runMusicSyncFrame() {
   }
 
   unsigned long decayInterval = 60;
-  if (strcmp(musicSync.peakDecay, "Fast") == 0) decayInterval = 30;
-  else if (strcmp(musicSync.peakDecay, "Smooth") == 0) decayInterval = 120;
+  if (strcmp(musicSync.peakDecay, "Fast") == 0)
+    decayInterval = 30;
+  else if (strcmp(musicSync.peakDecay, "Smooth") == 0)
+    decayInterval = 120;
 
   mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
   clearVUZone(mx, zStart, zEnd);
@@ -608,7 +651,8 @@ void runMusicSyncFrame() {
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       bool on = (i < fillCols);
-      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
+      for (int r = 0; r < 8; r++)
+        setVUMatrixPoint(mx, r, c, on);
     }
   } else if (strcmp(musicSync.animation, "VU Peak") == 0) {
     float level = constrain(smoothVol, 0.0f, 1.0f);
@@ -618,7 +662,8 @@ void runMusicSyncFrame() {
       peakPos = fillCols;
       lastPeakDropTime = millis();
     } else if (millis() - lastPeakDropTime >= decayInterval) {
-      if (peakPos > 0.0f) peakPos -= 1.0f;
+      if (peakPos > 0.0f)
+        peakPos -= 1.0f;
       lastPeakDropTime = millis();
     }
     peakPos = constrain(peakPos, 0.0f, (float)zWidth);
@@ -626,14 +671,16 @@ void runMusicSyncFrame() {
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       bool on = (i < fillCols);
-      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
+      for (int r = 0; r < 8; r++)
+        setVUMatrixPoint(mx, r, c, on);
     }
 
     if (peakPos > 0.0f) {
       int peakCol = (int)peakPos - 1;
       if (peakCol >= 0 && peakCol < zWidth) {
         int c = zStart + peakCol;
-        for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, true);
+        for (int r = 0; r < 8; r++)
+          setVUMatrixPoint(mx, r, c, true);
       }
     }
   } else if (strcmp(musicSync.animation, "VU Mirror") == 0) {
@@ -646,7 +693,8 @@ void runMusicSyncFrame() {
       float distance = fabsf((float)i - center);
       bool on = (distance <= halfSpan);
       int c = zStart + i;
-      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
+      for (int r = 0; r < 8; r++)
+        setVUMatrixPoint(mx, r, c, on);
     }
   } else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
     float targetPos = smoothVol * (zWidth - 2);
@@ -660,7 +708,8 @@ void runMusicSyncFrame() {
     int bCol = zStart + (int)bouncePos;
     for (int r = 2; r < 6; r++) {
       setVUMatrixPoint(mx, r, bCol, true);
-      if (bCol + 1 <= zEnd) setVUMatrixPoint(mx, r, bCol + 1, true);
+      if (bCol + 1 <= zEnd)
+        setVUMatrixPoint(mx, r, bCol + 1, true);
     }
     for (int c = zStart; c <= bCol; c += 2) {
       setVUMatrixPoint(mx, 0, c, true);
@@ -676,8 +725,10 @@ void runMusicSyncFrame() {
       int h = constrain(vertHeight - (d / 2), 0, 4);
 
       for (int r = 3 - h; r <= 4 + h; r++) {
-        if (c1 >= zStart) setVUMatrixPoint(mx, r, c1, true);
-        if (c2 <= zEnd) setVUMatrixPoint(mx, r, c2, true);
+        if (c1 >= zStart)
+          setVUMatrixPoint(mx, r, c1, true);
+        if (c2 <= zEnd)
+          setVUMatrixPoint(mx, r, c2, true);
       }
     }
   } else if (strcmp(musicSync.animation, "VU Wave") == 0) {
@@ -700,7 +751,8 @@ void runMusicSyncFrame() {
 
     if (millis() - lastBandDropTime >= decayInterval) {
       for (int i = 0; i < zWidth; i++) {
-        if (bandPeaks[i] > 0) bandPeaks[i] -= 0.6f;
+        if (bandPeaks[i] > 0)
+          bandPeaks[i] -= 0.6f;
       }
       lastBandDropTime = millis();
     }
@@ -719,13 +771,17 @@ void runMusicSyncFrame() {
       double magnitude = vReal[binIdx] * eqBoost * (musicSync.sensitivity / 50.0f);
       int height = constrain((int)(magnitude / 800.0), 0, 8);
 
-      if (height > bandPeaks[i]) bandPeaks[i] = height;
+      if (height > bandPeaks[i])
+        bandPeaks[i] = height;
 
-      for (int r = 0; r < height; r++) setVUMatrixPoint(mx, r, c, true);
+      for (int r = 0; r < height; r++)
+        setVUMatrixPoint(mx, r, c, true);
 
       int peakRow = (int)bandPeaks[i];
-      if (peakRow >= 8) peakRow = 7;
-      if (peakRow > 0) setVUMatrixPoint(mx, peakRow, c, true);
+      if (peakRow >= 8)
+        peakRow = 7;
+      if (peakRow > 0)
+        setVUMatrixPoint(mx, peakRow, c, true);
     }
   }
 
@@ -762,12 +818,30 @@ void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
 }
 
 void startZoneScene(uint8_t z, uint8_t listIdx) {
-  if (z >= activeZoneCount || listIdx >= zones[z].sceneCount) {
-    // All scenes in this zone have completed their iterations
-    zones[z].state = ZSTATE_FINISHED;
-    P.displayClear(z);
-    Serial.printf("[Playlist] Zone %u ('%s'): All scenes finished. Zone stopped.\n", z, zones[z].name);
+  if (z >= activeZoneCount || zones[z].sceneCount == 0)
     return;
+
+  // Check if current playlist sequence has finished all its scenes
+  if (listIdx >= zones[z].sceneCount) {
+    if (zones[z].playlistRepeat == -1) {
+      // Infinite playlist loop: Rewind immediately to scene 0!
+      Serial.printf("[Playlist] Zone %u ('%s'): Sequence completed. Restarting infinite loop...\n", z, zones[z].name);
+      listIdx = 0;
+    } else {
+      zones[z].playlistLoopCounter++;
+      if (zones[z].playlistLoopCounter < zones[z].playlistRepeat) {
+        // Run next playlist iteration
+        Serial.printf("[Playlist] Zone %u: Sequence iteration %d of %d starting...\n",
+                      z, zones[z].playlistLoopCounter + 1, zones[z].playlistRepeat);
+        listIdx = 0;
+      } else {
+        // All playlist cycles completed: cleanly stop the zone
+        zones[z].state = ZSTATE_FINISHED;
+        P.displayClear(z);
+        Serial.printf("[Playlist] Zone %u ('%s'): All playlist cycles finished. Zone stopped.\n", z, zones[z].name);
+        return;
+      }
+    }
   }
 
   zones[z].currentSceneIdx = listIdx;
@@ -866,6 +940,17 @@ void saveDefaultConfiguration() {
   Serial.println("[Config] Fresh default /config.json created in SPIFFS.");
 }
 
+bool matchScene(uint8_t sIdx, const char *target) {
+  if (!target)
+    return false;
+  // Matches either the Scene Name ("Scene 1") OR the text message ("Basanti Studio")
+  if (strlen(scenes[sIdx].name) > 0 && strcmp(scenes[sIdx].name, target) == 0)
+    return true;
+  if (strlen(scenes[sIdx].rawMessage) > 0 && strcmp(scenes[sIdx].rawMessage, target) == 0)
+    return true;
+  return false;
+}
+
 void loadConfiguration() {
   if (!SPIFFS.exists(CONFIG_FILE)) {
     Serial.println("[Config] No saved config found in flash. Generating defaults...");
@@ -929,7 +1014,8 @@ void loadConfiguration() {
   if (musicSync.enabled) {
     isMusicSyncActive = true;
     P.displayClear();
-    if (mx) mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
+    if (mx)
+      mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
     Serial.println("========================================");
     Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
     Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
@@ -967,6 +1053,10 @@ void loadConfiguration() {
     JsonObject sc = scenesArr[s];
     SceneConfig &curScene = scenes[totalScenes];
 
+    const char *sName = sc["sceneName"] | "";
+    strncpy(curScene.name, sName, sizeof(curScene.name) - 1);
+    curScene.name[sizeof(curScene.name) - 1] = '\0';
+
     const char *zName = "Zone 1";
     if (sc["zone"].is<JsonObject>()) {
       zName = sc["zone"]["name"] | sc["sceneName"] | "Zone 1";
@@ -976,14 +1066,18 @@ void loadConfiguration() {
 
     curScene.startCol = 0;
     if (sc["zone"].is<JsonObject>()) {
-      if (sc["zone"]["startCol"].is<int>()) curScene.startCol = sc["zone"]["startCol"].as<int>();
-      else if (sc["zone"]["start"].is<int>()) curScene.startCol = sc["zone"]["start"].as<int>();
+      if (sc["zone"]["startCol"].is<int>())
+        curScene.startCol = sc["zone"]["startCol"].as<int>();
+      else if (sc["zone"]["start"].is<int>())
+        curScene.startCol = sc["zone"]["start"].as<int>();
     }
 
     curScene.endCol = (MAX_DEVICES * 8) - 1;
     if (sc["zone"].is<JsonObject>()) {
-      if (sc["zone"]["endCol"].is<int>()) curScene.endCol = sc["zone"]["endCol"].as<int>();
-      else if (sc["zone"]["end"].is<int>()) curScene.endCol = sc["zone"]["end"].as<int>();
+      if (sc["zone"]["endCol"].is<int>())
+        curScene.endCol = sc["zone"]["endCol"].as<int>();
+      else if (sc["zone"]["end"].is<int>())
+        curScene.endCol = sc["zone"]["end"].as<int>();
     }
 
     int webStartDev = curScene.startCol / 8;
@@ -1014,7 +1108,7 @@ void loadConfiguration() {
 
     // Static print adjustments: speed must be 0, outEffect must be PA_NO_EFFECT
     bool isStatic = (curScene.inEffect == PA_PRINT &&
-                    (curScene.outEffect == PA_NO_EFFECT || curScene.outEffect == PA_PRINT));
+                     (curScene.outEffect == PA_NO_EFFECT || curScene.outEffect == PA_PRINT));
     if (isStatic) {
       curScene.outEffect = PA_NO_EFFECT;
       curScene.speed = 0;
@@ -1055,6 +1149,50 @@ void loadConfiguration() {
     }
 
     totalScenes++;
+  }
+
+  // =========================================================================
+  // OPTIONAL PLAYLIST PARSING & OVERRIDE
+  // =========================================================================
+  if (doc["playlists"].is<JsonArray>()) {
+    JsonArray plArr = doc["playlists"].as<JsonArray>();
+    for (JsonObject pl : plArr) {
+      const char *plZone = pl["zone"] | "";
+      int plRepeat = pl["repeat"] | -1;
+
+      for (uint8_t z = 0; z < activeZoneCount; z++) {
+        if (strcmp(zones[z].name, plZone) == 0) {
+          JsonArray plScenes = pl["scenes"].as<JsonArray>();
+          if (plScenes.size() > 0) {
+            uint8_t tempSceneList[MAX_SCENES];
+            uint8_t matchedCount = 0;
+
+            for (JsonVariant sVar : plScenes) {
+              const char *targetName = sVar.as<const char *>();
+              for (uint8_t s = 0; s < totalScenes; s++) {
+                if (matchScene(s, targetName) && matchedCount < MAX_SCENES) {
+                  tempSceneList[matchedCount++] = s;
+                  break;
+                }
+              }
+            }
+
+            // Only overwrite zone queue if scenes were successfully matched
+            if (matchedCount > 0) {
+              zones[z].sceneCount = matchedCount;
+              zones[z].playlistRepeat = plRepeat;
+              zones[z].playlistLoopCounter = 0;
+              for (uint8_t i = 0; i < matchedCount; i++) {
+                zones[z].sceneList[i] = tempSceneList[i];
+              }
+              Serial.printf("[Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
+                            pl["name"] | "PL", z, zones[z].sceneCount, plRepeat);
+            }
+          }
+          break;
+        }
+      }
+    }
   }
 
   // =========================================================================
@@ -1219,10 +1357,12 @@ void setupWebServer() {
       [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
         static File uploadFile;
         if (index == 0) {
-          if (SPIFFS.exists(CONFIG_FILE)) SPIFFS.remove(CONFIG_FILE);
+          if (SPIFFS.exists(CONFIG_FILE))
+            SPIFFS.remove(CONFIG_FILE);
           uploadFile = SPIFFS.open(CONFIG_FILE, "w");
         }
-        if (uploadFile) uploadFile.write(data, len);
+        if (uploadFile)
+          uploadFile.write(data, len);
         if (index + len >= total) {
           if (uploadFile) {
             uploadFile.close();
@@ -1244,7 +1384,8 @@ void checkWiFiAndStartServer() {
   static unsigned long lastReconnectAttempt = 0;
   static bool wasConnected = (WiFi.status() == WL_CONNECTED);
 
-  if (millis() - lastCheck < 3000) return;
+  if (millis() - lastCheck < 3000)
+    return;
   lastCheck = millis();
 
   bool isConnected = (WiFi.status() == WL_CONNECTED);
@@ -1353,7 +1494,8 @@ void loop() {
     }
 
     for (uint8_t z = 0; z < activeZoneCount; z++) {
-      if (!zones[z].inUse || zones[z].state == ZSTATE_FINISHED) continue;
+      if (!zones[z].inUse || zones[z].state == ZSTATE_FINISHED)
+        continue;
 
       // Handle non-blocking start delay for the current scene
       if (zones[z].state == ZSTATE_START_DELAY) {
@@ -1369,7 +1511,7 @@ void loop() {
       SceneConfig &sc = scenes[sIdx];
 
       bool isStatic = (sc.inEffect == PA_PRINT &&
-                      (sc.outEffect == PA_NO_EFFECT || sc.outEffect == PA_PRINT));
+                       (sc.outEffect == PA_NO_EFFECT || sc.outEffect == PA_PRINT));
 
       if (isStatic) {
         // =====================================================================
