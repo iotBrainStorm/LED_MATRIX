@@ -68,6 +68,7 @@ struct MusicSyncConfig {
   char animation[32] = "VU Bar";
   int sensitivity = 60;
   char peakDecay[16] = "Medium";
+  uint8_t brightness = 12;
 };
 
 MusicSyncConfig musicSync;
@@ -929,6 +930,7 @@ void saveDefaultConfiguration() {
   ms["animation"] = "VU Bar";
   ms["sensitivity"] = 60;
   ms["peak_decay"] = "Medium";
+  ms["brightness"] = 12;
 
   JsonArray scenesArr = doc["scenes"].to<JsonArray>();
 
@@ -1039,6 +1041,7 @@ void loadConfiguration() {
     musicSync.sensitivity = doc["music_sync"]["sensitivity"] | 60;
     const char *decay = doc["music_sync"]["peak_decay"] | "Medium";
     strncpy(musicSync.peakDecay, decay, sizeof(musicSync.peakDecay) - 1);
+    musicSync.brightness = doc["music_sync"]["brightness"] | 12;
   } else {
     musicSync.enabled = false;
   }
@@ -1047,11 +1050,15 @@ void loadConfiguration() {
   if (musicSync.enabled) {
     isMusicSyncActive = true;
     P.displayClear();
+    MD_MAX72XX *mx = P.getGraphicObject();
+    if (mx) {
+      mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
+    }
     Serial.println("========================================");
     Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
     Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
     Serial.printf(" -> Zone Mapped    : '%s' [Cols %d -> %d]\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
-    Serial.printf(" -> Animation      : %s | Gain: %d%% | Decay: %s\n", musicSync.animation, musicSync.sensitivity, musicSync.peakDecay);
+    Serial.printf(" -> Animation      : %s | Gain: %d%% | Decay: %s | Brightness: %u\n", musicSync.animation, musicSync.sensitivity, musicSync.peakDecay, musicSync.brightness);
     Serial.println("========================================");
     return; // Exit early: do not load or animate Parola scenes!
   }
