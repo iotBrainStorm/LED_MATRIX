@@ -37,6 +37,7 @@ uint8_t MAX_DEVICES = 5;
 #define I2S_PORT I2S_NUM_0
 
 #define MAX_ZONES 4
+#define MAX_SCENES 16
 #define CONFIG_FILE "/config.json"
 const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 
@@ -344,10 +345,10 @@ const uint8_t PROGMEM customThinFont[] = {
 // ==========================================
 // SCENE & ZONE CONFIGURATION STRUCTURES
 // ==========================================
-struct ZoneConfig {
-  bool inUse = false;
-  uint8_t startDev = 0;
-  uint8_t endDev = 0;
+struct SceneConfig {
+  char zoneName[32] = "";
+  int startCol = 0;
+  int endCol = 39;
   char rawMessage[128] = "";
   char activeMessage[128] = "";
   bool isCustom = false;
@@ -356,14 +357,38 @@ struct ZoneConfig {
   textEffect_t inEffect = PA_SCROLL_LEFT;
   textEffect_t outEffect = PA_SCROLL_LEFT;
   uint16_t speed = 35;
-  uint16_t pause = 0;
+  uint16_t pause = 0;        // endDelayMs
+  uint16_t startDelay = 0;   // startDelayMs
   uint8_t brightness = 12;
   int repeat = -1;
-  int loopCounter = 0;
 };
 
+enum ZoneAnimState {
+  ZSTATE_START_DELAY,
+  ZSTATE_PLAYING,
+  ZSTATE_FINISHED
+};
+
+struct ZoneConfig {
+  bool inUse = false;
+  char name[32] = "";
+  uint8_t startDev = 0;
+  uint8_t endDev = 0;
+
+  uint8_t sceneList[MAX_SCENES];
+  uint8_t sceneCount = 0;
+  uint8_t currentSceneIdx = 0; // Index in sceneList
+
+  int loopCounter = 0;
+  ZoneAnimState state = ZSTATE_PLAYING;
+  unsigned long stateStartTime = 0;
+};
+
+SceneConfig scenes[MAX_SCENES];
+uint8_t totalScenes = 0;
+
 ZoneConfig zones[MAX_ZONES];
-uint8_t activeZoneCount = 1;
+uint8_t activeZoneCount = 0;
 
 // ==========================================
 // STRING & TEMPLATE PARSING UTILITIES
@@ -412,7 +437,6 @@ String processTemplate(const String &tmpl) {
   struct tm t;
   localtime_r(&now, &t);
 
-  // Poll sensor at most once every 2 seconds to avoid freezing the I2C bus
   static float cachedTemp = 26.0f;
   static float cachedHum = 62.0f;
   static unsigned long lastSensorPoll = 0;
@@ -709,43 +733,59 @@ void runMusicSyncFrame() {
 }
 
 // ==========================================
-// CONFIGURATION PERSISTENCE & HARDWARE SYNC
+// SCENE PLAYLIST & TRANSITION MANAGEMENT
 // ==========================================
-void applyZoneConfiguration(uint8_t z) {
-  if (z >= MAX_ZONES || !zones[z].inUse) return;
+void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
+  SceneConfig &sc = scenes[sIdx];
 
-  if (zones[z].isBold) {
+  if (sc.isBold) {
     P.setFont(z, customBoldFont);
   } else {
     P.setFont(z, customThinFont);
   }
 
-  P.setIntensity(z, zones[z].brightness);
+  P.setIntensity(z, sc.brightness);
 
-  String resolved = zones[z].isCustom ? processTemplate(zones[z].rawMessage) : String(zones[z].rawMessage);
-  strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
-  zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
-
-  textEffect_t inEff = zones[z].inEffect;
-  textEffect_t outEff = zones[z].outEffect;
-
-  // For static print: strip speed and pauses completely
-  bool isStatic = (inEff == PA_PRINT && (outEff == PA_NO_EFFECT || outEff == PA_PRINT));
-  if (isStatic) {
-    outEff = PA_NO_EFFECT;
-    zones[z].speed = 0;
-    zones[z].pause = 0;
-  }
+  String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : String(sc.rawMessage);
+  strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
+  sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
 
   P.displayZoneText(
       z,
-      zones[z].activeMessage,
-      zones[z].align,
-      zones[z].speed,
-      zones[z].pause,
-      inEff,
-      outEff);
+      sc.activeMessage,
+      sc.align,
+      sc.speed,
+      sc.pause,
+      sc.inEffect,
+      sc.outEffect);
   P.displayReset(z);
+}
+
+void startZoneScene(uint8_t z, uint8_t listIdx) {
+  if (z >= activeZoneCount || listIdx >= zones[z].sceneCount) {
+    // All scenes in this zone have completed their iterations
+    zones[z].state = ZSTATE_FINISHED;
+    P.displayClear(z);
+    Serial.printf("[Playlist] Zone %u ('%s'): All scenes finished. Zone stopped.\n", z, zones[z].name);
+    return;
+  }
+
+  zones[z].currentSceneIdx = listIdx;
+  zones[z].loopCounter = 0;
+
+  uint8_t sIdx = zones[z].sceneList[listIdx];
+  SceneConfig &sc = scenes[sIdx];
+
+  if (sc.startDelay > 0) {
+    zones[z].state = ZSTATE_START_DELAY;
+    zones[z].stateStartTime = millis();
+    P.displayClear(z);
+    Serial.printf("[Playlist] Zone %u: Scene %u starting with %u ms start delay...\n", z, listIdx, sc.startDelay);
+  } else {
+    zones[z].state = ZSTATE_PLAYING;
+    launchSceneOnDisplay(z, sIdx);
+    Serial.printf("[Playlist] Zone %u: Playing scene %u ('%s') [Repeat: %d]\n", z, listIdx, sc.rawMessage, sc.repeat);
+  }
 }
 
 void saveDefaultConfiguration() {
@@ -798,7 +838,7 @@ void saveDefaultConfiguration() {
   a1["endDelayMs"] = 0;
   JsonObject d1 = sc1["display"].to<JsonObject>();
   d1["brightness"] = 12;
-  d1["repeat"] = -1;
+  d1["repeat"] = 3;
 
   JsonObject sc2 = scenesArr.add<JsonObject>();
   sc2["sceneName"] = "32";
@@ -816,7 +856,7 @@ void saveDefaultConfiguration() {
   a2["outEffect"] = "PA_NO_EFFECT";
   a2["speedMs"] = 0;
   a2["startDelayMs"] = 0;
-  a2["endDelayMs"] = 0; // Default static hold delay is 0
+  a2["endDelayMs"] = 0;
   JsonObject d2 = sc2["display"].to<JsonObject>();
   d2["brightness"] = 12;
   d2["repeat"] = -1;
@@ -907,76 +947,129 @@ void loadConfiguration() {
     return;
   }
 
-  P.displayClear();
-  activeZoneCount = min((int)scenesArr.size(), (int)MAX_ZONES);
+  // =========================================================================
+  // GROUP SCENES INTO UNIQUE PHYSICAL PAROLA ZONES
+  // =========================================================================
+  totalScenes = 0;
+  activeZoneCount = 0;
 
-  Serial.println("========================================");
-  Serial.printf("[Config] Loading %d Scenes/Zones from Flash:\n", activeZoneCount);
+  for (uint8_t z = 0; z < MAX_ZONES; z++) {
+    zones[z].inUse = false;
+    zones[z].sceneCount = 0;
+    zones[z].currentSceneIdx = 0;
+    zones[z].loopCounter = 0;
+    zones[z].state = ZSTATE_PLAYING;
+  }
 
-  for (uint8_t i = 0; i < MAX_ZONES; i++) {
-    if (i < activeZoneCount) {
-      JsonObject sc = scenesArr[i];
-      zones[i].inUse = true;
+  int numScenes = min((int)scenesArr.size(), (int)MAX_SCENES);
 
-      int startCol = 0;
-      if (sc["zone"].is<JsonObject>()) {
-        if (sc["zone"]["startCol"].is<int>()) startCol = sc["zone"]["startCol"].as<int>();
-        else if (sc["zone"]["start"].is<int>()) startCol = sc["zone"]["start"].as<int>();
-      }
+  for (int s = 0; s < numScenes; s++) {
+    JsonObject sc = scenesArr[s];
+    SceneConfig &curScene = scenes[totalScenes];
 
-      int endCol = (MAX_DEVICES * 8) - 1;
-      if (sc["zone"].is<JsonObject>()) {
-        if (sc["zone"]["endCol"].is<int>()) endCol = sc["zone"]["endCol"].as<int>();
-        else if (sc["zone"]["end"].is<int>()) endCol = sc["zone"]["end"].as<int>();
-      }
-
-      int webStartDev = startCol / 8;
-      int webEndDev = endCol / 8;
-      int physStartDev = (MAX_DEVICES - 1) - webEndDev;
-      int physEndDev = (MAX_DEVICES - 1) - webStartDev;
-
-      zones[i].startDev = constrain(physStartDev, 0, MAX_DEVICES - 1);
-      zones[i].endDev = constrain(physEndDev, zones[i].startDev, MAX_DEVICES - 1);
-
-      const char *mType = sc["message"]["type"] | "plain";
-      zones[i].isCustom = (strcmp(mType, "custom") == 0);
-
-      const char *mContent = sc["message"]["content"] | "ESP";
-      strncpy(zones[i].rawMessage, mContent, sizeof(zones[i].rawMessage) - 1);
-      zones[i].rawMessage[sizeof(zones[i].rawMessage) - 1] = '\0';
-
-      zones[i].isBold = sc["message"]["bold"] | false;
-      zones[i].align = parseAlign(sc["message"]["align"] | "center");
-      zones[i].inEffect = parseEffect(sc["animation"]["inEffect"] | "PA_SCROLL_LEFT");
-      zones[i].outEffect = parseEffect(sc["animation"]["outEffect"] | "PA_SCROLL_LEFT");
-
-      // Auto-sanitize static print: Speed and Pause MUST be zero
-      bool isStatic = (zones[i].inEffect == PA_PRINT && (zones[i].outEffect == PA_NO_EFFECT || zones[i].outEffect == PA_PRINT));
-      if (isStatic) {
-        zones[i].outEffect = PA_NO_EFFECT;
-        zones[i].speed = 0;
-        zones[i].pause = 0;
-      } else {
-        zones[i].speed = sc["animation"]["speedMs"] | 35;
-        zones[i].pause = sc["animation"]["endDelayMs"] | 0;
-      }
-
-      zones[i].brightness = sc["display"]["brightness"] | 12;
-      zones[i].repeat = sc["display"]["repeat"] | -1;
-      zones[i].loopCounter = 0;
-
-      P.setZone(i, zones[i].startDev, zones[i].endDev);
-      applyZoneConfiguration(i);
-
-      Serial.printf("  -> Zone %u ('%s'): Cols [%d..%d] -> Modules [%u..%u] | Msg: '%s'\n",
-                    i,
-                    sc["zone"]["name"] | sc["sceneName"] | "Zone",
-                    startCol, endCol,
-                    zones[i].startDev, zones[i].endDev,
-                    zones[i].rawMessage);
-    } else {
-      zones[i].inUse = false;
+    const char *zName = "Zone 1";
+    if (sc["zone"].is<JsonObject>()) {
+      zName = sc["zone"]["name"] | sc["sceneName"] | "Zone 1";
     }
+    strncpy(curScene.zoneName, zName, sizeof(curScene.zoneName) - 1);
+    curScene.zoneName[sizeof(curScene.zoneName) - 1] = '\0';
+
+    curScene.startCol = 0;
+    if (sc["zone"].is<JsonObject>()) {
+      if (sc["zone"]["startCol"].is<int>()) curScene.startCol = sc["zone"]["startCol"].as<int>();
+      else if (sc["zone"]["start"].is<int>()) curScene.startCol = sc["zone"]["start"].as<int>();
+    }
+
+    curScene.endCol = (MAX_DEVICES * 8) - 1;
+    if (sc["zone"].is<JsonObject>()) {
+      if (sc["zone"]["endCol"].is<int>()) curScene.endCol = sc["zone"]["endCol"].as<int>();
+      else if (sc["zone"]["end"].is<int>()) curScene.endCol = sc["zone"]["end"].as<int>();
+    }
+
+    int webStartDev = curScene.startCol / 8;
+    int webEndDev = curScene.endCol / 8;
+    int physStartDev = (MAX_DEVICES - 1) - webEndDev;
+    int physEndDev = (MAX_DEVICES - 1) - webStartDev;
+    uint8_t sDev = constrain(physStartDev, 0, MAX_DEVICES - 1);
+    uint8_t eDev = constrain(physEndDev, sDev, MAX_DEVICES - 1);
+
+    const char *mType = sc["message"]["type"] | "plain";
+    curScene.isCustom = (strcmp(mType, "custom") == 0);
+
+    const char *mContent = sc["message"]["content"] | "ESP";
+    strncpy(curScene.rawMessage, mContent, sizeof(curScene.rawMessage) - 1);
+    curScene.rawMessage[sizeof(curScene.rawMessage) - 1] = '\0';
+
+    curScene.isBold = sc["message"]["bold"] | false;
+    curScene.align = parseAlign(sc["message"]["align"] | "center");
+    curScene.inEffect = parseEffect(sc["animation"]["inEffect"] | "PA_SCROLL_LEFT");
+    curScene.outEffect = parseEffect(sc["animation"]["outEffect"] | "PA_SCROLL_LEFT");
+
+    curScene.speed = sc["animation"]["speedMs"] | 35;
+    curScene.startDelay = sc["animation"]["startDelayMs"] | 0;
+    curScene.pause = sc["animation"]["endDelayMs"] | 0;
+
+    curScene.brightness = sc["display"]["brightness"] | 12;
+    curScene.repeat = sc["display"]["repeat"] | -1;
+
+    // Static print adjustments: speed must be 0, outEffect must be PA_NO_EFFECT
+    bool isStatic = (curScene.inEffect == PA_PRINT &&
+                    (curScene.outEffect == PA_NO_EFFECT || curScene.outEffect == PA_PRINT));
+    if (isStatic) {
+      curScene.outEffect = PA_NO_EFFECT;
+      curScene.speed = 0;
+      if (curScene.repeat != -1 && curScene.pause == 0) {
+        curScene.pause = 1000; // Default finite static hold so it doesn't vanish in 0ms
+      }
+    }
+
+    // Match with existing hardware zone or create a new one
+    int targetZone = -1;
+    for (uint8_t z = 0; z < activeZoneCount; z++) {
+      if (strcmp(zones[z].name, curScene.zoneName) == 0 ||
+          (zones[z].startDev == sDev && zones[z].endDev == eDev)) {
+        targetZone = z;
+        break;
+      }
+    }
+
+    if (targetZone == -1) {
+      if (activeZoneCount < MAX_ZONES) {
+        targetZone = activeZoneCount;
+        zones[targetZone].inUse = true;
+        strncpy(zones[targetZone].name, curScene.zoneName, sizeof(zones[targetZone].name) - 1);
+        zones[targetZone].startDev = sDev;
+        zones[targetZone].endDev = eDev;
+        zones[targetZone].sceneCount = 0;
+        zones[targetZone].currentSceneIdx = 0;
+        zones[targetZone].loopCounter = 0;
+        activeZoneCount++;
+      } else {
+        Serial.printf("[Config] Max zones (%d) reached! Skipping scene %d\n", MAX_ZONES, s);
+        continue;
+      }
+    }
+
+    if (zones[targetZone].sceneCount < MAX_SCENES) {
+      zones[targetZone].sceneList[zones[targetZone].sceneCount++] = totalScenes;
+    }
+
+    totalScenes++;
+  }
+
+  // =========================================================================
+  // INITIALIZE HARDWARE ZONES & START PLAYLISTS
+  // =========================================================================
+  P.displayClear();
+  Serial.println("========================================");
+  Serial.printf("[Config] Total Scenes: %d | Formed %d Unique Physical Zones:\n", totalScenes, activeZoneCount);
+
+  for (uint8_t z = 0; z < activeZoneCount; z++) {
+    P.setZone(z, zones[z].startDev, zones[z].endDev);
+    startZoneScene(z, 0); // Start scene 0 for this zone
+
+    Serial.printf("  -> Zone %u ('%s'): Modules [%u..%u] | Queued %u Scenes\n",
+                  z, zones[z].name, zones[z].startDev, zones[z].endDev, zones[z].sceneCount);
   }
   Serial.println("========================================");
 }
@@ -1240,20 +1333,16 @@ void setup() {
 // MAIN LOOP
 // ==========================================
 void loop() {
-  // 1. Handle configuration updates pushed from the web UI
+  // 1. Live config update from browser
   if (configUpdated) {
     configUpdated = false;
     loadConfiguration();
   }
 
-  // 2. TASK EXECUTION BRANCHING
+  // 2. Music Sync or Multi-Zone Scene Execution
   if (isMusicSyncActive) {
     runMusicSyncFrame();
   } else {
-    // =========================================================================
-    // MULTI-ZONE ENGINE (Independent, Non-Blocking Architecture)
-    // =========================================================================
-    // Call displayAnimate() unconditionally so moving zones tick their frames smoothly.
     P.displayAnimate();
 
     // Check dynamic templates (like clock seconds) at 20 Hz (every 50 ms)
@@ -1264,58 +1353,86 @@ void loop() {
     }
 
     for (uint8_t z = 0; z < activeZoneCount; z++) {
-      if (!zones[z].inUse) continue;
+      if (!zones[z].inUse || zones[z].state == ZSTATE_FINISHED) continue;
 
-      bool isStatic = (zones[z].inEffect == PA_PRINT &&
-                      (zones[z].outEffect == PA_NO_EFFECT || zones[z].outEffect == PA_PRINT));
+      // Handle non-blocking start delay for the current scene
+      if (zones[z].state == ZSTATE_START_DELAY) {
+        uint8_t sIdx = zones[z].sceneList[zones[z].currentSceneIdx];
+        if (millis() - zones[z].stateStartTime >= scenes[sIdx].startDelay) {
+          zones[z].state = ZSTATE_PLAYING;
+          launchSceneOnDisplay(z, sIdx);
+        }
+        continue;
+      }
+
+      uint8_t sIdx = zones[z].sceneList[zones[z].currentSceneIdx];
+      SceneConfig &sc = scenes[sIdx];
+
+      bool isStatic = (sc.inEffect == PA_PRINT &&
+                      (sc.outEffect == PA_NO_EFFECT || sc.outEffect == PA_PRINT));
 
       if (isStatic) {
         // =====================================================================
-        // STATIC PRINT ZONE: Speed, pauses, and hold delays are completely ignored.
-        // The text remains anchored on the LEDs with zero flicker.
+        // STATIC PRINT SCENE
         // =====================================================================
-        if (zones[z].isCustom && pollCustomTemplates) {
-          String resolved = processTemplate(zones[z].rawMessage);
-
-          // ONLY update when content physically changes (e.g., when the second ticks: "12:00:01" -> "12:00:02")
-          if (resolved != zones[z].activeMessage) {
-            strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
-            zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
-
-            // Redraw instantly with 0 speed and 0 pause
-            P.displayZoneText(
-                z,
-                zones[z].activeMessage,
-                zones[z].align,
-                0,
-                0,
-                PA_PRINT,
-                PA_NO_EFFECT);
-            P.displayReset(z);
-          }
-        }
-        // Plain static text was printed once during initialization and never needs resetting.
-      } else {
-        // =====================================================================
-        // ANIMATED ZONE (Scrolling, fading, wiping, etc.)
-        // Evaluated strictly on its OWN completion status, completely decoupled from other zones.
-        // =====================================================================
-        if (P.getZoneStatus(z)) {
-          if (zones[z].repeat != -1) {
-            zones[z].loopCounter++;
-            if (zones[z].loopCounter >= zones[z].repeat) {
-              continue; // Reached loop repeat limit
+        if (sc.repeat == -1) {
+          // INFINITE LOOP STATIC: Stays forever, never advances
+          if (sc.isCustom && pollCustomTemplates) {
+            String resolved = processTemplate(sc.rawMessage);
+            if (resolved != sc.activeMessage) {
+              strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
+              sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
+              P.displayZoneText(z, sc.activeMessage, sc.align, 0, 0, PA_PRINT, PA_NO_EFFECT);
+              P.displayReset(z);
             }
           }
-
-          // If it's a moving custom template (e.g. scrolling time/weather), re-evaluate for the next pass
-          if (zones[z].isCustom) {
-            String resolved = processTemplate(zones[z].rawMessage);
-            strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
-            zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
+        } else {
+          // FINITE ITERATION STATIC: Holds for pause (endDelayMs) per iteration
+          if (P.getZoneStatus(z)) {
+            zones[z].loopCounter++;
+            if (zones[z].loopCounter >= sc.repeat) {
+              // Iterations done! Advance to next scene in playlist
+              startZoneScene(z, zones[z].currentSceneIdx + 1);
+            } else {
+              // Reset for next hold iteration
+              if (sc.isCustom) {
+                String resolved = processTemplate(sc.rawMessage);
+                strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
+                sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
+              }
+              P.displayReset(z);
+            }
           }
-
-          P.displayReset(z);
+        }
+      } else {
+        // =====================================================================
+        // ANIMATED SCENE (Scroll, Wipe, Fade, etc.)
+        // =====================================================================
+        if (P.getZoneStatus(z)) {
+          if (sc.repeat == -1) {
+            // INFINITE LOOP ANIMATION: Never advances to next scene
+            if (sc.isCustom) {
+              String resolved = processTemplate(sc.rawMessage);
+              strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
+              sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
+            }
+            P.displayReset(z);
+          } else {
+            // FINITE LOOP ANIMATION (e.g. repeat = 3)
+            zones[z].loopCounter++;
+            if (zones[z].loopCounter >= sc.repeat) {
+              // Finished 3 iterations! Advance to next scene in playlist
+              startZoneScene(z, zones[z].currentSceneIdx + 1);
+            } else {
+              // Continue looping this scene
+              if (sc.isCustom) {
+                String resolved = processTemplate(sc.rawMessage);
+                strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
+                sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
+              }
+              P.displayReset(z);
+            }
+          }
         }
       }
     }
