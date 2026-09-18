@@ -23,31 +23,31 @@
 // ==========================================
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
-#define HARDWARE_TYPE MD_MAX72XX::FC16_HW // PAROLA_HW, GENERIC_HW, ICSTATION_HW, FC16_HW
-#define ABSOLUTE_MAX_DEVICES 30           // Absolute hardware limit for memory buffers
-uint8_t MAX_DEVICES = 5;                  // Default dynamic size, will load from flash
-#define CLK_PIN 18                        // SPI SCK
-#define DATA_PIN 23                       // SPI MOSI
-#define CS_PIN 5                          // SPI SS / Chip Select
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
+#define ABSOLUTE_MAX_DEVICES 30
+uint8_t MAX_DEVICES = 5;
+#define CLK_PIN 18
+#define DATA_PIN 23
+#define CS_PIN 5
 
 // INMP441 I2S MEMS Microphone Pins
-#define I2S_SCK 14 // Serial Clock (BCLK)
-#define I2S_WS 15  // Word Select (LRCK)
-#define I2S_SD 32  // Serial Data (DOUT)
+#define I2S_SCK 14
+#define I2S_WS 15
+#define I2S_SD 32
 #define I2S_PORT I2S_NUM_0
 
-#define MAX_ZONES 4 // Max simultaneous Parola zones supported
+#define MAX_ZONES 4
 #define CONFIG_FILE "/config.json"
 const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 
 // ==========================================
 // GLOBAL OBJECTS & STATE
 // ==========================================
-MD_Parola *P_ptr = nullptr; // Setup dynamically during boot
-#define P (*P_ptr)          // Macro trick: Lets you keep using "P." everywhere without rewriting your code!
+MD_Parola *P_ptr = nullptr;
+#define P (*P_ptr)
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
-char mdnsHostname[32]; // Buffer to store the generated hostname
+char mdnsHostname[32];
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.google.com";
@@ -74,14 +74,12 @@ struct MusicSyncConfig {
 MusicSyncConfig musicSync;
 bool isMusicSyncActive = false;
 
-// I2S & FFT Parameters
-#define FFT_SAMPLES 64      // Must be a power of 2
-#define SAMPLING_FREQ 16000 // 16 kHz sampling
+#define FFT_SAMPLES 64
+#define SAMPLING_FREQ 16000
 double vReal[FFT_SAMPLES];
 double vImag[FFT_SAMPLES];
 ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, FFT_SAMPLES, SAMPLING_FREQ);
 
-// Animation smoothing and physics buffers
 float smoothVol = 0.0f;
 float peakPos = 0.0f;
 unsigned long lastPeakDropTime = 0;
@@ -191,18 +189,13 @@ const uint8_t PROGMEM FONT_8x6_RAW[95][8] = {
     /* 125 } */ {0x30, 0x18, 0x18, 0x0c, 0x18, 0x18, 0x30, 0x00},
     /* 126 ~ */ {0x00, 0x00, 0x00, 0x32, 0x7e, 0x4c, 0x00, 0x00}};
 
-// Size: 32 bytes (ASCII 0..31 with width 0) + 96 chars * (1 width byte + up to 6 col bytes) = 704 bytes
 uint8_t customBoldFont[32 + (96 * 7)];
 
 void buildCustomBoldFont() {
   uint16_t ptr = 0;
-
-  // 1. ASCII 0 to 31: width 0 (control characters)
   for (uint8_t i = 0; i < 32; i++) {
     customBoldFont[ptr++] = 0;
   }
-
-  // 2. ASCII 32 to 126: trim leading & trailing blank columns for exact alignment
   for (uint8_t i = 0; i < 95; i++) {
     uint8_t cols[6];
     for (uint8_t col = 0; col < 6; col++) {
@@ -214,17 +207,14 @@ void buildCustomBoldFont() {
         }
       }
     }
-
     int firstCol = 0;
     while (firstCol < 6 && cols[firstCol] == 0)
       firstCol++;
-
     int lastCol = 5;
     while (lastCol >= 0 && cols[lastCol] == 0)
       lastCol--;
 
     if (firstCol > lastCol) {
-      // Space character: 4 empty columns
       customBoldFont[ptr++] = 4;
       customBoldFont[ptr++] = 0x00;
       customBoldFont[ptr++] = 0x00;
@@ -238,8 +228,6 @@ void buildCustomBoldFont() {
       }
     }
   }
-
-  // 3. ASCII 127: '°' (Degree Symbol - 4 columns)
   customBoldFont[ptr++] = 4;
   customBoldFont[ptr++] = 0x06;
   customBoldFont[ptr++] = 0x09;
@@ -251,13 +239,10 @@ void buildCustomBoldFont() {
 // CUSTOM 5x7 THIN FONT TABLE (ASCII 0-127)
 // ==========================================
 const uint8_t PROGMEM customThinFont[] = {
-    // ASCII 0 to 31 (Control characters - width 0)
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-
-    // ASCII 32 to 126
     3, 0x00, 0x00, 0x00,             // 32  ' '
     1, 0x5f,                         // 33  !
     3, 0x07, 0x00, 0x07,             // 34  "
@@ -353,7 +338,7 @@ const uint8_t PROGMEM customThinFont[] = {
     1, 0x7f,                         // 124 |
     3, 0x41, 0x36, 0x08,             // 125 }
     4, 0x08, 0x04, 0x08, 0x10,       // 126 ~
-    4, 0x06, 0x09, 0x09, 0x06        // 127 ° (Degree Symbol)
+    4, 0x06, 0x09, 0x09, 0x06        // 127 °
 };
 
 // ==========================================
@@ -384,70 +369,41 @@ uint8_t activeZoneCount = 1;
 // STRING & TEMPLATE PARSING UTILITIES
 // ==========================================
 textEffect_t parseEffect(const char *str) {
-  if (strcmp(str, "PA_PRINT") == 0)
-    return PA_PRINT;
-  if (strcmp(str, "PA_SCROLL_LEFT") == 0)
-    return PA_SCROLL_LEFT;
-  if (strcmp(str, "PA_SCROLL_RIGHT") == 0)
-    return PA_SCROLL_RIGHT;
-  if (strcmp(str, "PA_SCROLL_UP") == 0)
-    return PA_SCROLL_UP;
-  if (strcmp(str, "PA_SCROLL_DOWN") == 0)
-    return PA_SCROLL_DOWN;
-  if (strcmp(str, "PA_SCROLL_UP_LEFT") == 0)
-    return PA_SCROLL_UP_LEFT;
-  if (strcmp(str, "PA_SCROLL_UP_RIGHT") == 0)
-    return PA_SCROLL_UP_RIGHT;
-  if (strcmp(str, "PA_SCROLL_DOWN_LEFT") == 0)
-    return PA_SCROLL_DOWN_LEFT;
-  if (strcmp(str, "PA_SCROLL_DOWN_RIGHT") == 0)
-    return PA_SCROLL_DOWN_RIGHT;
-  if (strcmp(str, "PA_SPRITE") == 0)
-    return PA_SPRITE;
-  if (strcmp(str, "PA_SLICE") == 0)
-    return PA_SLICE;
-  if (strcmp(str, "PA_MESH") == 0)
-    return PA_MESH;
-  if (strcmp(str, "PA_FADE") == 0)
-    return PA_FADE;
-  if (strcmp(str, "PA_DISSOLVE") == 0)
-    return PA_DISSOLVE;
-  if (strcmp(str, "PA_BLINDS") == 0)
-    return PA_BLINDS;
-  if (strcmp(str, "PA_RANDOM") == 0)
-    return PA_RANDOM;
-  if (strcmp(str, "PA_WIPE") == 0)
-    return PA_WIPE;
-  if (strcmp(str, "PA_WIPE_CURSOR") == 0)
-    return PA_WIPE_CURSOR;
-  if (strcmp(str, "PA_OPENING") == 0)
-    return PA_OPENING;
-  if (strcmp(str, "PA_OPENING_CURSOR") == 0)
-    return PA_OPENING_CURSOR;
-  if (strcmp(str, "PA_CLOSING") == 0)
-    return PA_CLOSING;
-  if (strcmp(str, "PA_CLOSING_CURSOR") == 0)
-    return PA_CLOSING_CURSOR;
-  if (strcmp(str, "PA_SCAN_HORIZ") == 0)
-    return PA_SCAN_HORIZ;
-  if (strcmp(str, "PA_SCAN_HORIZX") == 0)
-    return PA_SCAN_HORIZX;
-  if (strcmp(str, "PA_SCAN_VERT") == 0)
-    return PA_SCAN_VERT;
-  if (strcmp(str, "PA_SCAN_VERTX") == 0)
-    return PA_SCAN_VERTX;
-  if (strcmp(str, "PA_GROW_UP") == 0)
-    return PA_GROW_UP;
-  if (strcmp(str, "PA_GROW_DOWN") == 0)
-    return PA_GROW_DOWN;
+  if (strcmp(str, "PA_NO_EFFECT") == 0) return PA_NO_EFFECT;
+  if (strcmp(str, "PA_PRINT") == 0) return PA_PRINT;
+  if (strcmp(str, "PA_SCROLL_LEFT") == 0) return PA_SCROLL_LEFT;
+  if (strcmp(str, "PA_SCROLL_RIGHT") == 0) return PA_SCROLL_RIGHT;
+  if (strcmp(str, "PA_SCROLL_UP") == 0) return PA_SCROLL_UP;
+  if (strcmp(str, "PA_SCROLL_DOWN") == 0) return PA_SCROLL_DOWN;
+  if (strcmp(str, "PA_SCROLL_UP_LEFT") == 0) return PA_SCROLL_UP_LEFT;
+  if (strcmp(str, "PA_SCROLL_UP_RIGHT") == 0) return PA_SCROLL_UP_RIGHT;
+  if (strcmp(str, "PA_SCROLL_DOWN_LEFT") == 0) return PA_SCROLL_DOWN_LEFT;
+  if (strcmp(str, "PA_SCROLL_DOWN_RIGHT") == 0) return PA_SCROLL_DOWN_RIGHT;
+  if (strcmp(str, "PA_SPRITE") == 0) return PA_SPRITE;
+  if (strcmp(str, "PA_SLICE") == 0) return PA_SLICE;
+  if (strcmp(str, "PA_MESH") == 0) return PA_MESH;
+  if (strcmp(str, "PA_FADE") == 0) return PA_FADE;
+  if (strcmp(str, "PA_DISSOLVE") == 0) return PA_DISSOLVE;
+  if (strcmp(str, "PA_BLINDS") == 0) return PA_BLINDS;
+  if (strcmp(str, "PA_RANDOM") == 0) return PA_RANDOM;
+  if (strcmp(str, "PA_WIPE") == 0) return PA_WIPE;
+  if (strcmp(str, "PA_WIPE_CURSOR") == 0) return PA_WIPE_CURSOR;
+  if (strcmp(str, "PA_OPENING") == 0) return PA_OPENING;
+  if (strcmp(str, "PA_OPENING_CURSOR") == 0) return PA_OPENING_CURSOR;
+  if (strcmp(str, "PA_CLOSING") == 0) return PA_CLOSING;
+  if (strcmp(str, "PA_CLOSING_CURSOR") == 0) return PA_CLOSING_CURSOR;
+  if (strcmp(str, "PA_SCAN_HORIZ") == 0) return PA_SCAN_HORIZ;
+  if (strcmp(str, "PA_SCAN_HORIZX") == 0) return PA_SCAN_HORIZX;
+  if (strcmp(str, "PA_SCAN_VERT") == 0) return PA_SCAN_VERT;
+  if (strcmp(str, "PA_SCAN_VERTX") == 0) return PA_SCAN_VERTX;
+  if (strcmp(str, "PA_GROW_UP") == 0) return PA_GROW_UP;
+  if (strcmp(str, "PA_GROW_DOWN") == 0) return PA_GROW_DOWN;
   return PA_SCROLL_LEFT;
 }
 
 textPosition_t parseAlign(const char *str) {
-  if (strcmp(str, "left") == 0)
-    return PA_LEFT;
-  if (strcmp(str, "right") == 0)
-    return PA_RIGHT;
+  if (strcmp(str, "left") == 0) return PA_LEFT;
+  if (strcmp(str, "right") == 0) return PA_RIGHT;
   return PA_CENTER;
 }
 
@@ -456,22 +412,26 @@ String processTemplate(const String &tmpl) {
   struct tm t;
   localtime_r(&now, &t);
 
-  float temp = 26.0;
-  float hum = 62.0;
-  if (ahtFound) {
+  // Poll sensor at most once every 2 seconds to avoid freezing the I2C bus
+  static float cachedTemp = 26.0f;
+  static float cachedHum = 62.0f;
+  static unsigned long lastSensorPoll = 0;
+
+  if (ahtFound && (millis() - lastSensorPoll >= 2000 || lastSensorPoll == 0)) {
     sensors_event_t hEvent, tEvent;
     aht.getEvent(&hEvent, &tEvent);
-    temp = tEvent.temperature;
-    hum = hEvent.relative_humidity;
+    cachedTemp = tEvent.temperature;
+    cachedHum = hEvent.relative_humidity;
+    lastSensorPoll = millis();
   }
 
   String out = tmpl;
 
   char sensorBuf[16];
-  snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", temp);
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", cachedTemp);
   out.replace("{TEMP}", sensorBuf);
 
-  snprintf(sensorBuf, sizeof(sensorBuf), "%.0f", hum);
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.0f", cachedHum);
   out.replace("{HUM}", sensorBuf);
 
   out.replace("%", "%%");
@@ -507,7 +467,7 @@ void initI2S() {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = SAMPLING_FREQ,
       .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, // L/R pin should connect with GND for left chanel
+      .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 4,
@@ -538,16 +498,13 @@ void initI2S() {
   Serial.println("[I2S] INMP441 MEMS microphone initialized successfully.");
 }
 
-// Helper: Set matrix point with orientation mapping (r=0 is bottom, r=7 is top)
 inline void setVUMatrixPoint(MD_MAX72XX *mx, int r, int c, bool state) {
   if (c >= 0 && c < MAX_DEVICES * 8 && r >= 0 && r < 8) {
-    // Invert column coordinate to translate Web UI (0=Left) to FC16 (0=Right)
     int physC = (MAX_DEVICES * 8 - 1) - c;
     mx->setPoint(7 - r, physC, state);
   }
 }
 
-// Clear only the columns inside designated zone
 void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
   for (int c = startCol; c <= endCol; c++) {
     for (int r = 0; r < 8; r++) {
@@ -560,46 +517,35 @@ void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
 // REAL-TIME AUDIO SAMPLING & VU DRAWING
 // ==========================================
 void runMusicSyncFrame() {
-  // 1. Cut frame interval from 28ms (~35 FPS) to 15ms (~66 FPS) for instant response
   static unsigned long lastVUDraw = 0;
-  if (millis() - lastVUDraw < 15)
-    return;
+  if (millis() - lastVUDraw < 15) return;
   lastVUDraw = millis();
 
   MD_MAX72XX *mx = P.getGraphicObject();
-  if (!mx)
-    return;
+  if (!mx) return;
 
   int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
   int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
   int zWidth = zEnd - zStart + 1;
 
-  // 2. FLUSH STALE DMA BUFFERS (Eliminates the audio buffer queue delay)
   int32_t i2sRawBuffer[FFT_SAMPLES];
   size_t bytesRead = 0;
 
-  // Drain any queued older buffers to capture the exact current millisecond
-  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {
-    // Keep reading until we reach the newest audio packet
-  }
+  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {}
   if (bytesRead == 0) {
     i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 10 / portTICK_PERIOD_MS);
   }
-  if (bytesRead == 0)
-    return;
+  if (bytesRead == 0) return;
 
-  // 3. Remove DC Offset & Compute True AC RMS Amplitude
   int64_t sum = 0;
   int sampleCount = bytesRead / sizeof(int32_t);
 
-  // Pass 1: Find the DC bias (average value)
   for (int i = 0; i < sampleCount; i++) {
     int32_t sample = i2sRawBuffer[i] >> 14;
     sum += sample;
   }
   int32_t dcOffset = sum / sampleCount;
 
-  // Pass 2: Subtract DC bias so resting baseline is 0
   float sumSquares = 0.0f;
   for (int i = 0; i < sampleCount; i++) {
     int32_t acSample = (i2sRawBuffer[i] >> 14) - dcOffset;
@@ -610,127 +556,63 @@ void runMusicSyncFrame() {
 
   float rms = sqrtf(sumSquares / sampleCount);
 
-  // 4. Noise Gate & Proper Scaling
-  const float noiseFloor = 30.0f; // Blocks ambient room hiss
-  if (rms < noiseFloor) {
-    rms = 0.0f;
-  } else {
-    rms -= noiseFloor;
-  }
+  const float noiseFloor = 30.0f;
+  if (rms < noiseFloor) rms = 0.0f;
+  else rms -= noiseFloor;
 
-  // Divisor raised to 2800.0f so normal audio stays centered
   float gain = (float)musicSync.sensitivity / 50.0f;
   float rawVol = (rms * gain) / 2800.0f;
   rawVol = constrain(rawVol, 0.0f, 1.0f);
-
-  // Gentle expansion curve (prevents clipping to 100% too easily)
   rawVol = powf(rawVol, 0.85f);
 
-  // 5. Instantaneous Attack with Fast Snappy Release (Replaces sluggish 0.75 decay)
   if (rawVol > smoothVol) {
-    smoothVol = rawVol; // Instant zero-lag rise
+    smoothVol = rawVol;
   } else {
-    smoothVol = (smoothVol * 0.45f) + (rawVol * 0.55f); // Fast release
+    smoothVol = (smoothVol * 0.45f) + (rawVol * 0.55f);
   }
 
-  // Peak decay interval based on configuration
   unsigned long decayInterval = 60;
-  if (strcmp(musicSync.peakDecay, "Fast") == 0)
-    decayInterval = 30;
-  else if (strcmp(musicSync.peakDecay, "Smooth") == 0)
-    decayInterval = 120;
+  if (strcmp(musicSync.peakDecay, "Fast") == 0) decayInterval = 30;
+  else if (strcmp(musicSync.peakDecay, "Smooth") == 0) decayInterval = 120;
 
   mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
   clearVUZone(mx, zStart, zEnd);
 
-  // ========================================
-  // ANIMATION 1: VU Bar
-  // ========================================
   if (strcmp(musicSync.animation, "VU Bar") == 0) {
-
     float level = constrain(smoothVol, 0.0f, 1.0f);
     int fillCols = (int)round(level * zWidth);
-
     for (int i = 0; i < zWidth; i++) {
-
       int c = zStart + i;
       bool on = (i < fillCols);
-
-      for (int r = 0; r < 8; r++) {
-        setVUMatrixPoint(mx, r, c, on);
-      }
+      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
     }
-  }
-
-  // ========================================
-  // ANIMATION 2: VU Peak
-  // ========================================
-  else if (strcmp(musicSync.animation, "VU Peak") == 0) {
-
-    // Keep volume safely within 0.0 - 1.0
+  } else if (strcmp(musicSync.animation, "VU Peak") == 0) {
     float level = constrain(smoothVol, 0.0f, 1.0f);
+    int fillCols = constrain((int)round(level * zWidth), 0, zWidth);
 
-    // Calculate current VU bar length
-    int fillCols = (int)round(level * zWidth);
-
-    // Keep fillCols within zone boundaries
-    fillCols = constrain(fillCols, 0, zWidth);
-
-    // Update peak position
     if (fillCols > peakPos) {
-
-      // Volume increased -> peak jumps immediately
       peakPos = fillCols;
       lastPeakDropTime = millis();
-
     } else if (millis() - lastPeakDropTime >= decayInterval) {
-
-      // Volume decreased -> peak slowly falls
-      if (peakPos > 0.0f) {
-        peakPos -= 1.0f;
-      }
-
+      if (peakPos > 0.0f) peakPos -= 1.0f;
       lastPeakDropTime = millis();
     }
-
-    // Keep peak inside zone
     peakPos = constrain(peakPos, 0.0f, (float)zWidth);
 
-    // Draw VU bar
     for (int i = 0; i < zWidth; i++) {
-
       int c = zStart + i;
-
-      // Explicitly turn LEDs ON/OFF
       bool on = (i < fillCols);
-
-      for (int r = 0; r < 8; r++) {
-        setVUMatrixPoint(mx, r, c, on);
-      }
+      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
     }
 
-    // Draw peak indicator
     if (peakPos > 0.0f) {
-
-      // Convert peak position to column
       int peakCol = (int)peakPos - 1;
-
-      // Safety check
       if (peakCol >= 0 && peakCol < zWidth) {
-
         int c = zStart + peakCol;
-
-        for (int r = 0; r < 8; r++) {
-          setVUMatrixPoint(mx, r, c, true);
-        }
+        for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, true);
       }
     }
-  }
-
-  // ========================================
-  // ANIMATION 3: VU Mirror (Instant & Ultra-Responsive)
-  // ========================================
-  if (strcmp(musicSync.animation, "VU Mirror") == 0) {
+  } else if (strcmp(musicSync.animation, "VU Mirror") == 0) {
     float level = constrain(smoothVol, 0.0f, 1.0f);
     float maxHalfWidth = zWidth / 2.0f;
     float halfSpan = level * maxHalfWidth;
@@ -740,42 +622,26 @@ void runMusicSyncFrame() {
       float distance = fabsf((float)i - center);
       bool on = (distance <= halfSpan);
       int c = zStart + i;
-
-      for (int r = 0; r < 8; r++) {
-        setVUMatrixPoint(mx, r, c, on);
-      }
+      for (int r = 0; r < 8; r++) setVUMatrixPoint(mx, r, c, on);
     }
-  }
-
-  // ========================================
-  // ANIMATION 4: VU Bounce
-  // ========================================
-  else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
+  } else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
     float targetPos = smoothVol * (zWidth - 2);
     if (targetPos > bouncePos) {
       bounceVel = (targetPos - bouncePos) * 0.45f + 1.2f;
     }
-    bounceVel -= 0.35f; // Gravity
+    bounceVel -= 0.35f;
     bouncePos += bounceVel;
     bouncePos = constrain(bouncePos, 0.0f, (float)(zWidth - 2));
 
     int bCol = zStart + (int)bouncePos;
-    // Draw bouncing 2-pixel head
     for (int r = 2; r < 6; r++) {
       setVUMatrixPoint(mx, r, bCol, true);
-      if (bCol + 1 <= zEnd)
-        setVUMatrixPoint(mx, r, bCol + 1, true);
+      if (bCol + 1 <= zEnd) setVUMatrixPoint(mx, r, bCol + 1, true);
     }
-    // Subtle trailing base
     for (int c = zStart; c <= bCol; c += 2) {
       setVUMatrixPoint(mx, 0, c, true);
     }
-  }
-
-  // ========================================
-  // ANIMATION 5: VU Pulse
-  // ========================================
-  else if (strcmp(musicSync.animation, "VU Pulse") == 0) {
+  } else if (strcmp(musicSync.animation, "VU Pulse") == 0) {
     int center = zStart + (zWidth / 2);
     int radius = (int)round(smoothVol * (zWidth / 2.0f));
     int vertHeight = (int)round(smoothVol * 4.0f);
@@ -786,19 +652,11 @@ void runMusicSyncFrame() {
       int h = constrain(vertHeight - (d / 2), 0, 4);
 
       for (int r = 3 - h; r <= 4 + h; r++) {
-        if (c1 >= zStart)
-          setVUMatrixPoint(mx, r, c1, true);
-        if (c2 <= zEnd)
-          setVUMatrixPoint(mx, r, c2, true);
+        if (c1 >= zStart) setVUMatrixPoint(mx, r, c1, true);
+        if (c2 <= zEnd) setVUMatrixPoint(mx, r, c2, true);
       }
     }
-  }
-
-  // ========================================
-  // ANIMATION 6: VU Wave (Oscilloscope Ripple)
-  // ========================================
-  else if (strcmp(musicSync.animation, "VU Wave") == 0) {
-    // Shift historical waveform horizontally
+  } else if (strcmp(musicSync.animation, "VU Wave") == 0) {
     for (int i = 0; i < zWidth - 1; i++) {
       waveHistory[i] = waveHistory[i + 1];
     }
@@ -811,61 +669,39 @@ void runMusicSyncFrame() {
         setVUMatrixPoint(mx, r, c, true);
       }
     }
-  }
-
-  // ========================================
-  // ANIMATION 7: VU Spectrum (arduinoFFT)
-  // ========================================
-  else if (strcmp(musicSync.animation, "VU Spectrum") == 0) {
+  } else if (strcmp(musicSync.animation, "VU Spectrum") == 0) {
     FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
     FFT.compute(FFTDirection::Forward);
     FFT.complexToMagnitude();
 
-    // Decay band peaks
     if (millis() - lastBandDropTime >= decayInterval) {
       for (int i = 0; i < zWidth; i++) {
-        if (bandPeaks[i] > 0)
-          bandPeaks[i] -= 0.6f; // Smoother peak fall
+        if (bandPeaks[i] > 0) bandPeaks[i] -= 0.6f;
       }
       lastBandDropTime = millis();
     }
 
     int usableBins = FFT_SAMPLES / 2;
-    int startBin = 10;                     // Cut off DC offset/sub-rumble
-    int maxBin = (int)(usableBins * 0.75); // Cap at 75% of bins to ignore empty high freqs
+    int startBin = 10;
+    int maxBin = (int)(usableBins * 0.75);
 
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
-
-      // LOGARITHMIC MAPPING
       float logRatio = pow((float)i / (float)(zWidth > 1 ? zWidth - 1 : 1), 1.4f);
       int binIdx = startBin + (int)(logRatio * (maxBin - startBin));
       binIdx = constrain(binIdx, startBin, maxBin);
 
-      // EQ BOOST
       float eqBoost = 1.0f + ((float)i / (float)zWidth) * 3.5f;
-
       double magnitude = vReal[binIdx] * eqBoost * (musicSync.sensitivity / 50.0f);
       int height = constrain((int)(magnitude / 800.0), 0, 8);
 
-      // Register peaks
-      if (height > bandPeaks[i]) {
-        bandPeaks[i] = height;
-      }
+      if (height > bandPeaks[i]) bandPeaks[i] = height;
 
-      // Draw solid spectrum vertical column
-      for (int r = 0; r < height; r++) {
-        setVUMatrixPoint(mx, r, c, true);
-      }
+      for (int r = 0; r < height; r++) setVUMatrixPoint(mx, r, c, true);
 
-      // Draw falling peak point on top of column
       int peakRow = (int)bandPeaks[i];
-      if (peakRow >= 8)
-        peakRow = 7;
-
-      if (peakRow > 0) {
-        setVUMatrixPoint(mx, peakRow, c, true);
-      }
+      if (peakRow >= 8) peakRow = 7;
+      if (peakRow > 0) setVUMatrixPoint(mx, peakRow, c, true);
     }
   }
 
@@ -876,8 +712,7 @@ void runMusicSyncFrame() {
 // CONFIGURATION PERSISTENCE & HARDWARE SYNC
 // ==========================================
 void applyZoneConfiguration(uint8_t z) {
-  if (z >= MAX_ZONES || !zones[z].inUse)
-    return;
+  if (z >= MAX_ZONES || !zones[z].inUse) return;
 
   if (zones[z].isBold) {
     P.setFont(z, customBoldFont);
@@ -891,14 +726,25 @@ void applyZoneConfiguration(uint8_t z) {
   strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
   zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
 
+  textEffect_t inEff = zones[z].inEffect;
+  textEffect_t outEff = zones[z].outEffect;
+
+  // For static print: strip speed and pauses completely
+  bool isStatic = (inEff == PA_PRINT && (outEff == PA_NO_EFFECT || outEff == PA_PRINT));
+  if (isStatic) {
+    outEff = PA_NO_EFFECT;
+    zones[z].speed = 0;
+    zones[z].pause = 0;
+  }
+
   P.displayZoneText(
       z,
       zones[z].activeMessage,
       zones[z].align,
       zones[z].speed,
       zones[z].pause,
-      zones[z].inEffect,
-      zones[z].outEffect);
+      inEff,
+      outEff);
   P.displayReset(z);
 }
 
@@ -921,7 +767,6 @@ void saveDefaultConfiguration() {
   matrix["width"] = 40;
   matrix["modules"] = 5;
 
-  // Dedicated Music Sync Default Root Settings
   JsonObject ms = doc["music_sync"].to<JsonObject>();
   ms["enabled"] = false;
   ms["zone"] = "Zone 1";
@@ -968,10 +813,10 @@ void saveDefaultConfiguration() {
   m2["align"] = "center";
   JsonObject a2 = sc2["animation"].to<JsonObject>();
   a2["inEffect"] = "PA_PRINT";
-  a2["outEffect"] = "PA_PRINT";
-  a2["speedMs"] = 35;
+  a2["outEffect"] = "PA_NO_EFFECT";
+  a2["speedMs"] = 0;
   a2["startDelayMs"] = 0;
-  a2["endDelayMs"] = 1000;
+  a2["endDelayMs"] = 0; // Default static hold delay is 0
   JsonObject d2 = sc2["display"].to<JsonObject>();
   d2["brightness"] = 12;
   d2["repeat"] = -1;
@@ -1007,17 +852,15 @@ void loadConfiguration() {
     return;
   }
 
-  // Check if the user changed the matrix size from the Web UI
   if (doc["matrix"].is<JsonObject>() && doc["matrix"]["modules"].is<int>()) {
     uint8_t newMax = doc["matrix"]["modules"].as<uint8_t>();
     if (newMax != MAX_DEVICES) {
       Serial.println("[Config] Matrix size changed! Rebooting ESP memory to apply safely...");
       delay(500);
-      ESP.restart(); // Automatically restarts to cleanly expand/shrink the LED buffers
+      ESP.restart();
     }
   }
 
-  // FORCE GLOBAL BRIGHTNESS SYNC ACROSS ALL MAX7219 MODULES
   uint8_t baseBrightness = 12;
   if (doc["scenes"].is<JsonArray>() && doc["scenes"].size() > 0) {
     baseBrightness = doc["scenes"][0]["display"]["brightness"] | 12;
@@ -1027,9 +870,6 @@ void loadConfiguration() {
     mx->control(MD_MAX72XX::INTENSITY, baseBrightness);
   }
 
-  // =========================================================================
-  // STEP 1: FIRST CHECK MUSIC SYNC STATUS
-  // =========================================================================
   if (doc["music_sync"].is<JsonObject>()) {
     musicSync.enabled = doc["music_sync"]["enabled"] | false;
     const char *zName = doc["music_sync"]["zone"] | "Zone 1";
@@ -1046,24 +886,19 @@ void loadConfiguration() {
     musicSync.enabled = false;
   }
 
-  // If Music Sync is ON: Focus ONLY on VU Meter Task
   if (musicSync.enabled) {
     isMusicSyncActive = true;
     P.displayClear();
-    MD_MAX72XX *mx = P.getGraphicObject();
-    if (mx) {
-      mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
-    }
+    if (mx) mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
     Serial.println("========================================");
     Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
     Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
     Serial.printf(" -> Zone Mapped    : '%s' [Cols %d -> %d]\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
     Serial.printf(" -> Animation      : %s | Gain: %d%% | Decay: %s | Brightness: %u\n", musicSync.animation, musicSync.sensitivity, musicSync.peakDecay, musicSync.brightness);
     Serial.println("========================================");
-    return; // Exit early: do not load or animate Parola scenes!
+    return;
   }
 
-  // If Music Sync is OFF: Run normal multi-scene / zone renderer
   isMusicSyncActive = false;
 
   JsonArray scenesArr = doc["scenes"].as<JsonArray>();
@@ -1085,24 +920,18 @@ void loadConfiguration() {
 
       int startCol = 0;
       if (sc["zone"].is<JsonObject>()) {
-        if (sc["zone"]["startCol"].is<int>())
-          startCol = sc["zone"]["startCol"].as<int>();
-        else if (sc["zone"]["start"].is<int>())
-          startCol = sc["zone"]["start"].as<int>();
+        if (sc["zone"]["startCol"].is<int>()) startCol = sc["zone"]["startCol"].as<int>();
+        else if (sc["zone"]["start"].is<int>()) startCol = sc["zone"]["start"].as<int>();
       }
 
       int endCol = (MAX_DEVICES * 8) - 1;
       if (sc["zone"].is<JsonObject>()) {
-        if (sc["zone"]["endCol"].is<int>())
-          endCol = sc["zone"]["endCol"].as<int>();
-        else if (sc["zone"]["end"].is<int>())
-          endCol = sc["zone"]["end"].as<int>();
+        if (sc["zone"]["endCol"].is<int>()) endCol = sc["zone"]["endCol"].as<int>();
+        else if (sc["zone"]["end"].is<int>()) endCol = sc["zone"]["end"].as<int>();
       }
 
-      // Convert web column ranges (0=Left) to physical FC16 module ranges (0=Right)
       int webStartDev = startCol / 8;
       int webEndDev = endCol / 8;
-
       int physStartDev = (MAX_DEVICES - 1) - webEndDev;
       int physEndDev = (MAX_DEVICES - 1) - webStartDev;
 
@@ -1120,8 +949,18 @@ void loadConfiguration() {
       zones[i].align = parseAlign(sc["message"]["align"] | "center");
       zones[i].inEffect = parseEffect(sc["animation"]["inEffect"] | "PA_SCROLL_LEFT");
       zones[i].outEffect = parseEffect(sc["animation"]["outEffect"] | "PA_SCROLL_LEFT");
-      zones[i].speed = sc["animation"]["speedMs"] | 35;
-      zones[i].pause = sc["animation"]["endDelayMs"] | 0;
+
+      // Auto-sanitize static print: Speed and Pause MUST be zero
+      bool isStatic = (zones[i].inEffect == PA_PRINT && (zones[i].outEffect == PA_NO_EFFECT || zones[i].outEffect == PA_PRINT));
+      if (isStatic) {
+        zones[i].outEffect = PA_NO_EFFECT;
+        zones[i].speed = 0;
+        zones[i].pause = 0;
+      } else {
+        zones[i].speed = sc["animation"]["speedMs"] | 35;
+        zones[i].pause = sc["animation"]["endDelayMs"] | 0;
+      }
+
       zones[i].brightness = sc["display"]["brightness"] | 12;
       zones[i].repeat = sc["display"]["repeat"] | -1;
       zones[i].loopCounter = 0;
@@ -1215,15 +1054,10 @@ bool connectToSavedWiFi() {
 // ==========================================
 void initMDNS() {
   MDNS.end();
-
-  // 1. Get the 6-byte Wi-Fi station MAC address
   uint8_t mac[6];
   WiFi.macAddress(mac);
-
-  // 2. Format: "ledstudio-" followed by the last two MAC octets (e.g., A1B2)
   snprintf(mdnsHostname, sizeof(mdnsHostname), "ledstudio-%02X%02X", mac[4], mac[5]);
 
-  // 3. Start mDNS with the unique name
   if (MDNS.begin(mdnsHostname)) {
     Serial.printf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
     MDNS.addService("http", "tcp", 80);
@@ -1251,7 +1085,6 @@ void setupWebServer() {
     String filePath = "/index.html";
     bool isGzip = false;
 
-    // Check if the browser supports gzip and the compressed file exists
     if (clientAcceptsGzip && SPIFFS.exists("/index.html.gz")) {
       filePath = "/index.html.gz";
       isGzip = true;
@@ -1271,7 +1104,6 @@ void setupWebServer() {
 
   server.on("/", WebRequestMethod::HTTP_GET, handleIndex);
   server.on("/index.html", WebRequestMethod::HTTP_GET, handleIndex);
-
   server.serveStatic("/icon.svg", SPIFFS, "/icon.svg").setCacheControl("max-age=604800");
 
   server.on("/api/matrix/config", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1294,13 +1126,10 @@ void setupWebServer() {
       [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
         static File uploadFile;
         if (index == 0) {
-          if (SPIFFS.exists(CONFIG_FILE))
-            SPIFFS.remove(CONFIG_FILE);
+          if (SPIFFS.exists(CONFIG_FILE)) SPIFFS.remove(CONFIG_FILE);
           uploadFile = SPIFFS.open(CONFIG_FILE, "w");
         }
-        if (uploadFile) {
-          uploadFile.write(data, len);
-        }
+        if (uploadFile) uploadFile.write(data, len);
         if (index + len >= total) {
           if (uploadFile) {
             uploadFile.close();
@@ -1322,8 +1151,7 @@ void checkWiFiAndStartServer() {
   static unsigned long lastReconnectAttempt = 0;
   static bool wasConnected = (WiFi.status() == WL_CONNECTED);
 
-  if (millis() - lastCheck < 3000)
-    return;
+  if (millis() - lastCheck < 3000) return;
   lastCheck = millis();
 
   bool isConnected = (WiFi.status() == WL_CONNECTED);
@@ -1360,17 +1188,14 @@ void setup() {
   Serial.println("ESP32 LED Matrix + Music Sync");
   Serial.println("==============================");
 
-  // 1. Build font table
   buildCustomBoldFont();
 
-  // 2. Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("[FS] SPIFFS mount failed!");
   } else {
     Serial.println("[FS] SPIFFS mounted successfully.");
   }
 
-  // 3. Initialize I2C and AHT10 sensor
   Wire.begin(21, 22);
   if (aht.begin()) {
     Serial.println("[Sensor] AHT10 found & initialized.");
@@ -1379,7 +1204,6 @@ void setup() {
     Serial.println("[Sensor] AHT10 not found. Defaulting to virtual readings.");
   }
 
-  // 4. Initialize Parola Display & MAX72XX
   if (SPIFFS.exists(CONFIG_FILE)) {
     File file = SPIFFS.open(CONFIG_FILE, "r");
     if (file) {
@@ -1394,28 +1218,21 @@ void setup() {
       file.close();
     }
   }
-  // Dynamically allocate matrix memory based on user's saved web settings
+
   P_ptr = new MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
   P.begin(MAX_ZONES);
   P.setFont(customThinFont);
   P.setIntensity(12);
   P.displayClear();
 
-  // 5. Initialize I2S for INMP441 MEMS microphone
   initI2S();
 
-  // 6. Connect WiFi
   if (connectToSavedWiFi()) {
     initMDNS();
   }
 
-  // 7. Non-blocking NTP
   initNTP();
-
-  // 8. Mount Web Server
   setupWebServer();
-
-  // 9. Load config (Evaluates music_sync.enabled first)
   loadConfiguration();
 }
 
@@ -1423,7 +1240,7 @@ void setup() {
 // MAIN LOOP
 // ==========================================
 void loop() {
-  // 1. Handle live config updates pushed from browser
+  // 1. Handle configuration updates pushed from the web UI
   if (configUpdated) {
     configUpdated = false;
     loadConfiguration();
@@ -1431,20 +1248,67 @@ void loop() {
 
   // 2. TASK EXECUTION BRANCHING
   if (isMusicSyncActive) {
-    // DEDICATED TASK: Microsecond real-time audio sampling & VU Meter
     runMusicSyncFrame();
   } else {
-    // DEFAULT TASK: Multi-zone scene text and animation rendering
-    if (P.displayAnimate()) {
-      for (uint8_t z = 0; z < activeZoneCount; z++) {
-        if (zones[z].inUse && P.getZoneStatus(z)) {
+    // =========================================================================
+    // MULTI-ZONE ENGINE (Independent, Non-Blocking Architecture)
+    // =========================================================================
+    // Call displayAnimate() unconditionally so moving zones tick their frames smoothly.
+    P.displayAnimate();
+
+    // Check dynamic templates (like clock seconds) at 20 Hz (every 50 ms)
+    static unsigned long lastCustomPoll = 0;
+    bool pollCustomTemplates = (millis() - lastCustomPoll >= 50);
+    if (pollCustomTemplates) {
+      lastCustomPoll = millis();
+    }
+
+    for (uint8_t z = 0; z < activeZoneCount; z++) {
+      if (!zones[z].inUse) continue;
+
+      bool isStatic = (zones[z].inEffect == PA_PRINT &&
+                      (zones[z].outEffect == PA_NO_EFFECT || zones[z].outEffect == PA_PRINT));
+
+      if (isStatic) {
+        // =====================================================================
+        // STATIC PRINT ZONE: Speed, pauses, and hold delays are completely ignored.
+        // The text remains anchored on the LEDs with zero flicker.
+        // =====================================================================
+        if (zones[z].isCustom && pollCustomTemplates) {
+          String resolved = processTemplate(zones[z].rawMessage);
+
+          // ONLY update when content physically changes (e.g., when the second ticks: "12:00:01" -> "12:00:02")
+          if (resolved != zones[z].activeMessage) {
+            strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
+            zones[z].activeMessage[sizeof(zones[z].activeMessage) - 1] = '\0';
+
+            // Redraw instantly with 0 speed and 0 pause
+            P.displayZoneText(
+                z,
+                zones[z].activeMessage,
+                zones[z].align,
+                0,
+                0,
+                PA_PRINT,
+                PA_NO_EFFECT);
+            P.displayReset(z);
+          }
+        }
+        // Plain static text was printed once during initialization and never needs resetting.
+      } else {
+        // =====================================================================
+        // ANIMATED ZONE (Scrolling, fading, wiping, etc.)
+        // Evaluated strictly on its OWN completion status, completely decoupled from other zones.
+        // =====================================================================
+        if (P.getZoneStatus(z)) {
           if (zones[z].repeat != -1) {
             zones[z].loopCounter++;
             if (zones[z].loopCounter >= zones[z].repeat) {
-              continue;
+              continue; // Reached loop repeat limit
             }
           }
 
+          // If it's a moving custom template (e.g. scrolling time/weather), re-evaluate for the next pass
           if (zones[z].isCustom) {
             String resolved = processTemplate(zones[z].rawMessage);
             strncpy(zones[z].activeMessage, resolved.c_str(), sizeof(zones[z].activeMessage) - 1);
