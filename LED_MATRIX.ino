@@ -36,8 +36,8 @@ uint8_t MAX_DEVICES = 5;
 #define I2S_SD 32
 #define I2S_PORT I2S_NUM_0
 
-#define MAX_ZONES 4
-#define MAX_SCENES 16
+#define MAX_ZONES 8
+#define MAX_SCENES 50
 #define CONFIG_FILE "/config.json"
 const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 
@@ -987,7 +987,7 @@ void loadConfiguration() {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(24576);
 #endif
 
   DeserializationError err = deserializeJson(doc, file);

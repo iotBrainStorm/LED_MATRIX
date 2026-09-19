@@ -3603,6 +3603,7 @@
 
         renderScenesUI();
         updateSceneButtons();
+        updatePlaylistSceneDropdown();
         renderStaticPreview();
       }
 
@@ -3614,6 +3615,7 @@
           resetSceneForm();
         } else {
           renderScenesUI();
+          updatePlaylistSceneDropdown();
           renderStaticPreview();
         }
         showToast("Scene removed.");
@@ -4118,7 +4120,8 @@
           playlists = data.playlists;
           renderPlaylistsUI();
         }
-
+        populatePlaylistZoneDropdown();
+        updatePlaylistSceneDropdown();
         renderStaticPreview();
       }
 
@@ -4191,18 +4194,16 @@
         if (!drop) return;
         drop.innerHTML = "";
 
-        // Filter: same zone AND repeat != -1 (finite iteration scenes only)
+        // Allow all scenes for the selected zone
         const eligibleScenes = scenes.filter((s) => {
           const sZone = s.config?.zone?.name;
-          const isFinite = s.config?.display?.repeat !== -1;
-          return sZone === targetZone && isFinite;
+          return sZone === targetZone;
         });
 
         if (eligibleScenes.length === 0) {
           const opt = document.createElement("option");
           opt.value = "";
-          opt.innerText =
-            "No finite scenes in this zone (Set repeat > 0 in scenes)";
+          opt.innerText = "No scenes found for this zone";
           drop.appendChild(opt);
           return;
         }
@@ -4210,7 +4211,11 @@
         eligibleScenes.forEach((s) => {
           const opt = document.createElement("option");
           opt.value = s.name;
-          opt.innerText = `${s.name} (${s.config.display.repeat}x iterations)`;
+          const repText =
+            s.config?.display?.repeat === -1
+              ? "Infinite"
+              : `${s.config?.display?.repeat}x`;
+          opt.innerText = `${s.name} (${repText})`;
           drop.appendChild(opt);
         });
       }
