@@ -487,9 +487,21 @@ String processTemplate(const String &tmpl) {
   String out = tmpl;
 
   char sensorBuf[16];
-  snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", cachedTemp);
-  out.replace("{TEMP}", sensorBuf);
 
+  // Temperature tags: 2 decimals, 1 decimal, integer ({TEM} & {TEMP})
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.2f", cachedTemp);
+  out.replace("{TEM2}", sensorBuf);
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", cachedTemp);
+  out.replace("{TEM1}", sensorBuf);
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.0f", cachedTemp);
+  out.replace("{TEM}", sensorBuf);
+  out.replace("{TEMP}", sensorBuf); // Keeps backward compatibility
+
+  // Humidity tags: 2 decimals, 1 decimal, integer
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.2f", cachedHum);
+  out.replace("{HUM2}", sensorBuf);
+  snprintf(sensorBuf, sizeof(sensorBuf), "%.1f", cachedHum);
+  out.replace("{HUM1}", sensorBuf);
   snprintf(sensorBuf, sizeof(sensorBuf), "%.0f", cachedHum);
   out.replace("{HUM}", sensorBuf);
 

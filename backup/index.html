@@ -894,10 +894,26 @@
                         <span class="text-purple-300 font-bold">{WWWW}</span>
                         (Wednesday)
                       </div>
+                      <div
+                        class="col-span-2 border-t border-slate-700/50 pt-1 mt-1"
+                      >
+                        <span class="text-yellow-300 font-bold">{DEG}</span>
+                        Degree (°)
+                      </div>
                       <div class="col-span-2">
-                        <span class="text-amber-300 font-bold">{TEMP}</span>
-                        Temp |
-                        <span class="text-amber-300 font-bold">{HUM}</span> Hum
+                        <span class="text-amber-300 font-bold">{TEM}</span> (35)
+                        |
+                        <span class="text-amber-300 font-bold">{TEM1}</span>
+                        (35.2) |
+                        <span class="text-amber-300 font-bold">{TEM2}</span>
+                        (35.24)
+                      </div>
+                      <div class="col-span-2">
+                        <span class="text-sky-300 font-bold">{HUM}</span> (78) |
+                        <span class="text-sky-300 font-bold">{HUM1}</span>
+                        (78.1) |
+                        <span class="text-sky-300 font-bold">{HUM2}</span>
+                        (78.13)
                       </div>
                     </div>
                   </div>
@@ -907,7 +923,7 @@
             <input
               type="text"
               id="custom-text-val"
-              value="{hh}:{mm}:{ss} {AMPM} | {TEMP}°C {HUM}% | {DD}-{MMM}-{YYYY}"
+              value="{hh}:{mm}:{ss} {AMPM} | {TEM}{DEG}C {HUM}% | {DD}-{MMM}-{YYYY}"
               oninput="handleConfigFieldChange()"
               class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-cyan-300 font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
             />
@@ -1014,17 +1030,59 @@
               </button>
               <button
                 type="button"
-                onclick="insertTag('{TEMP}')"
+                onclick="insertTag('{DEG}')"
+                title="Degree Symbol (°)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-yellow-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {DEG}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{TEM}')"
+                title="Integer Temp (e.g. 35)"
                 class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
               >
-                {TEMP}
+                {TEM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{TEM1}')"
+                title="1 Decimal Temp (e.g. 35.2)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {TEM1}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{TEM2}')"
+                title="2 Decimal Temp (e.g. 35.24)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {TEM2}
               </button>
               <button
                 type="button"
                 onclick="insertTag('{HUM}')"
-                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono-code text-[11px] border border-slate-700"
+                title="Integer Humidity (e.g. 78)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono-code text-[11px] border border-slate-700"
               >
                 {HUM}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{HUM1}')"
+                title="1 Decimal Humidity (e.g. 78.1)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {HUM1}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{HUM2}')"
+                title="2 Decimal Humidity (e.g. 78.13)"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono-code text-[11px] border border-slate-700"
+              >
+                {HUM2}
               </button>
             </div>
           </div>
@@ -1503,15 +1561,41 @@
             id="json-code-view"
             class="bg-[#04060a] p-4 rounded-xl text-xs font-mono-code text-cyan-300 overflow-x-auto border border-slate-800 max-h-80 select-all"
           ></pre>
-          <div class="flex justify-end gap-2 pt-2">
+          <!-- Hidden File Input for Importing Backup -->
+          <input
+            type="file"
+            id="json-file-input"
+            accept=".json"
+            onchange="handleImportJson(event)"
+            class="hidden"
+          />
+
+          <div class="flex flex-wrap justify-end gap-2 pt-2">
+            <!-- Import JSON Button -->
             <button
               type="button"
-              onclick="copyPayloadToClipboard()"
-              id="btn-copy-json"
-              class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition"
+              onclick="triggerImportJson()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyan-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
             >
-              Copy JSON Data
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+              </svg>
+              <span>Import JSON</span>
             </button>
+
+            <!-- Export JSON Button (Downloads ledstudio.json) -->
+            <button
+              type="button"
+              onclick="exportJsonFile()"
+              id="btn-export-json"
+              class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
+            >
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+              </svg>
+              <span>Export JSON</span>
+            </button>
+
             <button
               type="button"
               onclick="closeJsonModal()"
@@ -2055,7 +2139,13 @@
           .replace(/{YY}/g, now.getFullYear().toString().slice(-2))
           .replace(/{WWWW}/g, dayNamesLong[now.getDay()])
           .replace(/{WWW}/g, dayNamesShort[now.getDay()])
+          .replace(/{DEG}/g, "°")
+          .replace(/{TEM2}/g, "26.42")
+          .replace(/{TEM1}/g, "26.4")
+          .replace(/{TEM}/g, "26")
           .replace(/{TEMP}/g, "26")
+          .replace(/{HUM2}/g, "62.35")
+          .replace(/{HUM1}/g, "62.4")
           .replace(/{HUM}/g, "62");
 
         return template || " ";
@@ -3433,7 +3523,7 @@
         document.getElementById("scene-name").value = "";
         document.getElementById("plain-text-val").value = "ESP MATRIX";
         document.getElementById("custom-text-val").value =
-          "{hh}:{mm}:{ss} {AMPM} | {TEMP}°C {HUM}% | {DD}-{MMM}-{YYYY}";
+          "{hh}:{mm}:{ss} {AMPM} | {TEM}{DEG}C {HUM}% | {DD}-{MMM}-{YYYY}";
         document.getElementById("msg-type").value = "plain";
         document.getElementById("font-align").value = "center";
         document.getElementById("text-bold").checked = false;
@@ -3847,66 +3937,48 @@
         document.getElementById("json-modal").classList.add("hidden");
       }
 
-      function copyPayloadToClipboard() {
-        const text = document.getElementById("json-code-view").innerText;
-        const btn = document.getElementById("btn-copy-json");
-
-        const markCopied = () => {
-          if (btn) {
-            const originalText = btn.innerText;
-            btn.innerText = "Copied to Clipboard!";
-            setTimeout(() => (btn.innerText = originalText), 2000);
-          }
-          showToast("JSON copied to clipboard!");
-        };
-
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard
-            .writeText(text)
-            .then(markCopied)
-            .catch(() => fallbackCopyText(text, markCopied));
-        } else {
-          fallbackCopyText(text, markCopied);
-        }
+      // 1. Export JSON: Download ledstudio.json file
+      function exportJsonFile() {
+        const payload = generatePayload();
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ledstudio.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("✓ ledstudio.json downloaded!");
       }
 
-      function fallbackCopyText(text, onSuccess) {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.width = "2em";
-        textArea.style.height = "2em";
-        textArea.style.padding = "0";
-        textArea.style.border = "none";
-        textArea.style.outline = "none";
-        textArea.style.boxShadow = "none";
-        textArea.style.background = "transparent";
-        textArea.setAttribute("readonly", "");
+      // 2. Import JSON: Trigger file chooser dialog
+      function triggerImportJson() {
+        const input = document.getElementById("json-file-input");
+        if (input) input.click();
+      }
 
-        document.body.appendChild(textArea);
+      // 3. Import JSON: Parse and restore all settings
+      function handleImportJson(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
 
-        if (navigator.userAgent.match(/ipad|iphone/i)) {
-          const range = document.createRange();
-          range.selectNodeContents(textArea);
-          const selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          textArea.setSelectionRange(0, 999999);
-        } else {
-          textArea.select();
-        }
-
-        try {
-          const successful = document.execCommand("copy");
-          if (successful && onSuccess) onSuccess();
-          else showToast("Unable to auto-copy. Please copy manually.");
-        } catch (err) {
-          showToast("Failed to copy JSON.");
-        } finally {
-          document.body.removeChild(textArea);
-        }
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          try {
+            const data = JSON.parse(evt.target.result);
+            applyConfigData(data);
+            document.getElementById("json-code-view").innerText =
+              JSON.stringify(generatePayload(), null, 2);
+            showToast("✓ Backup restored successfully!");
+          } catch (err) {
+            showToast("Error: Invalid JSON file!");
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = ""; // Reset so same file can be re-uploaded if needed
       }
 
       function showToast(msg) {
@@ -3956,135 +4028,106 @@
         });
       }
 
-      /* Auto-restore configuration including music_sync from ESP32 on load */
+      // Shared config restorer for both Hardware Sync and JSON File Import
+      function applyConfigData(data) {
+        if (!data) return;
+
+        pauseSimulation();
+
+        // 1. Matrix Width
+        if (data.matrix && data.matrix.width) {
+          matrixWidth = data.matrix.width;
+          const wInp = document.getElementById("matrix-width");
+          if (wInp) wInp.value = matrixWidth;
+          updateCanvasGeometry();
+        }
+
+        // 2. Music Sync Config
+        if (data.music_sync) {
+          musicSyncConfig.enabled = Boolean(data.music_sync.enabled);
+          musicSyncConfig.zone = data.music_sync.zone || "Zone 1";
+          musicSyncConfig.animation = data.music_sync.animation || "VU Bar";
+          musicSyncConfig.sensitivity = data.music_sync.sensitivity || 60;
+          musicSyncConfig.peakSpeed = data.music_sync.peak_decay || "Medium";
+          musicSyncConfig.brightness = data.music_sync.brightness ?? 12;
+
+          const msBrightInp = document.getElementById("ms-brightness");
+          if (msBrightInp) msBrightInp.value = musicSyncConfig.brightness;
+          const msBrightLbl = document.getElementById("ms-bright-val");
+          if (msBrightLbl)
+            msBrightLbl.innerText = musicSyncConfig.brightness + " / 15";
+          const toggle = document.getElementById("music-sync-enable");
+          if (toggle) toggle.checked = musicSyncConfig.enabled;
+          const paramsDiv = document.getElementById("music-sync-params");
+          if (paramsDiv)
+            paramsDiv.classList.toggle("hidden", !musicSyncConfig.enabled);
+
+          const animSel = document.getElementById("ms-animation");
+          if (animSel) animSel.value = musicSyncConfig.animation;
+          const sensInp = document.getElementById("ms-sensitivity");
+          if (sensInp) sensInp.value = musicSyncConfig.sensitivity;
+          const sensLbl = document.getElementById("ms-sens-val");
+          if (sensLbl) sensLbl.innerText = musicSyncConfig.sensitivity + "%";
+          const peakSel = document.getElementById("ms-peak-decay");
+          if (peakSel) peakSel.value = musicSyncConfig.peakSpeed;
+        }
+
+        // 3. Zones
+        if (Array.isArray(data.zones) && data.zones.length > 0) {
+          zones = data.zones;
+        } else if (Array.isArray(data.scenes) && data.scenes.length > 0) {
+          const restoredZones = [];
+          data.scenes.forEach((sc, idx) => {
+            if (sc.zone) {
+              const zName = sc.zone.name || `Zone ${idx + 1}`;
+              const sCol = sc.zone.startCol ?? sc.zone.start ?? 0;
+              const eCol = sc.zone.endCol ?? sc.zone.end ?? matrixWidth - 1;
+              let zMatch = restoredZones.find(
+                (z) => z.name.toLowerCase() === zName.toLowerCase(),
+              );
+              if (!zMatch) {
+                restoredZones.push({
+                  id: `zone_sync_${idx}`,
+                  name: zName,
+                  start: sCol,
+                  end: eCol,
+                });
+              }
+            }
+          });
+          if (restoredZones.length > 0) zones = restoredZones;
+        }
+
+        renderZonesUI();
+
+        // 4. Scenes
+        if (Array.isArray(data.scenes) && data.scenes.length > 0) {
+          scenes = data.scenes.map((s, idx) => ({
+            id: `scene_init_${idx}`,
+            name: s.sceneName || `Scene ${idx + 1}`,
+            config: s,
+          }));
+          renderScenesUI();
+          if (scenes.length > 0) {
+            selectSceneForEdit(scenes[0].id);
+          }
+        }
+
+        // 5. Playlists
+        if (Array.isArray(data.playlists)) {
+          playlists = data.playlists;
+          renderPlaylistsUI();
+        }
+
+        renderStaticPreview();
+      }
+
       async function syncConfigFromHardware() {
         try {
           const res = await fetch("/api/matrix/config", { cache: "no-store" });
           if (!res.ok) return;
           const data = await res.json();
-
-          if (data && data.matrix && data.matrix.width) {
-            matrixWidth = data.matrix.width;
-            document.getElementById("matrix-width").value = matrixWidth;
-            updateCanvasGeometry();
-          }
-
-          if (data && data.music_sync) {
-            musicSyncConfig.enabled = Boolean(data.music_sync.enabled);
-            musicSyncConfig.zone = data.music_sync.zone || "Zone 1";
-            musicSyncConfig.animation = data.music_sync.animation || "VU Bar";
-            musicSyncConfig.sensitivity = data.music_sync.sensitivity || 60;
-            musicSyncConfig.peakSpeed = data.music_sync.peak_decay || "Medium";
-            musicSyncConfig.brightness = data.music_sync.brightness ?? 12;
-
-            const msBrightInp = document.getElementById("ms-brightness");
-            if (msBrightInp) msBrightInp.value = musicSyncConfig.brightness;
-            const msBrightLbl = document.getElementById("ms-bright-val");
-            if (msBrightLbl)
-              msBrightLbl.innerText = musicSyncConfig.brightness + " / 15";
-            const toggle = document.getElementById("music-sync-enable");
-            if (toggle) toggle.checked = musicSyncConfig.enabled;
-            const paramsDiv = document.getElementById("music-sync-params");
-            if (paramsDiv)
-              paramsDiv.classList.toggle("hidden", !musicSyncConfig.enabled);
-
-            const badge = document.getElementById("ms-status-badge");
-            if (badge) {
-              badge.innerText = musicSyncConfig.enabled
-                ? "ACTIVE (VU MODE)"
-                : "OFF";
-              badge.className = musicSyncConfig.enabled
-                ? "text-[10px] uppercase font-mono-code text-cyan-400 bg-cyan-950/80 border border-cyan-700 px-2 py-0.5 rounded font-bold shadow-[0_0_8px_rgba(0,242,254,0.3)]"
-                : "text-[10px] uppercase font-mono-code text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded";
-            }
-
-            const animSel = document.getElementById("ms-animation");
-            if (animSel) animSel.value = musicSyncConfig.animation;
-            const sensInp = document.getElementById("ms-sensitivity");
-            if (sensInp) sensInp.value = musicSyncConfig.sensitivity;
-            const sensLbl = document.getElementById("ms-sens-val");
-            if (sensLbl) sensLbl.innerText = musicSyncConfig.sensitivity + "%";
-            const peakSel = document.getElementById("ms-peak-decay");
-            if (peakSel) peakSel.value = musicSyncConfig.peakSpeed;
-          }
-
-          // 1. Restore all zones directly from saved data.zones (preserves VU Meter)
-          if (data && Array.isArray(data.zones) && data.zones.length > 0) {
-            zones = data.zones;
-          } else if (
-            data &&
-            Array.isArray(data.scenes) &&
-            data.scenes.length > 0
-          ) {
-            const restoredZones = [];
-            data.scenes.forEach((sc, idx) => {
-              if (sc.zone) {
-                const zName = sc.zone.name || `Zone ${idx + 1}`;
-                const sCol = sc.zone.startCol ?? sc.zone.start ?? 0;
-                const eCol = sc.zone.endCol ?? sc.zone.end ?? matrixWidth - 1;
-
-                let zMatch = restoredZones.find(
-                  (z) => z.name.toLowerCase() === zName.toLowerCase(),
-                );
-                if (!zMatch) {
-                  restoredZones.push({
-                    id: `zone_sync_${idx}`,
-                    name: zName,
-                    start: sCol,
-                    end: eCol,
-                  });
-                } else {
-                  zMatch.start = sCol;
-                  zMatch.end = eCol;
-                }
-              }
-            });
-            zones = restoredZones;
-          }
-
-          // 2. Safety check: ensure music_sync zone is not missing from zones array
-          if (
-            musicSyncConfig.zone &&
-            !zones.some(
-              (z) =>
-                z.name.toLowerCase() === musicSyncConfig.zone.toLowerCase(),
-            )
-          ) {
-            zones.push({
-              id: `zone_ms_${Date.now()}`,
-              name: musicSyncConfig.zone,
-              start: data.music_sync?.start_col ?? 0,
-              end: data.music_sync?.end_col ?? matrixWidth - 1,
-            });
-          }
-
-          renderZonesUI();
-
-          // 3. Explicitly set ms-zone dropdown to the synced zone
-          const msZoneSelect = document.getElementById("ms-zone");
-          if (msZoneSelect && musicSyncConfig.zone) {
-            msZoneSelect.value = musicSyncConfig.zone;
-          }
-
-          // 4. Restore scenes
-          if (data && Array.isArray(data.scenes) && data.scenes.length > 0) {
-            scenes = data.scenes.map((s, idx) => ({
-              id: `scene_init_${idx}`,
-              name: s.sceneName || `Scene ${idx + 1}`,
-              config: s,
-            }));
-            renderScenesUI();
-
-            if (scenes.length > 0) {
-              selectSceneForEdit(scenes[0].id);
-            }
-          }
-
-          // Restore Playlists
-          if (data && Array.isArray(data.playlists)) {
-            playlists = data.playlists;
-            renderPlaylistsUI();
-          }
+          applyConfigData(data);
         } catch (e) {
           // Offline mode
         }
