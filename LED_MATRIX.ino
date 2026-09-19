@@ -476,7 +476,7 @@ String processTemplate(const String &tmpl) {
   static float cachedHum = 62.0f;
   static unsigned long lastSensorPoll = 0;
 
-  if (ahtFound && (millis() - lastSensorPoll >= 15000 || lastSensorPoll == 0)) {
+  if (ahtFound && (millis() - lastSensorPoll >= 30000 || lastSensorPoll == 0)) {
     sensors_event_t hEvent, tEvent;
     aht.getEvent(&hEvent, &tEvent);
     cachedTemp = tEvent.temperature;
