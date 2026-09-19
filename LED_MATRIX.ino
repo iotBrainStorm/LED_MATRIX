@@ -511,11 +511,17 @@ String processTemplate(const String &tmpl) {
   out.replace("{WWW}", "%a");
 
   char formatted[160];
+  String res = out;
   if (strftime(formatted, sizeof(formatted), out.c_str(), &t) > 0) {
-    return String(formatted);
+    res = String(formatted);
   }
 
-  return out;
+  // Convert 2-byte UTF-8 degree symbol and {DEG} tag to font char 127
+  res.replace("\xC2\xB0", "\x7F");
+  res.replace("°", "\x7F");
+  res.replace("{DEG}", "\x7F");
+
+  return res;
 }
 
 // ==========================================
@@ -803,6 +809,9 @@ void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
   P.setIntensity(z, sc.brightness);
 
   String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : String(sc.rawMessage);
+  resolved.replace("\xC2\xB0", "\x7F");
+  resolved.replace("°", "\x7F");
+  resolved.replace("{DEG}", "\x7F");
   strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
   sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
 
