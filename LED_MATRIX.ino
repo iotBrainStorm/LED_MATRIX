@@ -476,7 +476,7 @@ String processTemplate(const String &tmpl) {
   static float cachedHum = 62.0f;
   static unsigned long lastSensorPoll = 0;
 
-  if (ahtFound && (millis() - lastSensorPoll >= 2000 || lastSensorPoll == 0)) {
+  if (ahtFound && (millis() - lastSensorPoll >= 15000 || lastSensorPoll == 0)) {
     sensors_event_t hEvent, tEvent;
     aht.getEvent(&hEvent, &tEvent);
     cachedTemp = tEvent.temperature;
@@ -1260,6 +1260,7 @@ bool connectToSavedWiFi() {
       Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
       Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
       Serial.println("==============================\n");
+      WiFi.setSleep(false);
       return true;
     }
     delay(300);
@@ -1273,6 +1274,7 @@ bool connectToSavedWiFi() {
   if (success) {
     Serial.println("\n[SUCCESS] Connected via Portal");
     Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
+    WiFi.setSleep(false);
     return true;
   }
 
@@ -1453,7 +1455,7 @@ void setup() {
     }
   }
 
-  P_ptr = new MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+  P_ptr = new MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
   P.begin(MAX_ZONES);
   P.setFont(customThinFont);
   P.setIntensity(12);
