@@ -686,7 +686,7 @@
                   document.getElementById('ms-bright-val').innerText =
                     this.value + ' / 15';
                   handleMusicSyncChange();
-                  handleBrightnessUpdate(this.value);
+                  renderStaticPreview();
                 "
                 class="w-full mt-2 cursor-pointer"
               />
@@ -1922,9 +1922,48 @@
         brightness: 12,
       };
 
+      // Remaps 0..15 brightness so level 0 is clearly visible (e.g. 28%) instead of pitch dark
+      function getBrightnessAlpha(level) {
+        const minAlpha = 0.28; // Adjust between 0.25 and 0.35 to match your physical device
+        const l = Math.max(0, Math.min(15, Number(level) || 0));
+        return minAlpha + (l / 15.0) * (1.0 - minAlpha);
+      }
+
+      // Retrieves the specific brightness configured for any given matrix column
+      function getBrightnessForColumn(col) {
+        if (musicSyncConfig.enabled) {
+          const msZone =
+            zones.find((z) => z.isMusic && z.name === musicSyncConfig.zone) ||
+            zones.find((z) => z.isMusic);
+          if (msZone && col >= msZone.start && col <= msZone.end) {
+            return musicSyncConfig.brightness ?? 12;
+          }
+        }
+
+        const zone =
+          zones.find((z) => !z.isMusic && col >= z.start && col <= z.end) ||
+          zones.find((z) => col >= z.start && col <= z.end);
+
+        if (!zone) return ledBrightnessLevel;
+
+        // If this column belongs to the zone currently selected in Section 4 form
+        const targetZoneName = document.getElementById("target-zone")?.value;
+        if (targetZoneName && zone.name === targetZoneName) {
+          const bInp = document.getElementById("brightness");
+          if (bInp) return parseInt(bInp.value);
+        }
+
+        // Check if a saved scene exists for this zone
+        const sc = scenes.find((s) => s.config?.zone?.name === zone.name);
+        if (sc?.config?.display?.brightness !== undefined) {
+          return sc.config.display.brightness;
+        }
+
+        return zone.brightness ?? 12;
+      }
+
       function updateLedSprite() {
-        const normBrightness = Math.max(0.08, ledBrightnessLevel / 15.0);
-        const blur = Math.round(12 * normBrightness);
+        const blur = 10;
         const margin = blur + 6;
         const size = (dotRadius + margin) * 2;
         const center = size / 2;
@@ -1937,19 +1976,21 @@
         const sCtx = ledSpriteCanvas.getContext("2d");
         sCtx.clearRect(0, 0, size, size);
 
+        // Outer glowing LED dot
         sCtx.beginPath();
         sCtx.arc(center, center, dotRadius, 0, Math.PI * 2);
         sCtx.fillStyle = ledColorOn;
         sCtx.shadowBlur = blur;
         sCtx.shadowColor = ledColorGlow;
-        sCtx.globalAlpha = Math.min(1.0, normBrightness);
+        sCtx.globalAlpha = 1.0;
         sCtx.fill();
 
+        // Core bright center highlight
         sCtx.beginPath();
         sCtx.arc(center - 1, center - 1, dotRadius * 0.45, 0, Math.PI * 2);
         sCtx.fillStyle = "#ffffff";
         sCtx.shadowBlur = 0;
-        sCtx.globalAlpha = 0.5 * normBrightness;
+        sCtx.globalAlpha = 0.6;
         sCtx.fill();
 
         ledSpriteRadius = center;
@@ -2326,7 +2367,13 @@
               const isColumnInActiveZone = activeZone
                 ? c >= activeZone.start && c <= activeZone.end
                 : true;
-              const currentAlpha = isColumnInActiveZone ? alphaMultiplier : 1.0;
+
+              // Get the individual brightness & remapped alpha for this specific column's zone
+              const colBrightness = getBrightnessForColumn(c);
+              const colAlpha = getBrightnessAlpha(colBrightness);
+              const currentAlpha = isColumnInActiveZone
+                ? alphaMultiplier * colAlpha
+                : colAlpha;
 
               ctx.globalAlpha = currentAlpha;
               ctx.drawImage(
@@ -3727,6 +3774,19 @@
         const zoneName = document.getElementById("target-zone")?.value;
         const label = document.getElementById("sim-zone-label");
         if (label && zoneName) label.innerText = zoneName;
+
+        // Load the selected zone's brightness into the slider
+        const z = zones.find((zn) => zn.name === zoneName);
+        const sc = scenes.find((s) => s.config?.zone?.name === zoneName);
+        const b = sc?.config?.display?.brightness ?? z?.brightness ?? 12;
+        const bInput = document.getElementById("brightness");
+        if (bInput) {
+          bInput.value = b;
+          ledBrightnessLevel = b;
+          const badge = document.getElementById("brightness-badge");
+          if (badge) badge.innerText = `${b} / 15`;
+        }
+
         handleConfigFieldChange();
       }
 
@@ -3762,9 +3822,26 @@
       function handleBrightnessUpdate(val) {
         pauseSimulation();
         ledBrightnessLevel = parseInt(val);
-        document.getElementById("brightness-badge").innerText =
-          `${ledBrightnessLevel} / 15`;
-        updateLedSprite();
+        const badge = document.getElementById("brightness-badge");
+        if (badge) badge.innerText = `${ledBrightnessLevel} / 15`;
+
+        // Update only the targeted zone and its scene
+        const targetZoneName = document.getElementById("target-zone")?.value;
+        const curZone = zones.find((z) => z.name === targetZoneName);
+        if (curZone) curZone.brightness = ledBrightnessLevel;
+
+        if (editingSceneId) {
+          const sc = scenes.find((s) => s.id === editingSceneId);
+          if (sc?.config?.display)
+            sc.config.display.brightness = ledBrightnessLevel;
+        } else {
+          const sc = scenes.find(
+            (s) => s.config?.zone?.name === targetZoneName,
+          );
+          if (sc?.config?.display)
+            sc.config.display.brightness = ledBrightnessLevel;
+        }
+
         renderStaticPreview();
       }
 
