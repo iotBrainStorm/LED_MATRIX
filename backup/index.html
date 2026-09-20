@@ -361,6 +361,29 @@
                 </p>
               </div>
 
+              <!-- Hardware Module Type Selection -->
+              <div>
+                <label
+                  for="hardware-type"
+                  class="block text-slate-300 mb-1 font-medium"
+                  >Hardware Module Type</label
+                >
+                <select
+                  id="hardware-type"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-cyan-300 font-mono-code text-xs focus:border-cyan-400 outline-none transition"
+                >
+                  <option value="FC16_HW" selected>
+                    FC16_HW (Standard / Default)
+                  </option>
+                  <option value="GENERIC_HW">GENERIC_HW</option>
+                  <option value="PAROLA_HW">PAROLA_HW</option>
+                  <option value="ICSTATION_HW">ICSTATION_HW</option>
+                </select>
+                <p class="text-[10px] text-slate-500 mt-1">
+                  Device reboots automatically upon saving if changed.
+                </p>
+              </div>
+
               <!-- Quick Matrix Presets -->
               <div class="pt-1">
                 <label class="block text-slate-400 mb-1.5 font-medium"
@@ -3950,6 +3973,8 @@
             height: 8,
             width: matrixWidth,
             modules: Math.floor(matrixWidth / 8),
+            hardware_type:
+              document.getElementById("hardware-type")?.value || "FC16_HW",
           },
           /* MUSIC SYNC SETTINGS STORED SEPARATELY AT ROOT LEVEL */
           music_sync: {
@@ -4113,12 +4138,18 @@
 
         pauseSimulation();
 
-        // 1. Matrix Width
-        if (data.matrix && data.matrix.width) {
-          matrixWidth = data.matrix.width;
-          const wInp = document.getElementById("matrix-width");
-          if (wInp) wInp.value = matrixWidth;
-          updateCanvasGeometry();
+        // 1. Matrix Width & Hardware Type
+        if (data.matrix) {
+          if (data.matrix.width) {
+            matrixWidth = data.matrix.width;
+            const wInp = document.getElementById("matrix-width");
+            if (wInp) wInp.value = matrixWidth;
+            updateCanvasGeometry();
+          }
+          if (data.matrix.hardware_type) {
+            const hwSel = document.getElementById("hardware-type");
+            if (hwSel) hwSel.value = data.matrix.hardware_type;
+          }
         }
 
         // 2. Music Sync Config

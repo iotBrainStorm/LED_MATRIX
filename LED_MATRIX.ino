@@ -23,7 +23,19 @@
 // ==========================================
 // HARDWARE DEFINITION & PIN ASSIGNMENTS
 // ==========================================
-#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
+MD_MAX72XX::moduleType_t HARDWARE_TYPE = MD_MAX72XX::FC16_HW;
+char hardwareTypeStr[20] = "FC16_HW";
+
+MD_MAX72XX::moduleType_t parseHardwareType(const char *str) {
+  if (strcmp(str, "GENERIC_HW") == 0)
+    return MD_MAX72XX::GENERIC_HW;
+  if (strcmp(str, "PAROLA_HW") == 0)
+    return MD_MAX72XX::PAROLA_HW;
+  if (strcmp(str, "ICSTATION_HW") == 0)
+    return MD_MAX72XX::ICSTATION_HW;
+  return MD_MAX72XX::FC16_HW; // Default
+}
+
 #define ABSOLUTE_MAX_DEVICES 30
 uint8_t MAX_DEVICES = 5;
 #define CLK_PIN 18
@@ -715,22 +727,41 @@ void runMusicSyncFrame() {
         setVUMatrixPoint(mx, r, c, on);
     }
   } else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
-    float targetPos = smoothVol * (zWidth - 2);
-    if (targetPos > bouncePos) {
-      bounceVel = (targetPos - bouncePos) * 0.45f + 1.2f;
-    }
-    bounceVel -= 0.35f;
-    bouncePos += bounceVel;
-    bouncePos = constrain(bouncePos, 0.0f, (float)(zWidth - 2));
+    // 1. Calculate target based on music volume
+    float targetPos = smoothVol * (float)(zWidth - 2);
+    float diff = targetPos - bouncePos;
 
-    int bCol = zStart + (int)bouncePos;
+    // 2. Beat-driven spring physics:
+    // Strong punch forward on volume spikes; elastic spring pulling back on drops
+    if (diff > 0.0f) {
+      bounceVel += (diff * 0.32f) + (smoothVol * 0.45f);
+    } else {
+      bounceVel += diff * 0.16f;
+    }
+
+    // Natural fluid damping to create elastic musical bounce
+    bounceVel *= 0.84f;
+    bouncePos += bounceVel;
+
+    // 3. Elastic wall bounce on right edge
+    float maxPos = (float)(zWidth - 2);
+    if (bouncePos > maxPos) {
+      bouncePos = maxPos;
+      bounceVel = -fabsf(bounceVel) * 0.5f; // Rebound off the right wall
+    }
+
+    // 4. Elastic wall bounce on left edge
+    if (bouncePos < 0.0f) {
+      bouncePos = 0.0f;
+      bounceVel = fabsf(bounceVel) * 0.35f; // Soft rebound off the left wall
+    }
+
+    // 5. Render the original clean 2-column block (rows 2 to 5)
+    int bCol = zStart + (int)round(bouncePos);
     for (int r = 2; r < 6; r++) {
       setVUMatrixPoint(mx, r, bCol, true);
       if (bCol + 1 <= zEnd)
         setVUMatrixPoint(mx, r, bCol + 1, true);
-    }
-    for (int c = zStart; c <= bCol; c += 2) {
-      setVUMatrixPoint(mx, 0, c, true);
     }
   } else if (strcmp(musicSync.animation, "VU Pulse") == 0) {
     int center = zStart + (zWidth / 2);
@@ -769,37 +800,62 @@ void runMusicSyncFrame() {
 
     if (millis() - lastBandDropTime >= decayInterval) {
       for (int i = 0; i < zWidth; i++) {
-        if (bandPeaks[i] > 0)
-          bandPeaks[i] -= 0.6f;
+        if (bandPeaks[i] > 0.0f)
+          bandPeaks[i] -= 0.5f;
       }
       lastBandDropTime = millis();
     }
 
-    int usableBins = FFT_SAMPLES / 2;
-    int startBin = 10;
-    int maxBin = (int)(usableBins * 0.75);
+    const int startBin = 1;
+    const int maxBin = 28;
+    float gain = (float)musicSync.sensitivity / 50.0f;
 
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
-      float logRatio = pow((float)i / (float)(zWidth > 1 ? zWidth - 1 : 1), 1.4f);
-      int binIdx = startBin + (int)(logRatio * (maxBin - startBin));
-      binIdx = constrain(binIdx, startBin, maxBin);
 
-      float eqBoost = 1.0f + ((float)i / (float)zWidth) * 3.5f;
-      double magnitude = vReal[binIdx] * eqBoost * (musicSync.sensitivity / 50.0f);
-      int height = constrain((int)(magnitude / 800.0), 0, 8);
+      // Logarithmic distribution across columns
+      float logRatio = powf((float)i / (float)(zWidth > 1 ? zWidth - 1 : 1), 1.35f);
+      float continuousBin = startBin + logRatio * (maxBin - startBin);
+      int bFloor = constrain((int)continuousBin, startBin, maxBin - 1);
+      float bFrac = continuousBin - bFloor;
 
+      // Interpolate between adjacent frequency bins
+      double rawMag = (vReal[bFloor] * (1.0f - bFrac)) + (vReal[bFloor + 1] * bFrac);
+
+      // 1. Subtract room ambient noise floor so silence stays at 0
+      rawMag -= 500.0;
+      if (rawMag < 0.0)
+        rawMag = 0.0;
+
+      // 2. Balanced treble compensation (gentle 1.0x to 2.8x curve)
+      float eqBoost = 1.0f + ((float)i / (float)zWidth) * 1.8f;
+
+      // 3. Sensitivity gain application
+      double mag = rawMag * gain * eqBoost;
+
+      // 4. Properly scaled height calculation (0 to 8)
+      int height = 0;
+      if (mag > 0.0) {
+        float norm = (float)(mag / 18000.0);
+        if (norm > 1.0f)
+          norm = 1.0f;
+        height = (int)round(powf(norm, 0.65f) * 8.0f);
+      }
+      height = constrain(height, 0, 8);
+
+      // Update peak hold dot
       if (height > bandPeaks[i])
-        bandPeaks[i] = height;
+        bandPeaks[i] = (float)height;
 
+      // Draw equalizer column bar
       for (int r = 0; r < height; r++)
         setVUMatrixPoint(mx, r, c, true);
 
-      int peakRow = (int)bandPeaks[i];
-      if (peakRow >= 8)
-        peakRow = 7;
-      if (peakRow > 0)
+      // Draw floating peak dot hovering above the bar
+      int peakRow = (int)bandPeaks[i] - 1;
+      if (peakRow >= 0 && peakRow < 8 && peakRow >= height) {
         setVUMatrixPoint(mx, peakRow, c, true);
+      }
     }
   }
 
@@ -901,6 +957,7 @@ void saveDefaultConfiguration() {
   matrix["height"] = 8;
   matrix["width"] = 40;
   matrix["modules"] = 5;
+  matrix["hardware_type"] = "FC16_HW";
 
   JsonObject ms = doc["music_sync"].to<JsonObject>();
   ms["enabled"] = false;
@@ -998,10 +1055,13 @@ void loadConfiguration() {
     return;
   }
 
-  if (doc["matrix"].is<JsonObject>() && doc["matrix"]["modules"].is<int>()) {
-    uint8_t newMax = doc["matrix"]["modules"].as<uint8_t>();
-    if (newMax != MAX_DEVICES) {
-      Serial.println("[Config] Matrix size changed! Rebooting ESP memory to apply safely...");
+  if (doc["matrix"].is<JsonObject>()) {
+    uint8_t newMax = doc["matrix"]["modules"] | MAX_DEVICES;
+    const char *newHw = doc["matrix"]["hardware_type"] | "FC16_HW";
+
+    // Reboot to re-initialize the matrix if modules or hardware type changed
+    if (newMax != MAX_DEVICES || strcmp(newHw, hardwareTypeStr) != 0) {
+      Serial.println("[Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...");
       delay(500);
       ESP.restart();
     }
@@ -1488,8 +1548,13 @@ void setup() {
 #else
       DynamicJsonDocument tempDoc(1024);
 #endif
-      if (!deserializeJson(tempDoc, file) && tempDoc["matrix"]["modules"]) {
-        MAX_DEVICES = tempDoc["matrix"]["modules"].as<uint8_t>();
+      if (!deserializeJson(tempDoc, file)) {
+        if (tempDoc["matrix"]["modules"]) {
+          MAX_DEVICES = tempDoc["matrix"]["modules"].as<uint8_t>();
+        }
+        const char *hw = tempDoc["matrix"]["hardware_type"] | "FC16_HW";
+        strncpy(hardwareTypeStr, hw, sizeof(hardwareTypeStr) - 1);
+        HARDWARE_TYPE = parseHardwareType(hardwareTypeStr);
       }
       file.close();
     }
