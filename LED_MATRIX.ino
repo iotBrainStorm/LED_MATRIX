@@ -362,8 +362,8 @@ struct SceneConfig {
   char zoneName[32] = "";
   int startCol = 0;
   int endCol = 39;
-  char rawMessage[128] = "";
-  char activeMessage[128] = "";
+  char rawMessage[256] = "";
+  char activeMessage[256] = "";
   bool isCustom = false;
   bool isBold = false;
   textPosition_t align = PA_CENTER;
