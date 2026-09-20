@@ -781,19 +781,53 @@ void runMusicSyncFrame() {
       }
     }
   } else if (strcmp(musicSync.animation, "VU Wave") == 0) {
-    for (int i = 0; i < zWidth - 1; i++) {
-      waveHistory[i] = waveHistory[i + 1];
+    // 1. Shift history buffer towards the right (Left-to-Right wave propagation)
+    for (int i = zWidth - 1; i > 0; i--) {
+      waveHistory[i] = waveHistory[i - 1];
     }
-    waveHistory[zWidth - 1] = smoothVol;
 
+    // 2. Inject new energy at the left edge (index 0)
+    float instantEnergy = (rawVol * 0.75f) + (smoothVol * 0.25f);
+    waveHistory[0] = instantEnergy;
+
+    // 3. Phase advancing forward in time
+    static float wavePhase = 0.0f;
+    wavePhase += 0.20f + (smoothVol * 0.35f);
+
+    float gain = (float)musicSync.sensitivity / 50.0f;
+
+    // 4. Render solid acoustic wave ribbon from peak to center axis
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
-      int waveH = (int)round(waveHistory[i] * 3.5f);
-      for (int r = 3 - waveH; r <= 4 + waveH; r++) {
+
+      // Amplitude scaling with gain
+      float v = constrain(waveHistory[i] * gain * 1.6f, 0.0f, 1.0f);
+      float amp = powf(v, 0.65f) * 3.8f;
+
+      // Harmonic ripple formula traveling left-to-right
+      float angle = ((float)i * 0.42f) - wavePhase;
+      float ripple = (sinf(angle) + 0.35f * sinf(angle * 2.0f + 0.5f)) / 1.35f;
+
+      int topY = 4;
+      int botY = 3;
+
+      if (amp >= 0.35f) {
+        int h = constrain((int)round(fabsf(ripple) * amp), 0, 3);
+        topY = constrain(4 + h, 4, 7);
+        botY = constrain(3 - h, 0, 3);
+      }
+
+      // Fill continuously from botY up to topY (solid fill through the center axis)
+      for (int r = botY; r <= topY; r++) {
         setVUMatrixPoint(mx, r, c, true);
       }
     }
-  } else if (strcmp(musicSync.animation, "VU Spectrum") == 0) {
+  } else if (strcmp(musicSync.animation, "VU Spectrum") == 0 ||
+             strcmp(musicSync.animation, "VU Spectrum Bar") == 0 ||
+             strcmp(musicSync.animation, "VU Spectrum Peak") == 0) {
+
+    bool showBars = (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
+    bool showPeaks = (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
     FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
     FFT.compute(FFTDirection::Forward);
     FFT.complexToMagnitude();
@@ -847,14 +881,18 @@ void runMusicSyncFrame() {
       if (height > bandPeaks[i])
         bandPeaks[i] = (float)height;
 
-      // Draw equalizer column bar
-      for (int r = 0; r < height; r++)
-        setVUMatrixPoint(mx, r, c, true);
+      // Draw equalizer column bar (if not Peak-only)
+      if (showBars) {
+        for (int r = 0; r < height; r++)
+          setVUMatrixPoint(mx, r, c, true);
+      }
 
-      // Draw floating peak dot hovering above the bar
-      int peakRow = (int)bandPeaks[i] - 1;
-      if (peakRow >= 0 && peakRow < 8 && peakRow >= height) {
-        setVUMatrixPoint(mx, peakRow, c, true);
+      // Draw floating peak dot (if not Bar-only)
+      if (showPeaks) {
+        int peakRow = (int)bandPeaks[i] - 1;
+        if (peakRow >= 0 && peakRow < 8 && (!showBars || peakRow >= height)) {
+          setVUMatrixPoint(mx, peakRow, c, true);
+        }
       }
     }
   }
