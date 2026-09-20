@@ -4141,6 +4141,19 @@
           if (paramsDiv)
             paramsDiv.classList.toggle("hidden", !musicSyncConfig.enabled);
 
+          // Lock/unlock text animation form based on loaded state
+          const animForm = document.getElementById("message-form");
+          if (animForm) {
+            animForm.classList.toggle("opacity-40", musicSyncConfig.enabled);
+            animForm.classList.toggle(
+              "pointer-events-none",
+              musicSyncConfig.enabled,
+            );
+          }
+          const isMusicCheckbox = document.getElementById("zone-is-music");
+          if (isMusicCheckbox)
+            isMusicCheckbox.checked = musicSyncConfig.enabled;
+
           const animSel = document.getElementById("ms-animation");
           if (animSel) animSel.value = musicSyncConfig.animation;
           const sensInp = document.getElementById("ms-sensitivity");

@@ -1434,6 +1434,25 @@ void checkWiFiAndStartServer() {
   }
 }
 
+// Helper to scroll a message across the full display and wait until finished
+void scrollStartupText(const char *msg, uint16_t speed = 30) {
+  static char textBuf[64];
+  strncpy(textBuf, msg, sizeof(textBuf) - 1);
+  textBuf[sizeof(textBuf) - 1] = '\0';
+
+  P.setZone(0, 0, MAX_DEVICES - 1);
+  P.setFont(0, customThinFont);
+  // PA_SCROLL_LEFT scrolls text into the matrix from the right and exits to the left
+  P.displayZoneText(0, textBuf, PA_LEFT, speed, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+  P.displayReset(0);
+
+  while (!P.getZoneStatus(0)) {
+    P.displayAnimate();
+    delay(10);
+  }
+  P.displayClear(0);
+}
+
 // ==========================================
 // SETUP
 // ==========================================
@@ -1486,6 +1505,14 @@ void setup() {
 
   if (connectToSavedWiFi()) {
     initMDNS();
+
+    // 1. Scroll IP Address (Right-to-Left)
+    String ipMsg = "IP: " + WiFi.localIP().toString();
+    scrollStartupText(ipMsg.c_str());
+
+    // 2. Scroll mDNS Address (Right-to-Left)
+    String mdnsMsg = String(mdnsHostname) + ".local";
+    scrollStartupText(mdnsMsg.c_str());
   }
 
   initNTP();
