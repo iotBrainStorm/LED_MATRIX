@@ -173,52 +173,86 @@
               ></button>
             </div>
 
-            <!-- Zoom Selector -->
-            <div
-              class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
-            >
-              <label for="zoom-select" class="text-slate-400 font-medium"
-                >Zoom:</label
+            <!-- Controls Group: Stats Button + Zoom Selector -->
+            <div class="flex items-center gap-2">
+              <!-- System Dashboard Button (Graph Icon) -->
+              <button
+                type="button"
+                onclick="openSysDashboard()"
+                title="System Realtime Dashboard"
+                class="flex items-center gap-1.5 bg-slate-900/80 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-lg border border-slate-700 hover:border-cyan-400/60 shadow-sm transition"
               >
-              <select
-                id="zoom-select"
-                onchange="setCanvasScale(parseFloat(this.value))"
-                class="bg-transparent text-cyan-300 font-mono-code text-xs outline-none cursor-pointer"
+                <!-- Pulse Graph / Telemetry Icon -->
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 13l4-4 4 4 6-7 4 4M21 21H3"
+                  />
+                </svg>
+                <span
+                  class="font-mono-code font-bold text-[11px] hidden sm:inline"
+                  >Stats</span
+                >
+              </button>
+
+              <!-- Zoom Selector -->
+              <div
+                class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
               >
-                <option value="1.4" class="bg-slate-900 text-slate-200">
-                  1.4x
-                </option>
-                <option value="1.2" class="bg-slate-900 text-slate-200">
-                  1.2x
-                </option>
-                <option value="1.0" class="bg-slate-900 text-cyan-300" selected>
-                  Normal
-                </option>
-                <option value="0.8" class="bg-slate-900 text-slate-200">
-                  0.8x
-                </option>
-                <option value="0.7" class="bg-slate-900 text-slate-200">
-                  0.7x
-                </option>
-                <option value="0.6" class="bg-slate-900 text-slate-200">
-                  0.6x
-                </option>
-                <option value="0.5" class="bg-slate-900 text-slate-200">
-                  0.5x
-                </option>
-                <option value="0.4" class="bg-slate-900 text-slate-200">
-                  0.4x
-                </option>
-                <option value="0.3" class="bg-slate-900 text-slate-200">
-                  0.3x
-                </option>
-                <option value="0.2" class="bg-slate-900 text-slate-200">
-                  0.2x
-                </option>
-                <option value="0.1" class="bg-slate-900 text-slate-200">
-                  0.1x
-                </option>
-              </select>
+                <label for="zoom-select" class="text-slate-400 font-medium"
+                  >Zoom:</label
+                >
+                <select
+                  id="zoom-select"
+                  onchange="setCanvasScale(parseFloat(this.value))"
+                  class="bg-transparent text-cyan-300 font-mono-code text-xs outline-none cursor-pointer"
+                >
+                  <option value="1.4" class="bg-slate-900 text-slate-200">
+                    1.4x
+                  </option>
+                  <option value="1.2" class="bg-slate-900 text-slate-200">
+                    1.2x
+                  </option>
+                  <option
+                    value="1.0"
+                    class="bg-slate-900 text-cyan-300"
+                    selected
+                  >
+                    Normal
+                  </option>
+                  <option value="0.8" class="bg-slate-900 text-slate-200">
+                    0.8x
+                  </option>
+                  <option value="0.7" class="bg-slate-900 text-slate-200">
+                    0.7x
+                  </option>
+                  <option value="0.6" class="bg-slate-900 text-slate-200">
+                    0.6x
+                  </option>
+                  <option value="0.5" class="bg-slate-900 text-slate-200">
+                    0.5x
+                  </option>
+                  <option value="0.4" class="bg-slate-900 text-slate-200">
+                    0.4x
+                  </option>
+                  <option value="0.3" class="bg-slate-900 text-slate-200">
+                    0.3x
+                  </option>
+                  <option value="0.2" class="bg-slate-900 text-slate-200">
+                    0.2x
+                  </option>
+                  <option value="0.1" class="bg-slate-900 text-slate-200">
+                    0.1x
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -1552,6 +1586,215 @@
           </button>
         </div>
       </section>
+
+      <!-- Real-Time System Dashboard Modal -->
+      <div
+        id="sys-dashboard-modal"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden"
+      >
+        <div
+          class="glass-panel w-full max-w-lg rounded-2xl p-5 sm:p-6 border border-slate-700 shadow-2xl space-y-4"
+        >
+          <!-- Modal Header -->
+          <div
+            class="flex items-center justify-between border-b border-slate-800 pb-3"
+          >
+            <div class="flex items-center gap-2.5">
+              <div
+                class="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_10px_#00f2fe] animate-pulse"
+              ></div>
+              <h3 class="text-base font-bold text-white tracking-wide">
+                ESP32 Hardware Health
+              </h3>
+              <span
+                class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800"
+                >LIVE</span
+              >
+            </div>
+            <button
+              type="button"
+              onclick="closeSysDashboard()"
+              class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Metrics Grid -->
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <!-- CPU Frequency -->
+            <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+              <span class="text-slate-400 block text-[11px] mb-1"
+                >CPU Frequency</span
+              >
+              <div class="text-cyan-400 font-mono-code text-lg font-bold">
+                <span id="stat-cpu-freq">--</span>
+                <span class="text-xs font-normal text-slate-400">MHz</span>
+              </div>
+            </div>
+
+            <!-- CPU Temperature -->
+            <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+              <span class="text-slate-400 block text-[11px] mb-1"
+                >CPU Temperature</span
+              >
+              <div class="text-amber-400 font-mono-code text-lg font-bold">
+                <span id="stat-cpu-temp">--</span>
+                <span class="text-xs font-normal text-slate-400">°C</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Meters -->
+          <div class="space-y-3 pt-1">
+            <!-- RAM Usage -->
+            <div
+              class="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-xs"
+            >
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-slate-300 font-medium"
+                  >RAM (Heap) Memory</span
+                >
+                <span
+                  id="stat-ram-text"
+                  class="font-mono-code text-cyan-300 text-[11px]"
+                  >-- / -- KB (--%)</span
+                >
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  id="stat-ram-bar"
+                  class="h-full bg-gradient-to-r from-sky-500 to-cyan-400 rounded-full transition-all duration-500"
+                  style="width: 0%"
+                ></div>
+              </div>
+            </div>
+
+            <!-- SPIFFS Usage -->
+            <div
+              class="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-xs"
+            >
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-slate-300 font-medium"
+                  >SPIFFS Flash Storage</span
+                >
+                <span
+                  id="stat-spiffs-text"
+                  class="font-mono-code text-emerald-300 text-[11px]"
+                  >-- / -- KB (--%)</span
+                >
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  id="stat-spiffs-bar"
+                  class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                  style="width: 0%"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- WiFi Status Row with Segmented Arcs & Inner Signal Bar -->
+          <div
+            class="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 text-xs space-y-2.5"
+          >
+            <div class="flex items-center justify-between">
+              <!-- Left: Dynamic 4-Tier WiFi Icon + SSID -->
+              <div class="flex items-center gap-3">
+                <div
+                  id="stat-wifi-icon-wrap"
+                  class="text-cyan-400 flex items-center justify-center"
+                >
+                  <!-- Dynamic Segmented WiFi Icon (Dot + 3 Concentric Waves) -->
+                  <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                    <!-- Outer Wave (Level 4) -->
+                    <path
+                      id="wifi-arc-3"
+                      d="M2 9a14.2 14.2 0 0 1 20 0"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      class="transition-opacity duration-300"
+                    />
+                    <!-- Middle Wave (Level 3) -->
+                    <path
+                      id="wifi-arc-2"
+                      d="M5.5 12.5a9.2 9.2 0 0 1 13 0"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      class="transition-opacity duration-300"
+                    />
+                    <!-- Inner Wave (Level 2) -->
+                    <path
+                      id="wifi-arc-1"
+                      d="M9 16a4.2 4.2 0 0 1 6 0"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      class="transition-opacity duration-300"
+                    />
+                    <!-- Center Dot (Level 1) -->
+                    <circle
+                      id="wifi-dot"
+                      cx="12"
+                      cy="19"
+                      r="1.5"
+                      fill="currentColor"
+                      class="transition-opacity duration-300"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <span
+                    class="text-[10px] text-slate-400 uppercase tracking-wider block"
+                    >Connected Network</span
+                  >
+                  <span
+                    id="stat-wifi-ssid"
+                    class="font-bold text-white font-mono-code text-sm"
+                    >--</span
+                  >
+                </div>
+              </div>
+
+              <!-- Right: Numeric dBm & Signal Quality % -->
+              <div class="text-right">
+                <span
+                  id="stat-wifi-quality-text"
+                  class="text-[10px] uppercase font-mono-code font-semibold text-slate-400 block"
+                  >--% Signal</span
+                >
+                <span
+                  id="stat-wifi-rssi"
+                  class="font-mono-code font-bold text-cyan-300"
+                  >-- dBm</span
+                >
+              </div>
+            </div>
+
+            <!-- Inner Signal Quality Bar -->
+            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                id="stat-wifi-bar"
+                class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Close Action -->
+          <div class="pt-2 flex justify-end">
+            <button
+              type="button"
+              onclick="closeSysDashboard()"
+              class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+            >
+              Close Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- JSON Preview Modal -->
       <div
@@ -4497,6 +4740,167 @@
 
         await syncConfigFromHardware();
       };
+
+      // ==========================================
+      // REAL-TIME SYSTEM TELEMETRY DASHBOARD
+      // ==========================================
+      let sysTelemetryTimer = null;
+
+      function openSysDashboard() {
+        // Show modal and freeze/lock the background scrolling
+        document
+          .getElementById("sys-dashboard-modal")
+          .classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+
+        fetchSystemStats();
+        if (!sysTelemetryTimer) {
+          sysTelemetryTimer = setInterval(fetchSystemStats, 1500); // 1.5s refresh
+        }
+      }
+
+      function closeSysDashboard() {
+        // Hide modal and restore body scrolling
+        document.getElementById("sys-dashboard-modal").classList.add("hidden");
+        document.body.style.overflow = "";
+
+        if (sysTelemetryTimer) {
+          clearInterval(sysTelemetryTimer);
+          sysTelemetryTimer = null;
+        }
+      }
+
+      async function fetchSystemStats() {
+        try {
+          const res = await fetch("/api/system/status", { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json();
+
+          // 1. CPU Freq & Temp
+          document.getElementById("stat-cpu-freq").innerText =
+            data.cpu_mhz ?? "--";
+          document.getElementById("stat-cpu-temp").innerText =
+            data.cpu_temp ?? "--";
+
+          // 2. RAM (Bytes -> KB)
+          const ramTotalKb = (data.ram_total / 1024).toFixed(1);
+          const ramUsedKb = (data.ram_used / 1024).toFixed(1);
+          const ramPct =
+            data.ram_total > 0
+              ? Math.round((data.ram_used / data.ram_total) * 100)
+              : 0;
+          document.getElementById("stat-ram-text").innerText =
+            `${ramUsedKb} / ${ramTotalKb} KB (${ramPct}%)`;
+          document.getElementById("stat-ram-bar").style.width =
+            `${Math.min(100, ramPct)}%`;
+
+          // 3. SPIFFS (Bytes -> KB)  <-- RESTORED HERE
+          const spiffsTotalKb = (data.spiffs_total / 1024).toFixed(1);
+          const spiffsUsedKb = (data.spiffs_used / 1024).toFixed(1);
+          const spiffsPct =
+            data.spiffs_total > 0
+              ? Math.round((data.spiffs_used / data.spiffs_total) * 100)
+              : 0;
+          document.getElementById("stat-spiffs-text").innerText =
+            `${spiffsUsedKb} / ${spiffsTotalKb} KB (${spiffsPct}%)`;
+          document.getElementById("stat-spiffs-bar").style.width =
+            `${Math.min(100, spiffsPct)}%`;
+
+          // 4. WiFi SSID, RSSI, Dynamic Wave Icon & Inner Bar
+          const isConnected =
+            data.wifi_ssid &&
+            data.wifi_ssid !== "Disconnected" &&
+            data.wifi_ssid !== "Offline";
+          const ssid = isConnected ? data.wifi_ssid : "Disconnected";
+          const rssi = isConnected ? (data.wifi_rssi ?? -100) : -100;
+
+          document.getElementById("stat-wifi-ssid").innerText = ssid;
+          document.getElementById("stat-wifi-rssi").innerText = isConnected
+            ? `${rssi} dBm`
+            : "Offline";
+
+          // Signal Quality % (-50 dBm = 100%, -100 dBm = 0%)
+          let qualityPct = 0;
+          if (isConnected) {
+            if (rssi >= -50) qualityPct = 100;
+            else if (rssi <= -100) qualityPct = 0;
+            else qualityPct = Math.round(2 * (rssi + 100));
+          }
+
+          document.getElementById("stat-wifi-quality-text").innerText =
+            isConnected ? `${qualityPct}% Signal` : "No Connection";
+
+          // Update Inner Signal Bar Width
+          const wifiBar = document.getElementById("stat-wifi-bar");
+          if (wifiBar) wifiBar.style.width = `${qualityPct}%`;
+
+          // Determine Active Wave Bars (0 to 4)
+          let activeBars = 0;
+          if (isConnected) {
+            if (rssi >= -62)
+              activeBars = 4; // Excellent
+            else if (rssi >= -74)
+              activeBars = 3; // Good
+            else if (rssi >= -84)
+              activeBars = 2; // Fair
+            else activeBars = 1; // Weak
+          }
+
+          // Light up or dim individual SVG arcs/dot
+          document.getElementById("wifi-dot").style.opacity =
+            activeBars >= 1 ? "1.0" : "0.2";
+          document.getElementById("wifi-arc-1").style.opacity =
+            activeBars >= 2 ? "1.0" : "0.2";
+          document.getElementById("wifi-arc-2").style.opacity =
+            activeBars >= 3 ? "1.0" : "0.2";
+          document.getElementById("wifi-arc-3").style.opacity =
+            activeBars >= 4 ? "1.0" : "0.2";
+
+          // Dynamic Color Tints (Emerald -> Cyan -> Amber -> Red)
+          const iconWrap = document.getElementById("stat-wifi-icon-wrap");
+          if (activeBars === 4) {
+            iconWrap.className =
+              "text-emerald-400 flex items-center justify-center";
+            wifiBar.className =
+              "h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500";
+          } else if (activeBars === 3) {
+            iconWrap.className =
+              "text-cyan-400 flex items-center justify-center";
+            wifiBar.className =
+              "h-full bg-gradient-to-r from-sky-500 to-cyan-400 rounded-full transition-all duration-500";
+          } else if (activeBars === 2) {
+            iconWrap.className =
+              "text-amber-400 flex items-center justify-center";
+            wifiBar.className =
+              "h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-500";
+          } else {
+            iconWrap.className =
+              "text-rose-500 flex items-center justify-center";
+            wifiBar.className =
+              "h-full bg-gradient-to-r from-rose-500 to-red-600 rounded-full transition-all duration-500";
+          }
+        } catch (err) {
+          // Offline / local preview fallback simulation
+          document.getElementById("stat-cpu-freq").innerText = "240";
+          document.getElementById("stat-cpu-temp").innerText = "49.2";
+          document.getElementById("stat-ram-text").innerText =
+            "124.8 / 320.0 KB (39%)";
+          document.getElementById("stat-ram-bar").style.width = "39%";
+          document.getElementById("stat-spiffs-text").innerText =
+            "245.0 / 1408.0 KB (17%)";
+          document.getElementById("stat-spiffs-bar").style.width = "17%";
+          document.getElementById("stat-wifi-ssid").innerText =
+            "Simulator WiFi";
+          document.getElementById("stat-wifi-rssi").innerText = "-58 dBm";
+          document.getElementById("stat-wifi-quality-text").innerText =
+            "84% Signal";
+          document.getElementById("stat-wifi-bar").style.width = "84%";
+          document.getElementById("wifi-dot").style.opacity = "1.0";
+          document.getElementById("wifi-arc-1").style.opacity = "1.0";
+          document.getElementById("wifi-arc-2").style.opacity = "1.0";
+          document.getElementById("wifi-arc-3").style.opacity = "1.0";
+        }
+      }
     </script>
   </body>
 </html>

@@ -1493,6 +1493,40 @@ void setupWebServer() {
         }
       });
 
+  // ==========================================
+  // SYSTEM HEALTH & TELEMETRY REST ENDPOINT
+  // ==========================================
+  server.on("/api/system/status", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+#else
+    DynamicJsonDocument doc(512);
+#endif
+
+    // 1. CPU Frequency & Core Temperature
+    doc["cpu_mhz"] = ESP.getCpuFreqMHz();
+    doc["cpu_temp"] = round(temperatureRead() * 10.0) / 10.0; // Built-in internal sensor (°C)
+
+    // 2. RAM (Heap) in Bytes
+    uint32_t totalRam = ESP.getHeapSize();
+    uint32_t freeRam = ESP.getFreeHeap();
+    doc["ram_total"] = totalRam;
+    doc["ram_used"] = totalRam - freeRam;
+
+    // 3. SPIFFS Storage in Bytes
+    doc["spiffs_total"] = SPIFFS.totalBytes();
+    doc["spiffs_used"] = SPIFFS.usedBytes();
+
+    // 4. WiFi Link Quality
+    bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+    doc["wifi_ssid"] = wifiConnected ? WiFi.SSID() : "Disconnected";
+    doc["wifi_rssi"] = wifiConnected ? WiFi.RSSI() : 0;
+
+    String res;
+    serializeJson(doc, res);
+    request->send(200, "application/json", res);
+  });
+
   server.begin();
   Serial.println("[HTTP] AsyncWebServer online.");
 }
