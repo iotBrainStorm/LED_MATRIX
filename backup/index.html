@@ -2910,24 +2910,30 @@
         }
 
         if (effectType === "PA_DISSOLVE") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < zWidth; c++) {
-              const pseudoRand =
-                (((Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1) + 1) %
-                1;
-              const isTextPixel =
-                c >= alignedX &&
-                c < alignedX + textWidth &&
-                textGrid[r][c - alignedX];
+          const alignedX = getAlignedX();
+          const currentStep = Math.min(2, Math.max(0, step));
 
-              if (!isExit) {
-                if (isTextPixel) {
-                  outBuffer[r][zStart + c] = 1;
-                } else if (pseudoRand > progress) {
-                  outBuffer[r][zStart + c] = 1;
-                }
-              } else if (isTextPixel && pseudoRand > progress) {
+          for (let c = 0; c < zWidth; c++) {
+            const c_text = c - alignedX;
+            let col = 0;
+
+            // 1. Get text column pixels if within bounds
+            if (c_text >= 0 && c_text < textWidth) {
+              for (let r = 0; r < 8; r++) {
+                if (textGrid[r][c_text]) col |= 1 << r;
+              }
+            }
+
+            // 2. Apply exact Parola 3-stage checkerboard masks (0x55 / 0xaa)
+            if (currentStep === 0) {
+              col |= c & 1 ? 0x55 : 0xaa;
+            } else if (currentStep === 1) {
+              col |= c & 1 ? 0xaa : 0x55;
+            }
+            // currentStep === 2 renders pure text (col)
+
+            for (let r = 0; r < 8; r++) {
+              if ((col >> r) & 1) {
                 outBuffer[r][zStart + c] = 1;
               }
             }
@@ -3182,6 +3188,7 @@
             case "PA_FADE":
               return 20;
             case "PA_DISSOLVE":
+              return 3;
             case "PA_RANDOM":
               return 30;
             case "PA_MESH":
@@ -3814,14 +3821,14 @@
             : '<span class="text-[9px] bg-cyan-950 text-cyan-400 px-1 py-0.2 rounded border border-cyan-800">TXT</span>';
 
           chip.innerHTML = `
-      ${typeBadge}
-      <span>${z.name} [${z.start}-${z.end}]</span>
-      ${
-        isClickable
-          ? `<button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>`
-          : ""
-      }
-    `;
+        ${typeBadge}
+        <span>${z.name} [${z.start}-${z.end}]</span>
+        ${
+          isClickable
+            ? `<button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>`
+            : ""
+        }
+      `;
           container.appendChild(chip);
 
           // Populate Section 4 Dropdown: Standard Text Zones ONLY
@@ -4044,9 +4051,9 @@
           chip.title = "Click to edit scene";
           chip.onclick = () => selectSceneForEdit(s.id);
           chip.innerHTML = `
-            <span>${isSel ? "▶ " : ""}${s.name} <span class="text-slate-400 font-normal">[${s.config.zone?.name || "Zone"}]</span></span>
-            <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
-          `;
+              <span>${isSel ? "▶ " : ""}${s.name} <span class="text-slate-400 font-normal">[${s.config.zone?.name || "Zone"}]</span></span>
+              <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
+            `;
           container.appendChild(chip);
         });
       }
@@ -4619,9 +4626,9 @@
           chip.className =
             "inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded border border-cyan-800/80 text-cyan-300";
           chip.innerHTML = `
-            <span>${idx + 1}. ${name}</span>
-            <button type="button" onclick="activePlaylistScenes.splice(${idx}, 1); renderQueuedScenesUI();" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
-          `;
+              <span>${idx + 1}. ${name}</span>
+              <button type="button" onclick="activePlaylistScenes.splice(${idx}, 1); renderQueuedScenesUI();" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
+            `;
           container.appendChild(chip);
         });
       }
@@ -4732,9 +4739,9 @@
             "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono-code bg-slate-800/90 text-cyan-300 border border-cyan-700/60 hover:border-cyan-400 cursor-pointer transition";
           chip.onclick = () => editPlaylist(pl.id);
           chip.innerHTML = `
-            <span>📋 <strong>${pl.name}</strong> [${pl.zone}] → ${pl.scenes.length} Scenes (${isInf ? "∞ Loop" : pl.repeat + "x"})</span>
-            <button type="button" onclick="event.stopPropagation(); removePlaylist('${pl.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
-          `;
+              <span>📋 <strong>${pl.name}</strong> [${pl.zone}] → ${pl.scenes.length} Scenes (${isInf ? "∞ Loop" : pl.repeat + "x"})</span>
+              <button type="button" onclick="event.stopPropagation(); removePlaylist('${pl.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
+            `;
           container.appendChild(chip);
         });
       }
