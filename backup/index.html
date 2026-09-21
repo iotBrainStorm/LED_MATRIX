@@ -1181,9 +1181,9 @@
                 <option value="PA_RANDOM">Pixels</option>
                 <option value="PA_WIPE">Wipe</option>
                 <option value="PA_WIPE_CURSOR">Wipe Cursor</option>
-                <option value="PA_OPENING">Curtain Opening</option>
+                <option value="PA_OPENING">Opening</option>
                 <option value="PA_OPENING_CURSOR">Opening Cursor</option>
-                <option value="PA_CLOSING">Curtain Closing</option>
+                <option value="PA_CLOSING">Closing</option>
                 <option value="PA_CLOSING_CURSOR">Closing Cursor</option>
                 <option value="PA_SCAN_HORIZ">Horizontal Scan</option>
                 <option value="PA_SCAN_HORIZX">Horizontal Scan X</option>
@@ -1227,10 +1227,10 @@
                 <option value="PA_OPENING_CURSOR">Opening Cursor</option>
                 <option value="PA_CLOSING">Closing</option>
                 <option value="PA_CLOSING_CURSOR">Closing Cursor</option>
-                <option value="PA_SCAN_HORIZ">Scan Horizontal</option>
-                <option value="PA_SCAN_HORIZX">Scan Horizontal X</option>
-                <option value="PA_SCAN_VERT">Scan Vertical</option>
-                <option value="PA_SCAN_VERTX">Scan Vertical X</option>
+                <option value="PA_SCAN_HORIZ">Horizontal Scan</option>
+                <option value="PA_SCAN_HORIZX">Horizontal Scan X</option>
+                <option value="PA_SCAN_VERT">Vertical Scan</option>
+                <option value="PA_SCAN_VERTX">Vertical Scan X</option>
                 <option value="PA_GROW_UP">Grow Up</option>
                 <option value="PA_GROW_DOWN">Grow Down</option>
               </select>
@@ -2804,39 +2804,64 @@
         ) {
           const isOpening = effectType.startsWith("PA_OPENING");
           const hasCursor = effectType.includes("CURSOR");
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const halfWidth = Math.ceil((zWidth / 2) * progress);
-          const center = Math.floor(zWidth / 2);
+          const halfText = Math.ceil(textWidth / 2);
+          const center = Math.floor(textWidth / 2);
 
           for (let r = 0; r < 8; r++) {
-            for (let c = startTextCol; c < endTextCol; c++) {
-              const screenCol = alignedX + c;
-              const distance = Math.abs(screenCol - center);
+            for (let c = 0; c < textWidth; c++) {
+              const distFromCenter = Math.abs(c - center);
               let visible = false;
 
               if (isOpening) {
-                visible = !isExit
-                  ? distance <= halfWidth
-                  : distance > halfWidth;
+                if (!isExit) {
+                  // OPENING ENTRY: Text appears from center, expanding outwards
+                  visible = distFromCenter <= step - 1;
+                } else {
+                  // OPENING EXIT: Text disappears from edges, collapsing inwards
+                  visible = distFromCenter < halfText - step;
+                }
               } else {
-                visible = !isExit
-                  ? distance >= zWidth / 2 - halfWidth
-                  : distance < zWidth / 2 - halfWidth;
+                if (!isExit) {
+                  // CLOSING ENTRY: Text appears from edges, closing inwards to center
+                  visible = distFromCenter >= halfText - step + 1;
+                } else {
+                  // CLOSING EXIT: Text disappears from center, clearing outwards
+                  visible = distFromCenter >= step;
+                }
               }
 
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              if (visible) {
+                const screenCol = alignedX + c;
+                if (screenCol >= 0 && screenCol < zWidth) {
+                  outBuffer[r][zStart + screenCol] = textGrid[r][c];
+                }
+              }
             }
+
             if (hasCursor) {
+              let cursorDist = -1;
+
+              // Determine where the cursor line should be drawn based on the current edge
               if (isOpening) {
-                const c1 = center - halfWidth;
-                const c2 = center + halfWidth;
-                if (c1 >= 0) outBuffer[r][zStart + c1] = 1;
-                if (c2 < zWidth) outBuffer[r][zStart + c2] = 1;
+                if (!isExit) {
+                  cursorDist = step - 1;
+                } else {
+                  cursorDist = halfText - step;
+                }
               } else {
-                const c1 = center - Math.floor(zWidth / 2 - halfWidth);
-                const c2 = center + Math.floor(zWidth / 2 - halfWidth);
-                if (c1 >= 0) outBuffer[r][zStart + c1] = 1;
-                if (c2 < zWidth) outBuffer[r][zStart + c2] = 1;
+                if (!isExit) {
+                  cursorDist = halfText - step + 1;
+                } else {
+                  cursorDist = step;
+                }
+              }
+
+              // Draw cursors if they are within the valid text boundaries
+              if (cursorDist >= 0 && cursorDist <= halfText) {
+                const c1 = alignedX + center - cursorDist;
+                const c2 = alignedX + center + cursorDist;
+                if (c1 >= 0 && c1 < zWidth) outBuffer[r][zStart + c1] = 1;
+                if (c2 >= 0 && c2 < zWidth) outBuffer[r][zStart + c2] = 1;
               }
             }
           }
@@ -2960,17 +2985,22 @@
 
         if (effectType.startsWith("PA_SCAN_HORIZ")) {
           const isBlank = effectType.includes("X");
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const scanCol = !isExit
-            ? Math.floor(zWidth * progress)
-            : Math.floor(zWidth * (1 - progress));
+
+          // Scans across the entire zone length, column by column
+          const scanCol = step - 1;
 
           for (let r = 0; r < 8; r++) {
             for (let c = startTextCol; c < endTextCol; c++) {
               const screenCol = alignedX + c;
-              const isScanCol = screenCol === scanCol;
-              const visible = !isBlank ? isScanCol : !isScanCol;
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+
+              if (screenCol >= 0 && screenCol < zWidth) {
+                const isScanCol = screenCol === scanCol;
+                const visible = !isBlank ? isScanCol : !isScanCol;
+
+                if (visible) {
+                  outBuffer[r][zStart + screenCol] = textGrid[r][c];
+                }
+              }
             }
           }
           return { buffer: outBuffer, alpha };
@@ -2978,16 +3008,22 @@
 
         if (effectType.startsWith("PA_SCAN_VERT")) {
           const isBlank = effectType.includes("X");
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const scanRow = !isExit
-            ? Math.floor(8 * progress)
-            : Math.floor(8 * (1 - progress));
+
+          // Parola's VScan sweeps rows 0->7 on Entry, and reverses 7->0 on Exit.
+          // Assuming step is 1-indexed (1 to 8).
+          const scanRow = !isExit ? step - 1 : 8 - step;
 
           for (let r = 0; r < 8; r++) {
+            const isScanRow = r === scanRow;
+            const visible = !isBlank ? isScanRow : !isScanRow;
+
             for (let c = startTextCol; c < endTextCol; c++) {
               const screenCol = alignedX + c;
-              const visible = !isBlank ? r === scanRow : r !== scanRow;
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+
+              // Only write to the buffer if the row is visible and the column is in bounds
+              if (visible && screenCol >= 0 && screenCol < zWidth) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
             }
           }
           return { buffer: outBuffer, alpha };
@@ -3194,6 +3230,7 @@
               return 8;
             case "PA_SCAN_HORIZ":
             case "PA_SCAN_HORIZX":
+              return zWidth;
             case "PA_WIPE":
             case "PA_WIPE_CURSOR":
               return textCols;
@@ -3201,7 +3238,7 @@
             case "PA_CLOSING_CURSOR":
             case "PA_OPENING":
             case "PA_OPENING_CURSOR":
-              return zWidth;
+              return Math.ceil(textCols / 2) + 1;
             case "PA_BLINDS":
               return 8;
             case "PA_FADE":
