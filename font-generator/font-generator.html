@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bitmap Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #09090b; /* zinc-950 */
+        color: #f4f4f5; /* zinc-50 */
+      }
+
+      .code-font {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Custom scrollbar for textareas and main containers */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #27272a; /* zinc-800 */
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #3f3f46; /* zinc-700 */
+      }
+
+      /* Grid specific styles */
+      .grid-wrapper {
+        display: grid;
+        gap: 1px;
+        background-color: #27272a; /* zinc-800 */
+        border: 1px solid #27272a;
+        width: max-content;
+        margin: 0 auto;
+        border-radius: 2px;
+        overflow: hidden;
+        touch-action: none; /* Prevent scrolling while drawing on mobile */
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .pixel {
+        width: 28px;
+        height: 28px;
+        background-color: #18181b; /* zinc-900 */
+        cursor: crosshair;
+        user-select: none;
+        transition: background-color 0.05s ease;
+      }
+
+      @media (max-width: 768px) {
+        .pixel {
+          width: 22px;
+          height: 22px;
+        }
+      }
+
+      .pixel:hover {
+        background-color: #27272a; /* zinc-800 */
+      }
+
+      /* Active/Drawn Pixel */
+      .pixel.active {
+        background-color: #0ea5e9; /* sky-500 */
+        box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.4);
+      }
+      .pixel.active:hover {
+        background-color: #38bdf8; /* sky-400 */
+      }
+
+      /* Subtle grid background for the canvas area */
+      .bg-grid-pattern {
+        background-image: radial-gradient(#27272a 1px, transparent 0);
+        background-size: 20px 20px;
+      }
+    </style>
+  </head>
+  <body class="h-screen flex flex-col overflow-hidden">
+    <!-- Top Toolbar -->
+    <header
+      class="h-16 shrink-0 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 lg:px-6 z-10 shadow-sm"
+    >
+      <div class="flex items-center gap-3">
+        <div
+          class="w-8 h-8 rounded bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg"
+        >
+          <svg
+            class="w-5 h-5 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+            ></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold text-zinc-100 tracking-wide">
+            Bitmap Studio
+          </h1>
+          <p
+            class="text-[10px] text-zinc-500 font-medium uppercase tracking-wider"
+          >
+            Developer Tool
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="flex items-center gap-2 lg:gap-4 overflow-x-auto no-scrollbar"
+      >
+        <!-- Dimensions -->
+        <div
+          class="flex items-center bg-zinc-950/50 border border-zinc-800 rounded-md p-1"
+        >
+          <input
+            type="number"
+            id="inputWidth"
+            value="8"
+            min="1"
+            max="64"
+            class="w-12 bg-transparent text-zinc-200 text-center text-sm font-medium focus:outline-none focus:text-sky-400"
+            title="Width"
+          />
+          <span class="text-zinc-600 text-xs font-bold px-1">×</span>
+          <input
+            type="number"
+            id="inputHeight"
+            value="8"
+            min="1"
+            max="64"
+            class="w-12 bg-transparent text-zinc-200 text-center text-sm font-medium focus:outline-none focus:text-sky-400"
+            title="Height"
+          />
+          <button
+            onclick="applyGridSize()"
+            class="ml-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-xs font-medium rounded transition-colors"
+          >
+            Apply
+          </button>
+        </div>
+
+        <!-- Configuration -->
+        <div
+          class="flex items-center bg-zinc-950/50 border border-zinc-800 rounded-md p-1 hidden md:flex"
+        >
+          <select
+            id="dataOrientation"
+            onchange="updateOutputs()"
+            class="bg-transparent text-zinc-300 text-sm font-medium px-2 py-1 outline-none cursor-pointer hover:text-sky-400 border-r border-zinc-800"
+          >
+            <option value="row" class="bg-zinc-900">Row-Major</option>
+            <option value="col" class="bg-zinc-900">Col-Major</option>
+          </select>
+          <select
+            id="dataBitOrder"
+            onchange="updateOutputs()"
+            class="bg-transparent text-zinc-300 text-sm font-medium px-2 py-1 outline-none cursor-pointer hover:text-sky-400"
+          >
+            <option value="msb" class="bg-zinc-900">MSB First</option>
+            <option value="lsb" class="bg-zinc-900">LSB First</option>
+          </select>
+        </div>
+
+        <!-- Clear Button -->
+        <button
+          onclick="clearGrid()"
+          class="flex items-center gap-1.5 text-zinc-400 hover:text-rose-400 px-3 py-1.5 rounded-md transition-colors text-sm font-medium border border-transparent hover:border-rose-900/50 hover:bg-rose-950/30"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            ></path>
+          </svg>
+          <span class="hidden sm:inline">Clear</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#09090b]">
+      <!-- Canvas Area (Left/Top) -->
+      <div
+        class="flex-1 overflow-auto bg-grid-pattern relative flex flex-col justify-center items-center p-6 lg:p-12 gap-10"
+      >
+        <!-- Mobile-only config controls -->
+        <div
+          class="flex md:hidden flex-wrap items-center justify-center gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800 backdrop-blur"
+        >
+          <select
+            id="dataOrientationMobile"
+            onchange="
+              document.getElementById('dataOrientation').value = this.value;
+              updateOutputs();
+            "
+            class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer border-r border-zinc-800"
+          >
+            <option value="row" class="bg-zinc-900">Row-Major</option>
+            <option value="col" class="bg-zinc-900">Col-Major</option>
+          </select>
+          <select
+            id="dataBitOrderMobile"
+            onchange="
+              document.getElementById('dataBitOrder').value = this.value;
+              updateOutputs();
+            "
+            class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer"
+          >
+            <option value="msb" class="bg-zinc-900">MSB First</option>
+            <option value="lsb" class="bg-zinc-900">LSB First</option>
+          </select>
+        </div>
+
+        <!-- Normal Grid -->
+        <div class="flex flex-col items-center gap-3">
+          <div class="flex items-center gap-2 text-zinc-400">
+            <span class="text-sm font-medium tracking-wide">Row-Major</span>
+            <span
+              id="dimNormal"
+              class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
+              >8×8</span
+            >
+          </div>
+          <div
+            id="grid1"
+            class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
+          ></div>
+        </div>
+
+        <!-- Rotated Grid -->
+        <div class="flex flex-col items-center gap-3 opacity-90">
+          <div class="flex items-center gap-2 text-zinc-400">
+            <span class="text-sm font-medium tracking-wide">Col-Major</span>
+            <span
+              id="dimRotated"
+              class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
+              >8×8 (90°)</span
+            >
+            <!-- Rotate Button -->
+            <button
+              onclick="rotateColMajor()"
+              class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-sky-400 rounded transition-colors border border-zinc-700 ml-1"
+              title="Rotate Grid"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                ></path>
+              </svg>
+            </button>
+          </div>
+          <div
+            id="grid2"
+            class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Inspector Panel (Right) -->
+      <aside
+        class="w-full lg:w-[420px] shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col h-[50vh] lg:h-full z-10 shadow-[-4px_0_15px_rgba(0,0,0,0.2)]"
+      >
+        <!-- Output Header -->
+        <div
+          class="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between"
+        >
+          <h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            Inspector / Output
+          </h2>
+        </div>
+
+        <!-- Scrollable Output Content -->
+        <div class="flex-1 overflow-y-auto p-5 space-y-8">
+          <!-- Normal Data -->
+          <div class="space-y-3">
+            <h3
+              class="text-sm font-semibold text-sky-400 flex items-center gap-2 border-l-2 border-sky-400 pl-2"
+            >
+              Row-Major Data
+            </h3>
+
+            <div
+              class="bg-zinc-950 rounded-lg border border-zinc-800 relative group overflow-hidden"
+            >
+              <div
+                class="flex justify-between items-center px-3 py-1.5 bg-zinc-900/80 border-b border-zinc-800"
+              >
+                <span class="text-[10px] font-mono text-zinc-500"
+                  >HEXADECIMAL</span
+                >
+                <button
+                  onclick="copyToClipboard('outNormalHex')"
+                  class="text-[10px] flex items-center gap-1 text-zinc-400 hover:text-white transition-colors bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    ></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="outNormalHex"
+                readonly
+                class="w-full h-20 bg-transparent text-emerald-400 p-3 text-xs code-font focus:outline-none resize-none block"
+              ></textarea>
+            </div>
+
+            <div
+              class="bg-zinc-950 rounded-lg border border-zinc-800 relative group overflow-hidden"
+            >
+              <div
+                class="flex justify-between items-center px-3 py-1.5 bg-zinc-900/80 border-b border-zinc-800"
+              >
+                <span class="text-[10px] font-mono text-zinc-500">BINARY</span>
+                <button
+                  onclick="copyToClipboard('outNormalBin')"
+                  class="text-[10px] flex items-center gap-1 text-zinc-400 hover:text-white transition-colors bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    ></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="outNormalBin"
+                readonly
+                class="w-full h-20 bg-transparent text-yellow-500/90 p-3 text-xs code-font focus:outline-none resize-none block"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Rotated Data -->
+          <div class="space-y-3">
+            <h3
+              class="text-sm font-semibold text-indigo-400 flex items-center gap-2 border-l-2 border-indigo-400 pl-2"
+            >
+              Col-Major Data
+            </h3>
+
+            <div
+              class="bg-zinc-950 rounded-lg border border-zinc-800 relative group overflow-hidden"
+            >
+              <div
+                class="flex justify-between items-center px-3 py-1.5 bg-zinc-900/80 border-b border-zinc-800"
+              >
+                <span class="text-[10px] font-mono text-zinc-500"
+                  >HEXADECIMAL</span
+                >
+                <button
+                  onclick="copyToClipboard('outRotatedHex')"
+                  class="text-[10px] flex items-center gap-1 text-zinc-400 hover:text-white transition-colors bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    ></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="outRotatedHex"
+                readonly
+                class="w-full h-20 bg-transparent text-emerald-400 p-3 text-xs code-font focus:outline-none resize-none block"
+              ></textarea>
+            </div>
+
+            <div
+              class="bg-zinc-950 rounded-lg border border-zinc-800 relative group overflow-hidden"
+            >
+              <div
+                class="flex justify-between items-center px-3 py-1.5 bg-zinc-900/80 border-b border-zinc-800"
+              >
+                <span class="text-[10px] font-mono text-zinc-500">BINARY</span>
+                <button
+                  onclick="copyToClipboard('outRotatedBin')"
+                  class="text-[10px] flex items-center gap-1 text-zinc-400 hover:text-white transition-colors bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    ></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <textarea
+                id="outRotatedBin"
+                readonly
+                class="w-full h-20 bg-transparent text-yellow-500/90 p-3 text-xs code-font focus:outline-none resize-none block"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import Section (Sticky Bottom) -->
+        <div
+          class="p-5 bg-zinc-900 border-t border-zinc-800 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"
+        >
+          <div class="flex justify-between items-end mb-2">
+            <div>
+              <h3 class="text-sm font-semibold text-zinc-200">Import Code</h3>
+              <p class="text-[10px] text-zinc-500 mt-0.5">
+                Paste Hex or Binary to construct grid
+              </p>
+            </div>
+            <button
+              onclick="importData()"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-lg shadow-indigo-500/20 flex items-center gap-1"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                ></path>
+              </svg>
+              Load
+            </button>
+          </div>
+          <textarea
+            id="importCode"
+            placeholder="e.g. 0xFF, 0x01 or B11111111"
+            class="w-full h-16 bg-zinc-950 border border-zinc-700 rounded p-2 text-xs code-font text-zinc-300 focus:outline-none focus:border-indigo-500 resize-none transition-colors"
+          ></textarea>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Toast Notification -->
+    <div
+      id="toast"
+      class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-zinc-800 border border-zinc-700 text-zinc-100 px-4 py-2 rounded-full shadow-2xl transition-all duration-300 -translate-y-16 opacity-0 pointer-events-none flex items-center gap-2 text-sm font-medium z-50"
+    >
+      <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+      <span id="toastMsg">Action successful</span>
+    </div>
+
+    <script>
+      // Application State
+      let numRows = 8;
+      let numCols = 8;
+      let gridData = [];
+      let isMouseDown = false;
+      let drawValue = 1; // 1 to fill, 0 to erase
+      let colRotation = 1; // 0: 0°, 1: 90°, 2: 180°, 3: 270°
+
+      // DOM Elements
+      const grid1Container = document.getElementById("grid1");
+      const grid2Container = document.getElementById("grid2");
+      const dimNormal = document.getElementById("dimNormal");
+      const dimRotated = document.getElementById("dimRotated");
+
+      // Output textareas
+      const outNormalHex = document.getElementById("outNormalHex");
+      const outNormalBin = document.getElementById("outNormalBin");
+      const outRotatedHex = document.getElementById("outRotatedHex");
+      const outRotatedBin = document.getElementById("outRotatedBin");
+
+      // Global Mouse Events for drag-drawing
+      document.addEventListener("mousedown", () => (isMouseDown = true));
+      document.addEventListener("mouseup", () => (isMouseDown = false));
+
+      // Global Touch Events for mobile drag-drawing
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
+      document.addEventListener("touchstart", () => (isMouseDown = true), {
+        passive: true,
+      });
+      document.addEventListener("touchend", () => (isMouseDown = false));
+
+      function handleTouchMove(e) {
+        if (!isMouseDown) return;
+
+        // Prevent scrolling when drawing on the grid
+        if (e.target.closest(".grid-wrapper")) {
+          e.preventDefault();
+        }
+
+        const touch = e.touches[0];
+        const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        if (elem && elem.classList.contains("pixel")) {
+          const r = parseInt(elem.dataset.r);
+          const c = parseInt(elem.dataset.c);
+          togglePixel(r, c, drawValue);
+        }
+      }
+
+      function initGridData() {
+        gridData = Array(numRows)
+          .fill()
+          .map(() => Array(numCols).fill(0));
+        renderGrids();
+        updateOutputs();
+      }
+
+      function applyGridSize() {
+        const w = parseInt(document.getElementById("inputWidth").value);
+        const h = parseInt(document.getElementById("inputHeight").value);
+
+        if (w > 0 && w <= 64 && h > 0 && h <= 64) {
+          numCols = w;
+          numRows = h;
+          initGridData();
+        } else {
+          alert("Please enter values between 1 and 64.");
+        }
+      }
+
+      function clearGrid() {
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < numCols; c++) {
+            gridData[r][c] = 0;
+            updatePixelDOM(r, c, 0);
+          }
+        }
+        updateOutputs();
+      }
+
+      // Rotate Col-Major Button Logic
+      function rotateColMajor() {
+        colRotation = (colRotation + 1) % 4;
+        renderGrids();
+        updateOutputs();
+      }
+
+      function getRotatedMapping(r2, c2, rot) {
+        if (rot === 0) return [r2, c2]; // 0 deg
+        if (rot === 1) return [numRows - 1 - c2, r2]; // 90 deg CW
+        if (rot === 2) return [numRows - 1 - r2, numCols - 1 - c2]; // 180 deg CW
+        if (rot === 3) return [c2, numCols - 1 - r2]; // 270 deg CW
+        return [0, 0];
+      }
+
+      function renderGrids() {
+        // Update Normal view labels
+        dimNormal.textContent = `${numCols}W × ${numRows}H`;
+
+        // Calculate Rotated view dimensions
+        let grid2Rows = colRotation % 2 === 0 ? numRows : numCols;
+        let grid2Cols = colRotation % 2 === 0 ? numCols : numRows;
+
+        // Update Rotated view labels
+        dimRotated.textContent = `${grid2Cols}W × ${grid2Rows}H (${colRotation * 90}°)`;
+
+        // Set Grid Templates
+        grid1Container.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+        grid2Container.style.gridTemplateColumns = `repeat(${grid2Cols}, 1fr)`;
+
+        // Clear containers
+        grid1Container.innerHTML = "";
+        grid2Container.innerHTML = "";
+
+        // Render Grid 1 (Normal View)
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < numCols; c++) {
+            grid1Container.appendChild(createPixelElement(r, c, 1));
+          }
+        }
+
+        // Render Grid 2 (Rotated View)
+        for (let r2 = 0; r2 < grid2Rows; r2++) {
+          for (let c2 = 0; c2 < grid2Cols; c2++) {
+            let [r, c] = getRotatedMapping(r2, c2, colRotation);
+            grid2Container.appendChild(createPixelElement(r, c, 2));
+          }
+        }
+      }
+
+      function createPixelElement(r, c, gridNum) {
+        const div = document.createElement("div");
+        div.className = "pixel";
+        div.dataset.r = r;
+        div.dataset.c = c;
+        div.id = `g${gridNum}-${r}-${c}`;
+
+        // Set initial state
+        if (gridData[r] && gridData[r][c] === 1) {
+          div.classList.add("active");
+        }
+
+        // Mouse Interactions
+        div.addEventListener("mousedown", (e) => {
+          e.preventDefault(); // Prevent text selection
+          // Determine whether we are drawing or erasing based on the clicked pixel's current state
+          drawValue = gridData[r][c] === 1 ? 0 : 1;
+          togglePixel(r, c, drawValue);
+        });
+
+        div.addEventListener("mouseenter", (e) => {
+          if (isMouseDown) {
+            togglePixel(r, c, drawValue);
+          }
+        });
+
+        // Touch Interactions (Start)
+        div.addEventListener(
+          "touchstart",
+          (e) => {
+            e.preventDefault();
+            drawValue = gridData[r][c] === 1 ? 0 : 1;
+            togglePixel(r, c, drawValue);
+          },
+          { passive: false },
+        );
+
+        return div;
+      }
+
+      function togglePixel(r, c, val) {
+        if (gridData[r][c] === val) return; // No change
+
+        gridData[r][c] = val;
+        updatePixelDOM(r, c, val);
+        updateOutputs();
+      }
+
+      function updatePixelDOM(r, c, val) {
+        const p1 = document.getElementById(`g1-${r}-${c}`);
+        const p2 = document.getElementById(`g2-${r}-${c}`);
+
+        if (val) {
+          if (p1) p1.classList.add("active");
+          if (p2) p2.classList.add("active");
+        } else {
+          if (p1) p1.classList.remove("active");
+          if (p2) p2.classList.remove("active");
+        }
+      }
+
+      function updateOutputs() {
+        // Normal View Code Generation
+        const normalOutput = generateCode(gridData, numRows, numCols);
+        outNormalHex.value = normalOutput.hex;
+        outNormalBin.value = normalOutput.bin;
+
+        // Rotated View Code Generation
+        let rotatedGrid = [];
+        let grid2Rows = colRotation % 2 === 0 ? numRows : numCols;
+        let grid2Cols = colRotation % 2 === 0 ? numCols : numRows;
+
+        for (let r2 = 0; r2 < grid2Rows; r2++) {
+          let row = [];
+          for (let c2 = 0; c2 < grid2Cols; c2++) {
+            let [r, c] = getRotatedMapping(r2, c2, colRotation);
+            row.push(gridData[r][c]);
+          }
+          rotatedGrid.push(row);
+        }
+        const rotatedOutput = generateCode(rotatedGrid, grid2Rows, grid2Cols);
+        outRotatedHex.value = rotatedOutput.hex;
+        outRotatedBin.value = rotatedOutput.bin;
+      }
+
+      function generateCode(grid, rows, cols) {
+        const orientation = document.getElementById("dataOrientation").value;
+        const bitOrder = document.getElementById("dataBitOrder").value;
+        let hexLines = [];
+        let binLines = [];
+
+        if (orientation === "row") {
+          let bytesPerRow = Math.ceil(cols / 8);
+          for (let r = 0; r < rows; r++) {
+            let hexRow = [];
+            let binRow = [];
+            for (let b = 0; b < bytesPerRow; b++) {
+              let byteVal = 0;
+              for (let bit = 0; bit < 8; bit++) {
+                let c = b * 8 + bit;
+                let val = c < cols ? grid[r][c] : 0;
+                if (bitOrder === "msb") {
+                  byteVal |= val << (7 - bit);
+                } else {
+                  byteVal |= val << bit;
+                }
+              }
+              hexRow.push(
+                "0x" + byteVal.toString(16).padStart(2, "0").toUpperCase(),
+              );
+              binRow.push("B" + byteVal.toString(2).padStart(8, "0"));
+            }
+            hexLines.push(hexRow.join(", "));
+            binLines.push(binRow.join(", "));
+          }
+        } else {
+          let bytesPerCol = Math.ceil(rows / 8);
+          for (let c = 0; c < cols; c++) {
+            let hexCol = [];
+            let binCol = [];
+            for (let b = 0; b < bytesPerCol; b++) {
+              let byteVal = 0;
+              for (let bit = 0; bit < 8; bit++) {
+                let r = b * 8 + bit;
+                let val = r < rows ? grid[r][c] : 0;
+                if (bitOrder === "msb") {
+                  byteVal |= val << (7 - bit);
+                } else {
+                  byteVal |= val << bit;
+                }
+              }
+              hexCol.push(
+                "0x" + byteVal.toString(16).padStart(2, "0").toUpperCase(),
+              );
+              binCol.push("B" + byteVal.toString(2).padStart(8, "0"));
+            }
+            hexLines.push(hexCol.join(", "));
+            binLines.push(binCol.join(", "));
+          }
+        }
+
+        return {
+          hex: hexLines.join(",\n"),
+          bin: binLines.join(",\n"),
+        };
+      }
+
+      function importData() {
+        const input = document.getElementById("importCode").value;
+        const orientation = document.getElementById("dataOrientation").value;
+        const bitOrder = document.getElementById("dataBitOrder").value;
+
+        // Matches 0xFF, B11111111, or 0b11111111
+        const matches = input.match(/(0x[0-9A-Fa-f]+|b[0-1]{8}|0b[0-1]+)/gi);
+        if (!matches) {
+          alert("No valid Hex or Binary data found in the input.");
+          return;
+        }
+
+        // Convert string matches to byte integers
+        let bytes = matches.map((m) => {
+          let upperM = m.toUpperCase();
+          if (upperM.startsWith("0X")) return parseInt(upperM, 16);
+          if (upperM.startsWith("0B")) return parseInt(upperM.substring(2), 2);
+          if (upperM.startsWith("B")) return parseInt(upperM.substring(1), 2);
+          return 0;
+        });
+
+        // Clear grid entirely before importing new data
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < numCols; c++) {
+            gridData[r][c] = 0;
+          }
+        }
+
+        let byteIndex = 0;
+
+        if (orientation === "row") {
+          let bytesPerRow = Math.ceil(numCols / 8);
+          for (let r = 0; r < numRows; r++) {
+            for (let b = 0; b < bytesPerRow; b++) {
+              if (byteIndex < bytes.length) {
+                let byteVal = bytes[byteIndex++];
+                for (let bit = 0; bit < 8; bit++) {
+                  let c = b * 8 + bit;
+                  if (c < numCols) {
+                    gridData[r][c] =
+                      bitOrder === "msb"
+                        ? (byteVal >> (7 - bit)) & 1
+                        : (byteVal >> bit) & 1;
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          let bytesPerCol = Math.ceil(numRows / 8);
+          for (let c = 0; c < numCols; c++) {
+            for (let b = 0; b < bytesPerCol; b++) {
+              if (byteIndex < bytes.length) {
+                let byteVal = bytes[byteIndex++];
+                for (let bit = 0; bit < 8; bit++) {
+                  let r = b * 8 + bit;
+                  if (r < numRows) {
+                    gridData[r][c] =
+                      bitOrder === "msb"
+                        ? (byteVal >> (7 - bit)) & 1
+                        : (byteVal >> bit) & 1;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Re-render visually
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < numCols; c++) {
+            updatePixelDOM(r, c, gridData[r][c]);
+          }
+        }
+        updateOutputs();
+        showToast("Grid imported successfully");
+      }
+
+      function copyToClipboard(elementId) {
+        const el = document.getElementById(elementId);
+        const text = el.value;
+
+        // Attempt to use modern Clipboard API
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => showToast("Copied to clipboard"))
+            .catch((err) => fallbackCopyTextToClipboard(text));
+        } else {
+          fallbackCopyTextToClipboard(text);
+        }
+      }
+
+      function fallbackCopyTextToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+
+        // Avoid scrolling to bottom
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) showToast("Copied to clipboard");
+        } catch (err) {
+          console.error("Fallback: Oops, unable to copy", err);
+        }
+
+        document.body.removeChild(textArea);
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById("toast");
+        document.getElementById("toastMsg").innerText = message;
+        toast.classList.remove("-translate-y-16", "opacity-0");
+        toast.classList.add("translate-y-0", "opacity-100");
+
+        setTimeout(() => {
+          toast.classList.remove("translate-y-0", "opacity-100");
+          toast.classList.add("-translate-y-16", "opacity-0");
+        }, 2000);
+      }
+
+      // Initialize on load
+      window.onload = () => {
+        initGridData();
+      };
+    </script>
+  </body>
+</html>
