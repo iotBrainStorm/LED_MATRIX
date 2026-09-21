@@ -201,87 +201,91 @@
     <!-- Main Workspace -->
     <main class="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#09090b]">
       <!-- Canvas Area (Left/Top) -->
+      <!-- Canvas Area (Left/Top) -->
       <div
-        class="flex-1 overflow-auto bg-grid-pattern relative flex flex-col justify-center items-center p-6 lg:p-12 gap-10"
+        class="flex-1 overflow-auto bg-grid-pattern relative flex p-6 lg:p-12"
       >
-        <!-- Mobile-only config controls -->
-        <div
-          class="flex md:hidden flex-wrap items-center justify-center gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800 backdrop-blur"
-        >
-          <select
-            id="dataOrientationMobile"
-            onchange="
-              document.getElementById('dataOrientation').value = this.value;
-              updateOutputs();
-            "
-            class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer border-r border-zinc-800"
-          >
-            <option value="row" class="bg-zinc-900">Row-Major</option>
-            <option value="col" class="bg-zinc-900">Col-Major</option>
-          </select>
-          <select
-            id="dataBitOrderMobile"
-            onchange="
-              document.getElementById('dataBitOrder').value = this.value;
-              updateOutputs();
-            "
-            class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer"
-          >
-            <option value="msb" class="bg-zinc-900">MSB First</option>
-            <option value="lsb" class="bg-zinc-900">LSB First</option>
-          </select>
-        </div>
-
-        <!-- Normal Grid -->
-        <div class="flex flex-col items-center gap-3">
-          <div class="flex items-center gap-2 text-zinc-400">
-            <span class="text-sm font-medium tracking-wide">Row-Major</span>
-            <span
-              id="dimNormal"
-              class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
-              >8×8</span
-            >
-          </div>
+        <!-- New wrapper with m-auto ensures safe centering without clipping scrollbars -->
+        <div class="m-auto flex flex-col items-center gap-10 w-max">
+          <!-- Mobile-only config controls -->
           <div
-            id="grid1"
-            class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
-          ></div>
-        </div>
+            class="flex md:hidden flex-wrap items-center justify-center gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800 backdrop-blur"
+          >
+            <select
+              id="dataOrientationMobile"
+              onchange="
+                document.getElementById('dataOrientation').value = this.value;
+                updateOutputs();
+              "
+              class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer border-r border-zinc-800"
+            >
+              <option value="row" class="bg-zinc-900">Row-Major</option>
+              <option value="col" class="bg-zinc-900">Col-Major</option>
+            </select>
+            <select
+              id="dataBitOrderMobile"
+              onchange="
+                document.getElementById('dataBitOrder').value = this.value;
+                updateOutputs();
+              "
+              class="bg-transparent text-zinc-300 text-sm px-2 py-1 outline-none cursor-pointer"
+            >
+              <option value="msb" class="bg-zinc-900">MSB First</option>
+              <option value="lsb" class="bg-zinc-900">LSB First</option>
+            </select>
+          </div>
 
-        <!-- Rotated Grid -->
-        <div class="flex flex-col items-center gap-3 opacity-90">
-          <div class="flex items-center gap-2 text-zinc-400">
-            <span class="text-sm font-medium tracking-wide">Col-Major</span>
-            <span
-              id="dimRotated"
-              class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
-              >8×8 (90°)</span
-            >
-            <!-- Rotate Button -->
-            <button
-              onclick="rotateColMajor()"
-              class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-sky-400 rounded transition-colors border border-zinc-700 ml-1"
-              title="Rotate Grid"
-            >
-              <svg
-                class="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          <!-- Normal Grid -->
+          <div class="flex flex-col items-center gap-3">
+            <div class="flex items-center gap-2 text-zinc-400">
+              <span class="text-sm font-medium tracking-wide">Row-Major</span>
+              <span
+                id="dimNormal"
+                class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
+                >8×8</span
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                ></path>
-              </svg>
-            </button>
+            </div>
+            <div
+              id="grid1"
+              class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
+            ></div>
           </div>
-          <div
-            id="grid2"
-            class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
-          ></div>
+
+          <!-- Rotated Grid -->
+          <div class="flex flex-col items-center gap-3 opacity-90">
+            <div class="flex items-center gap-2 text-zinc-400">
+              <span class="text-sm font-medium tracking-wide">Col-Major</span>
+              <span
+                id="dimRotated"
+                class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono border border-zinc-700"
+                >8×8 (90°)</span
+              >
+              <!-- Rotate Button -->
+              <button
+                onclick="rotateColMajor()"
+                class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-sky-400 rounded transition-colors border border-zinc-700 ml-1"
+                title="Rotate Grid"
+              >
+                <svg
+                  class="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+            <div
+              id="grid2"
+              class="grid-wrapper ring-4 ring-zinc-900/50 rounded"
+            ></div>
+          </div>
         </div>
       </div>
 

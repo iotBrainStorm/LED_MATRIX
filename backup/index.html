@@ -1174,8 +1174,8 @@
                 <option value="PA_SCROLL_DOWN_RIGHT">Down Right</option>
                 <option value="PA_SPRITE">Sprite Effect</option>
                 <option value="PA_SLICE">Slice In</option>
-                <option value="PA_MESH">Mesh Matrix</option>
-                <option value="PA_FADE">Smooth Fade</option>
+                <option value="PA_MESH">Mesh</option>
+                <option value="PA_FADE">Fade</option>
                 <option value="PA_DISSOLVE">Dissolve</option>
                 <option value="PA_BLINDS">Vertical Blinds</option>
                 <option value="PA_RANDOM">Random Pixels</option>
@@ -2861,19 +2861,32 @@
         }
 
         if (effectType === "PA_MESH") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          for (let r = 0; r < 8; r++) {
-            for (let c = startTextCol; c < endTextCol; c++) {
-              const screenCol = alignedX + c;
-              const isCheck = (r + screenCol) % 2 === 0;
-              let visible = !isExit
-                ? progress < 0.5
-                  ? isCheck
-                  : true
-                : progress < 0.5
-                  ? !isCheck
-                  : false;
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+          // Exact same frame pattern for both entry and exit
+          const shift = Math.max(0, 7 - step);
+
+          for (let x = 0; x < zWidth; x++) {
+            const bUp = x % 2 === 0;
+            const c_text = x - alignedX;
+            let col = 0;
+
+            // 1. Static column data
+            if (c_text >= 0 && c_text < textWidth) {
+              for (let r = 0; r < 8; r++) {
+                if (textGrid[r][c_text]) {
+                  col |= 1 << r;
+                }
+              }
+            }
+
+            // 2. Exact same mesh shift pattern
+            col = bUp ? col >> shift : col << shift;
+            col &= 0xff;
+
+            // 3. Render to matrix buffer
+            for (let r = 0; r < 8; r++) {
+              if ((col >> r) & 1) {
+                outBuffer[r][zStart + x] = 1;
+              }
             }
           }
           return { buffer: outBuffer, alpha };
@@ -3172,7 +3185,7 @@
             case "PA_RANDOM":
               return 30;
             case "PA_MESH":
-              return 20;
+              return 8;
             case "PA_SPRITE":
               return zWidth + 6;
             case "PA_SLICE": {

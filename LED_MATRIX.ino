@@ -1217,6 +1217,11 @@ void loadConfiguration() {
     curScene.align = parseAlign(sc["message"]["align"] | "center");
     curScene.inEffect = parseEffect(sc["animation"]["inEffect"] | "PA_SCROLL_LEFT");
     curScene.outEffect = parseEffect(sc["animation"]["outEffect"] | "PA_SCROLL_LEFT");
+    if (curScene.outEffect == PA_GROW_UP) {
+      curScene.outEffect = PA_GROW_DOWN;
+    } else if (curScene.outEffect == PA_GROW_DOWN) {
+      curScene.outEffect = PA_GROW_UP;
+    }
 
     curScene.speed = sc["animation"]["speedMs"] | 35;
     curScene.startDelay = sc["animation"]["startDelayMs"] | 0;
