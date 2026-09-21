@@ -1178,7 +1178,7 @@
                 <option value="PA_FADE">Fade</option>
                 <option value="PA_DISSOLVE">Dissolve</option>
                 <option value="PA_BLINDS">Blinds</option>
-                <option value="PA_RANDOM">Random Pixels</option>
+                <option value="PA_RANDOM">Pixels</option>
                 <option value="PA_WIPE">Wipe</option>
                 <option value="PA_WIPE_CURSOR">Wipe Cursor</option>
                 <option value="PA_OPENING">Curtain Opening</option>
@@ -2768,26 +2768,27 @@
         const endTextCol = Math.min(textWidth, zWidth - alignedX);
 
         if (effectType.startsWith("PA_WIPE")) {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const revealWidth = Math.ceil(zWidth * progress);
           const hasCursor = effectType.includes("CURSOR");
 
           for (let r = 0; r < 8; r++) {
-            for (let c = startTextCol; c < endTextCol; c++) {
+            for (let c = 0; c < textWidth; c++) {
               const screenCol = alignedX + c;
-              let visible = !isExit
-                ? screenCol < revealWidth
-                : screenCol < zWidth - revealWidth;
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              if (screenCol < 0 || screenCol >= zWidth) continue;
+
+              const visible = !isExit ? c < step : c >= step;
+              if (visible) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
             }
 
             if (hasCursor) {
               if (!isExit) {
-                if (revealWidth >= 0 && revealWidth < zWidth) {
-                  outBuffer[r][zStart + revealWidth] = 1;
+                const cursorCol = alignedX + Math.min(textWidth - 1, step);
+                if (cursorCol >= 0 && cursorCol < zWidth) {
+                  outBuffer[r][zStart + cursorCol] = 1;
                 }
               } else {
-                const cursorCol = zWidth - revealWidth - 1;
+                const cursorCol = alignedX + Math.max(0, step - 1);
                 if (cursorCol >= 0 && cursorCol < zWidth) {
                   outBuffer[r][zStart + cursorCol] = 1;
                 }
@@ -3195,6 +3196,7 @@
             case "PA_SCAN_HORIZX":
             case "PA_WIPE":
             case "PA_WIPE_CURSOR":
+              return textCols;
             case "PA_CLOSING":
             case "PA_CLOSING_CURSOR":
             case "PA_OPENING":
