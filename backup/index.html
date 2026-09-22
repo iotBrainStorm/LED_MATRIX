@@ -1172,7 +1172,7 @@
                 <option value="PA_SCROLL_UP_RIGHT">Up Right</option>
                 <option value="PA_SCROLL_DOWN_LEFT">Down Left</option>
                 <option value="PA_SCROLL_DOWN_RIGHT">Down Right</option>
-                <option value="PA_SPRITE">Sprite Effect</option>
+                <option value="PA_SPRITE">Sprite</option>
                 <option value="PA_SLICE">Slice In</option>
                 <option value="PA_MESH">Mesh</option>
                 <option value="PA_FADE">Fade</option>
@@ -3073,31 +3073,61 @@
         }
 
         if (effectType === "PA_SPRITE") {
-          const progress = Math.min(1, step / Math.max(1, maxSteps));
-          const spriteX = Math.floor(zWidth * progress);
+          const isIncoming = typeof isExit !== "undefined" ? !isExit : true;
+          const spriteWidth = 8;
 
+          // Entry: Moves Left to Right.
+          // Exit: Reverses motion (Right to Left), starting fully off-screen right.
+          const currentX = isIncoming ? step : zWidth + spriteWidth - step;
+
+          // Exact Parola Pacman bitmaps (6 Frames, ALWAYS Facing Right)
+          const pacmanFrames = [
+            [0x00, 0x81, 0xc3, 0xe7, 0xff, 0x7e, 0x7e, 0x3c],
+            [0x00, 0x42, 0xe7, 0xe7, 0xff, 0xff, 0x7e, 0x3c],
+            [0x24, 0x66, 0xe7, 0xff, 0xff, 0xff, 0x7e, 0x3c],
+            [0x3c, 0x7e, 0xff, 0xff, 0xff, 0xff, 0x7e, 0x3c],
+            [0x24, 0x66, 0xe7, 0xff, 0xff, 0xff, 0x7e, 0x3c],
+            [0x00, 0x42, 0xe7, 0xe7, 0xff, 0xff, 0x7e, 0x3c],
+          ];
+
+          // 1. Draw Text
           for (let r = 0; r < 8; r++) {
             for (let c = startTextCol; c < endTextCol; c++) {
               const screenCol = alignedX + c;
-              const visible = !isExit
-                ? screenCol <= spriteX
-                : screenCol > spriteX;
-              if (visible) outBuffer[r][zStart + screenCol] = textGrid[r][c];
+
+              // Text remains visible if it is to the LEFT of Pacman's tail.
+              // - On Entry (moving right), his tail uncovers/reveals the text.
+              // - On Exit (moonwalking left), his tail covers/erases the text.
+              if (
+                screenCol < currentX - spriteWidth + 1 &&
+                screenCol >= 0 &&
+                screenCol < zWidth
+              ) {
+                outBuffer[r][zStart + screenCol] = textGrid[r][c];
+              }
             }
           }
 
-          const sX = zStart + (!isExit ? spriteX : zWidth - spriteX);
-          if (sX >= zStart && sX <= zEnd) {
-            for (let sr = 1; sr < 7; sr++) {
-              for (let sc = 0; sc < 4; sc++) {
-                if (sX - sc >= zStart) outBuffer[sr][sX - sc] = 1;
+          // 2. Draw Pixel-Perfect Pacman Bitmap
+          const frameIdx = step % 6;
+          const frameData = pacmanFrames[frameIdx];
+
+          for (let sc = 0; sc < spriteWidth; sc++) {
+            // currentX is the leading right edge (mouth). Body trails to the left.
+            const px = currentX - sc;
+
+            if (px >= 0 && px < zWidth) {
+              const globalX = zStart + px;
+              const colData = frameData[sc];
+
+              for (let r = 0; r < 8; r++) {
+                if ((colData >> r) & 1) {
+                  outBuffer[r][globalX] = 1;
+                }
               }
             }
-            if (step % 4 < 2 && sX >= zStart) {
-              outBuffer[3][sX] = 0;
-              outBuffer[4][sX] = 0;
-            }
           }
+
           return { buffer: outBuffer, alpha };
         }
 
