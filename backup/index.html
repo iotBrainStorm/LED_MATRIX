@@ -865,16 +865,27 @@
 
           <!-- Dynamic Message Text Input Area -->
           <div id="plain-text-box">
-            <label
-              for="plain-text-val"
-              class="block text-slate-300 mb-1 font-medium"
-              >Display Message</label
-            >
+            <div class="flex justify-between items-center mb-1">
+              <label for="plain-text-val" class="text-slate-300 font-medium"
+                >Display Message</label
+              >
+              <!-- Added Character Counter -->
+              <span
+                id="char-count"
+                class="font-mono-code text-cyan-400 font-bold text-[11px]"
+                >10 / 250</span
+              >
+            </div>
             <input
               type="text"
               id="plain-text-val"
               value="ESP MATRIX"
-              oninput="handleConfigFieldChange()"
+              maxlength="250"
+              oninput="
+                document.getElementById('char-count').innerText =
+                  this.value.length + ' / 250';
+                handleConfigFieldChange();
+              "
               placeholder="Type plain text to display..."
               class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition text-sm"
             />
@@ -3969,6 +3980,7 @@
 
         document.getElementById("scene-name").value = "";
         document.getElementById("plain-text-val").value = "ESP MATRIX";
+        document.getElementById("char-count").innerText = "10 / 250";
         document.getElementById("custom-text-val").value =
           "{hh}:{mm}:{ss} {AMPM} | {TEM}{DEG}C {HUM}% | {DD}-{MMM}-{YYYY}";
         document.getElementById("msg-type").value = "plain";
@@ -4090,6 +4102,8 @@
           document.getElementById("msg-type").value = cfg.message.type;
           document.getElementById("plain-text-val").value =
             cfg.message.type === "plain" ? cfg.message.content : "";
+          document.getElementById("char-count").innerText =
+            document.getElementById("plain-text-val").value.length + " / 250";
           document.getElementById("custom-text-val").value =
             cfg.message.type !== "plain" ? cfg.message.content : "";
           document.getElementById("font-align").value =
