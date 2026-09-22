@@ -584,10 +584,18 @@
 
             <!-- Zone Chips List -->
             <div class="mt-4">
-              <div
-                class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2"
-              >
-                Configured Display Zones
+              <div class="flex justify-between items-center mb-2">
+                <div
+                  class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold"
+                >
+                  Configured Display Zones
+                </div>
+                <!-- Added Zone Counter -->
+                <span
+                  id="zone-count-label"
+                  class="font-mono-code text-cyan-400 font-bold text-[11px]"
+                  >1 / 8</span
+                >
               </div>
               <div
                 id="zones-container"
@@ -1400,6 +1408,19 @@
 
             <!-- Scene Chips List -->
             <div>
+              <div class="flex justify-between items-center mb-2">
+                <div
+                  class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold"
+                >
+                  Configured Scenes
+                </div>
+                <!-- Added Scene Counter -->
+                <span
+                  id="scene-count-label"
+                  class="font-mono-code text-teal-400 font-bold text-[11px]"
+                  >0 / 50</span
+                >
+              </div>
               <div
                 id="scenes-container"
                 class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
@@ -3904,6 +3925,10 @@
         const currentSelected = targetSelect ? targetSelect.value : "";
         const isMusicActive = musicSyncConfig.enabled;
 
+        // Update Zone Counter
+        const countLabel = document.getElementById("zone-count-label");
+        if (countLabel) countLabel.innerText = `${zones.length} / 8`;
+
         container.innerHTML = "";
         if (targetSelect) targetSelect.innerHTML = "";
 
@@ -4155,6 +4180,10 @@
       function renderScenesUI() {
         const container = document.getElementById("scenes-container");
         container.innerHTML = "";
+
+        // Update Scene Counter
+        const countLabel = document.getElementById("scene-count-label");
+        if (countLabel) countLabel.innerText = `${scenes.length} / 50`;
 
         if (scenes.length === 0) {
           container.innerHTML =
