@@ -2724,32 +2724,42 @@
           let x = alignedX;
           let y = 0;
 
-          if (effectType.includes("LEFT")) {
-            x = !isExit ? zWidth - step : alignedX - step;
-          } else if (effectType.includes("RIGHT")) {
-            x = !isExit ? -textWidth + step : alignedX + step;
+          // 1. Pure Horizontal Scrolls (Travel from extreme edges)
+          if (
+            effectType === "PA_SCROLL_LEFT" ||
+            effectType === "PA_SCROLL_RIGHT"
+          ) {
+            if (effectType === "PA_SCROLL_LEFT") {
+              x = !isExit ? zWidth - step : alignedX - step;
+            } else {
+              // RIGHT
+              x = !isExit ? -textWidth + step : alignedX + step;
+            }
           }
+          // 2. Vertical and Diagonal Scrolls (8-pixel shift from final position)
+          else {
+            // Parola offset goes 7 down to 0 for Entry, 0 up to 7 for Exit
+            const maxOffset = 7;
+            const safeStep = Math.min(step, maxOffset);
+            const offset = !isExit ? maxOffset - safeStep : safeStep;
 
-          if (effectType.includes("UP_")) {
-            const progress = Math.min(1, step / Math.max(1, maxSteps));
-            y = !isExit
-              ? Math.round(8 - 8 * progress)
-              : -Math.round(8 * progress);
-          } else if (effectType.includes("DOWN_")) {
-            const progress = Math.min(1, step / Math.max(1, maxSteps));
-            y = !isExit
-              ? -8 + Math.round(8 * progress)
-              : Math.round(8 * progress);
-          } else if (effectType === "PA_SCROLL_UP") {
-            const progress = Math.min(1, step / Math.max(1, maxSteps));
-            y = !isExit
-              ? Math.round(8 - 8 * progress)
-              : -Math.round(8 * progress);
-          } else if (effectType === "PA_SCROLL_DOWN") {
-            const progress = Math.min(1, step / Math.max(1, maxSteps));
-            y = !isExit
-              ? -8 + Math.round(8 * progress)
-              : Math.round(8 * progress);
+            // X offsets for Diagonals
+            if (effectType.includes("LEFT")) {
+              // Moves Left: Enters from Right (+offset), Exits to Left (-offset)
+              x = !isExit ? alignedX + offset : alignedX - offset;
+            } else if (effectType.includes("RIGHT")) {
+              // Moves Right: Enters from Left (-offset), Exits to Right (+offset)
+              x = !isExit ? alignedX - offset : alignedX + offset;
+            }
+
+            // Y offsets for Vertical and Diagonals
+            if (effectType.includes("UP")) {
+              // Moves Up: Enters from Bottom (+offset), Exits to Top (-offset)
+              y = !isExit ? offset : -offset;
+            } else if (effectType.includes("DOWN")) {
+              // Moves Down: Enters from Top (-offset), Exits to Bottom (+offset)
+              y = !isExit ? -offset : offset;
+            }
           }
 
           drawVirtual(x, y);
@@ -3226,8 +3236,11 @@
 
         function getAnimationSteps(effect, isExit = false) {
           if (effect.startsWith("PA_SCROLL_")) {
-            if (effect === "PA_SCROLL_UP" || effect === "PA_SCROLL_DOWN")
+            // Vertical and Diagonal scrolls in Parola take exactly 8 frames (0 to 7)
+            if (effect.includes("UP") || effect.includes("DOWN")) {
               return 8;
+            }
+            // Pure Horizontal scrolls are length-dependent (travel from extreme edge)
             return Math.max(1, getScrollSteps(effect, isExit));
           }
 
