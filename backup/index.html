@@ -2903,8 +2903,7 @@
         }
 
         if (effectType === "PA_MESH") {
-          // Exact same frame pattern for both entry and exit
-          const shift = Math.max(0, 7 - step);
+          const isIncoming = typeof isEntry !== "undefined" ? isEntry : true;
 
           for (let x = 0; x < zWidth; x++) {
             const bUp = x % 2 === 0;
@@ -2920,8 +2919,21 @@
               }
             }
 
-            // 2. Exact same mesh shift pattern
-            col = bUp ? col >> shift : col << shift;
+            // 2. Apply Mesh shift pattern
+            if (isIncoming) {
+              // ENTRY: Smooth linear shift from 7 down to 0
+              const shift = Math.max(0, 7 - step);
+              col = bUp ? col << shift : col >> shift;
+            } else {
+              // EXIT: Replicate Parola's exponential compounding shift bug/quirk
+              // Shift amounts: Frame 1=1, Frame 2=3, Frame 3=6, Frame 4=10 (cleared)
+              const n = step + 1;
+              const shift = (n * (n + 1)) / 2;
+
+              // Operators reversed from Entry to continue moving in the same direction (pass-through)
+              col = bUp ? col >> shift : col << shift;
+            }
+
             col &= 0xff;
 
             // 3. Render to matrix buffer
@@ -3008,9 +3020,6 @@
 
         if (effectType.startsWith("PA_SCAN_VERT")) {
           const isBlank = effectType.includes("X");
-
-          // Parola's VScan sweeps rows 0->7 on Entry, and reverses 7->0 on Exit.
-          // Assuming step is 1-indexed (1 to 8).
           const scanRow = !isExit ? step - 1 : 8 - step;
 
           for (let r = 0; r < 8; r++) {
