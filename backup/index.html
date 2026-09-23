@@ -1437,11 +1437,11 @@
                 <h3
                   class="text-xs font-bold text-cyan-300 uppercase tracking-wider"
                 >
-                  Zone Playlists (Optional)
+                  Zone Playlists (Required)
                 </h3>
                 <p class="text-[10px] text-slate-400">
-                  Chain finite scenes of the same zone to loop sequentially or
-                  infinitely.
+                  A playlist MUST be created and turned ON for a zone to display
+                  text animations.
                 </p>
               </div>
               <button
@@ -4658,7 +4658,11 @@
 
         // 5. Playlists
         if (Array.isArray(data.playlists)) {
-          playlists = data.playlists;
+          playlists = data.playlists.map((pl, index) => ({
+            ...pl,
+            id: pl.id || `pl_imported_${Date.now()}_${index}`, // Assign an ID if missing from ESP
+            enabled: pl.enabled !== false,
+          }));
           renderPlaylistsUI();
         }
         populatePlaylistZoneDropdown();
@@ -4808,6 +4812,9 @@
           return;
         }
 
+        let savedId = null;
+        let isEnabledNow = true;
+
         if (editingPlaylistId) {
           const idx = playlists.findIndex((p) => p.id === editingPlaylistId);
           if (idx >= 0) {
@@ -4817,18 +4824,33 @@
               zone,
               scenes: [...activePlaylistScenes],
               repeat: repeatCount,
+              enabled: playlists[idx].enabled !== false, // Preserve existing state
             };
+            savedId = editingPlaylistId;
+            isEnabledNow = playlists[idx].enabled;
             showToast(`Playlist "${name}" updated.`);
           }
         } else {
+          savedId = `pl_${Date.now()}`;
           playlists.push({
-            id: `pl_${Date.now()}`,
+            id: savedId,
             name,
             zone,
             scenes: [...activePlaylistScenes],
             repeat: repeatCount,
+            enabled: true, // Default to ON
           });
+          isEnabledNow = true;
           showToast(`Playlist "${name}" created.`);
+        }
+
+        // MUTUAL EXCLUSIVITY: Automatically turn OFF other playlists in the SAME zone if this one is ON
+        if (isEnabledNow && savedId) {
+          playlists.forEach((p) => {
+            if (p.id !== savedId && p.zone === zone) {
+              p.enabled = false;
+            }
+          });
         }
 
         cancelPlaylistForm();
@@ -4872,6 +4894,24 @@
         showToast("Playlist removed.");
       }
 
+      function togglePlaylistStatus(id, status, e) {
+        if (e) e.stopPropagation();
+        const pl = playlists.find((p) => p.id === id);
+        if (!pl) return;
+
+        pl.enabled = status;
+
+        // Optional: Automatically turn OFF other playlists sharing the SAME zone
+        if (status) {
+          playlists.forEach((p) => {
+            if (p.id !== id && p.zone === pl.zone) {
+              p.enabled = false;
+            }
+          });
+        }
+        renderPlaylistsUI();
+      }
+
       function renderPlaylistsUI() {
         const container = document.getElementById("playlists-container");
         if (!container) return;
@@ -4879,20 +4919,39 @@
 
         if (playlists.length === 0) {
           container.innerHTML =
-            '<span class="text-[11px] text-slate-500 italic">No playlists created. Standard scene orders will run.</span>';
+            '<span class="text-[11px] text-slate-500 italic">No playlists created. You MUST create a playlist to display scenes.</span>';
           return;
         }
 
         playlists.forEach((pl) => {
           const isInf = pl.repeat === -1;
+          const isEnabled = pl.enabled !== false; // defaults to true
+
           const chip = document.createElement("div");
-          chip.className =
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono-code bg-slate-800/90 text-cyan-300 border border-cyan-700/60 hover:border-cyan-400 cursor-pointer transition";
+          chip.className = `flex flex-col gap-2 w-full sm:w-[calc(50%-0.25rem)] px-3 py-2.5 rounded-lg text-xs font-mono-code border transition cursor-pointer ${
+            isEnabled
+              ? "bg-slate-800/90 text-cyan-300 border-cyan-500 shadow-[0_0_8px_rgba(0,242,254,0.15)]"
+              : "bg-slate-900/50 text-slate-500 border-slate-700 hover:border-slate-500"
+          }`;
           chip.onclick = () => editPlaylist(pl.id);
+
           chip.innerHTML = `
-              <span>📋 <strong>${pl.name}</strong> [${pl.zone}] → ${pl.scenes.length} Scenes (${isInf ? "∞ Loop" : pl.repeat + "x"})</span>
-              <button type="button" onclick="event.stopPropagation(); removePlaylist('${pl.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
-            `;
+            <div class="flex items-center justify-between gap-4">
+              <span class="font-bold truncate">📋 ${pl.name}</span>
+              <div class="flex items-center gap-3" onclick="event.stopPropagation()">
+                <!-- ON/OFF Toggle Switch -->
+                <label class="relative inline-flex items-center cursor-pointer" title="Toggle On/Off">
+                  <input type="checkbox" class="sr-only peer" ${isEnabled ? "checked" : ""} onchange="togglePlaylistStatus('${pl.id}', this.checked, event)">
+                  <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"></div>
+                </label>
+                <!-- Delete Button -->
+                <button type="button" onclick="removePlaylist('${pl.id}')" class="text-slate-400 hover:text-red-400 font-bold transition text-sm">✕</button>
+              </div>
+            </div>
+            <div class="text-[10px] ${isEnabled ? "text-slate-400" : "text-slate-600"}">
+              [${pl.zone}] → ${pl.scenes.length} Scenes (${isInf ? "∞ Loop" : pl.repeat + "x"})
+            </div>
+          `;
           container.appendChild(chip);
         });
       }

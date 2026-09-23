@@ -1034,47 +1034,43 @@ void saveDefaultConfiguration() {
 
   JsonArray scenesArr = doc["scenes"].to<JsonArray>();
 
+  // Single default scene stretching across the whole display
   JsonObject sc1 = scenesArr.add<JsonObject>();
-  sc1["sceneName"] = "ESP";
+  sc1["sceneName"] = "Welcome";
+
   JsonObject z1 = sc1["zone"].to<JsonObject>();
   z1["name"] = "Zone 1";
   z1["startCol"] = 0;
-  z1["endCol"] = 23;
+  z1["endCol"] = 39; // 0 to 39 covers all 5 default modules
+
   JsonObject m1 = sc1["message"].to<JsonObject>();
   m1["type"] = "plain";
-  m1["content"] = "ESP";
-  m1["bold"] = true;
+  m1["content"] = "Led Studio"; // The requested text
+  m1["bold"] = true;            // Bold font requested
   m1["align"] = "center";
+
   JsonObject a1 = sc1["animation"].to<JsonObject>();
-  a1["inEffect"] = "PA_SCROLL_LEFT";
+  a1["inEffect"] = "PA_SCROLL_LEFT"; // Scroll left
   a1["outEffect"] = "PA_SCROLL_LEFT";
   a1["speedMs"] = 35;
   a1["startDelayMs"] = 0;
   a1["endDelayMs"] = 0;
+
   JsonObject d1 = sc1["display"].to<JsonObject>();
   d1["brightness"] = 12;
-  d1["repeat"] = 3;
+  d1["repeat"] = -1;
 
-  JsonObject sc2 = scenesArr.add<JsonObject>();
-  sc2["sceneName"] = "32";
-  JsonObject z2 = sc2["zone"].to<JsonObject>();
-  z2["name"] = "Zone 2";
-  z2["startCol"] = 24;
-  z2["endCol"] = 39;
-  JsonObject m2 = sc2["message"].to<JsonObject>();
-  m2["type"] = "plain";
-  m2["content"] = "32";
-  m2["bold"] = true;
-  m2["align"] = "center";
-  JsonObject a2 = sc2["animation"].to<JsonObject>();
-  a2["inEffect"] = "PA_PRINT";
-  a2["outEffect"] = "PA_NO_EFFECT";
-  a2["speedMs"] = 0;
-  a2["startDelayMs"] = 0;
-  a2["endDelayMs"] = 0;
-  JsonObject d2 = sc2["display"].to<JsonObject>();
-  d2["brightness"] = 12;
-  d2["repeat"] = -1;
+  // Generate the mandatory playlist for the default scene
+  JsonArray plArr = doc["playlists"].to<JsonArray>();
+
+  JsonObject pl1 = plArr.add<JsonObject>();
+  pl1["name"] = "Default Playlist";
+  pl1["zone"] = "Zone 1";
+  pl1["repeat"] = -1;
+  pl1["enabled"] = true; // Make sure it's turned ON by default
+
+  JsonArray pScenes1 = pl1["scenes"].to<JsonArray>();
+  pScenes1.add("Welcome"); // Link to the scene above
 
   serializeJson(doc, file);
   file.close();
@@ -1293,10 +1289,6 @@ void loadConfiguration() {
       }
     }
 
-    if (zones[targetZone].sceneCount < MAX_SCENES) {
-      zones[targetZone].sceneList[zones[targetZone].sceneCount++] = totalScenes;
-    }
-
     totalScenes++;
   }
 
@@ -1306,6 +1298,9 @@ void loadConfiguration() {
   if (doc["playlists"].is<JsonArray>()) {
     JsonArray plArr = doc["playlists"].as<JsonArray>();
     for (JsonObject pl : plArr) {
+      bool isEnabled = pl["enabled"] | true;
+      if (!isEnabled)
+        continue; // Skip this playlist entirely if turned off
       const char *plZone = pl["zone"] | "";
       int plRepeat = pl["repeat"] | -1;
 
@@ -1350,6 +1345,52 @@ void loadConfiguration() {
   P.displayClear();
   Serial.println("========================================");
   Serial.printf("[Config] Total Scenes: %d | Formed %d Unique Physical Zones:\n", totalScenes, activeZoneCount);
+
+  // 1. Check if any playlists are actually active
+  bool hasActivePlaylists = false;
+  for (uint8_t z = 0; z < activeZoneCount; z++) {
+    if (zones[z].sceneCount > 0) {
+      hasActivePlaylists = true;
+      break;
+    }
+  }
+
+  // 2. If no active playlists exist, force a full-screen mDNS scroller fallback
+  if (!hasActivePlaylists) {
+    Serial.println("[Config] No active playlists. Starting full-screen mDNS fallback.");
+    activeZoneCount = 1;
+    totalScenes = 1;
+
+    // Force Zone 0 to cover the entire display (Module 0 to Max)
+    zones[0].inUse = true;
+    strcpy(zones[0].name, "Fallback Zone");
+    zones[0].startDev = 0;
+    zones[0].endDev = MAX_DEVICES - 1;
+    zones[0].sceneCount = 1;
+    zones[0].sceneList[0] = 0;
+    zones[0].playlistRepeat = -1;
+
+    // Create the dummy scrolling scene
+    SceneConfig &sc = scenes[0];
+    strcpy(sc.name, "mDNS Scroll");
+    sc.startCol = 0;
+    sc.endCol = (MAX_DEVICES * 8) - 1;
+    sc.isCustom = false;
+    sc.isBold = false;
+    sc.align = PA_CENTER;
+    sc.inEffect = PA_SCROLL_LEFT;
+    sc.outEffect = PA_SCROLL_LEFT;
+    sc.speed = 35;
+    sc.pause = 0;
+    sc.startDelay = 0;
+    sc.brightness = 10;
+    sc.repeat = -1;
+
+    // Format the text: "ledstudio-XXXX.local"
+    String fallbackMsg = String(mdnsHostname) + ".local";
+    strncpy(sc.rawMessage, fallbackMsg.c_str(), sizeof(sc.rawMessage) - 1);
+    sc.rawMessage[sizeof(sc.rawMessage) - 1] = '\0';
+  }
 
   for (uint8_t z = 0; z < activeZoneCount; z++) {
     P.setZone(z, zones[z].startDev, zones[z].endDev);
