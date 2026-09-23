@@ -383,7 +383,7 @@
                 <input
                   type="number"
                   id="matrix-width"
-                  value="40"
+                  value="32"
                   min="8"
                   max="192"
                   step="8"
@@ -426,31 +426,31 @@
                 <div class="grid grid-cols-4 gap-1.5 font-mono-code">
                   <button
                     type="button"
-                    onclick="setMatrixPreset(40)"
+                    onclick="setMatrixPreset(32)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    5 (40)
+                    4 (32)
                   </button>
                   <button
                     type="button"
-                    onclick="setMatrixPreset(80)"
+                    onclick="setMatrixPreset(64)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    10 (80)
+                    8 (64)
                   </button>
                   <button
                     type="button"
-                    onclick="setMatrixPreset(120)"
+                    onclick="setMatrixPreset(96)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    15 (120)
+                    12 (96)
                   </button>
                   <button
                     type="button"
-                    onclick="setMatrixPreset(160)"
+                    onclick="setMatrixPreset(128)"
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
-                    20 (160)
+                    16 (128)
                   </button>
                 </div>
               </div>
@@ -531,7 +531,7 @@
                   id="zone-end"
                   min="7"
                   step="8"
-                  value="39"
+                  value="31"
                   required
                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code outline-none focus:border-cyan-400 transition"
                 />
@@ -680,7 +680,9 @@
                 <option value="VU Bounce">VU Bounce (Dynamic Gravity)</option>
                 <option value="VU Pulse">VU Pulse (Intensity Pulse)</option>
                 <option value="VU Wave">VU Wave (Frequency Ripple)</option>
-                <option value="VU Spectrum">VU Spectrum (Multi-Band EQ)</option>
+                <option value="VU Spectrum" selected>
+                  VU Spectrum (Multi-Band EQ)
+                </option>
                 <option value="VU Spectrum Bar">
                   VU Spectrum Bar (Bars Only)
                 </option>
@@ -703,7 +705,7 @@
                 onchange="handleMusicSyncChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
-                <option value="Fast">Fast Drop</option>
+                <option value="Fast" selected>Fast Drop</option>
                 <option value="Medium" selected>Medium Decay</option>
                 <option value="Smooth">Smooth / Slow Decay</option>
               </select>
@@ -718,7 +720,7 @@
                 <span
                   id="ms-sens-val"
                   class="font-mono-code text-cyan-400 font-bold"
-                  >60%</span
+                  >20%</span
                 >
               </div>
               <input
@@ -726,7 +728,7 @@
                 id="ms-sensitivity"
                 min="1"
                 max="100"
-                value="60"
+                value="20"
                 oninput="
                   document.getElementById('ms-sens-val').innerText =
                     this.value + '%';
@@ -2132,7 +2134,7 @@
         z: [0x00, 0x00, 0x7e, 0x64, 0x08, 0x10, 0x26, 0x7e],
       };
 
-      let matrixWidth = 40;
+      let matrixWidth = 32;
       const matrixHeight = 8;
       let dotRadius = 4;
       let dotGap = 2.5;
@@ -2162,15 +2164,15 @@
 
       let zones = [
         {
-          id: "zone_0",
+          id: "zone_txt_1",
           name: "Zone 1",
           start: 0,
           end: matrixWidth - 1,
           isMusic: false,
         },
         {
-          id: "zone_music_full",
-          name: "Music Full",
+          id: "zone_mus_1",
+          name: "Music Zone",
           start: 0,
           end: matrixWidth - 1,
           isMusic: true,
@@ -2219,10 +2221,10 @@
       /* Separate Root-Level Music Sync Configuration */
       let musicSyncConfig = {
         enabled: false,
-        zone: "Zone 1",
-        animation: "VU Bar",
-        sensitivity: 60,
-        peakSpeed: "Medium",
+        zone: "Music Zone",
+        animation: "VU Spectrum",
+        sensitivity: 20,
+        peakSpeed: "Fast",
         brightness: 12,
       };
 

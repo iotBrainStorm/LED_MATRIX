@@ -37,7 +37,7 @@ MD_MAX72XX::moduleType_t parseHardwareType(const char *str) {
 }
 
 #define ABSOLUTE_MAX_DEVICES 30
-uint8_t MAX_DEVICES = 5;
+uint8_t MAX_DEVICES = 4;
 #define CLK_PIN 18
 #define DATA_PIN 23
 #define CS_PIN 5
@@ -1018,15 +1018,15 @@ void saveDefaultConfiguration() {
   doc["device"] = "ESP_LED_MATRIX_MD_PAROLA";
   JsonObject matrix = doc["matrix"].to<JsonObject>();
   matrix["height"] = 8;
-  matrix["width"] = 40;
-  matrix["modules"] = 5;
+  matrix["width"] = 32;
+  matrix["modules"] = 4;
   matrix["hardware_type"] = "FC16_HW";
 
   JsonObject ms = doc["music_sync"].to<JsonObject>();
   ms["enabled"] = false;
   ms["zone"] = "Zone 1";
   ms["start_col"] = 0;
-  ms["end_col"] = 39;
+  ms["end_col"] = 31;
   ms["animation"] = "VU Bar";
   ms["sensitivity"] = 60;
   ms["peak_decay"] = "Medium";
@@ -1041,7 +1041,7 @@ void saveDefaultConfiguration() {
   JsonObject z1 = sc1["zone"].to<JsonObject>();
   z1["name"] = "Zone 1";
   z1["startCol"] = 0;
-  z1["endCol"] = 39; // 0 to 39 covers all 5 default modules
+  z1["endCol"] = 31;
 
   JsonObject m1 = sc1["message"].to<JsonObject>();
   m1["type"] = "plain";
@@ -1357,39 +1357,43 @@ void loadConfiguration() {
 
   // 2. If no active playlists exist, force a full-screen mDNS scroller fallback
   if (!hasActivePlaylists) {
-    Serial.println("[Config] No active playlists. Starting full-screen mDNS fallback.");
-    activeZoneCount = 1;
-    totalScenes = 1;
 
-    // Force Zone 0 to cover the entire display (Module 0 to Max)
-    zones[0].inUse = true;
-    strcpy(zones[0].name, "Fallback Zone");
-    zones[0].startDev = 0;
-    zones[0].endDev = MAX_DEVICES - 1;
-    zones[0].sceneCount = 1;
-    zones[0].sceneList[0] = 0;
-    zones[0].playlistRepeat = -1;
+    Serial.println("[Config] No active playlists. Display will remain blank (OFF).");
+    activeZoneCount = 0; // This prevents the ESP from trying to animate anything
 
-    // Create the dummy scrolling scene
-    SceneConfig &sc = scenes[0];
-    strcpy(sc.name, "mDNS Scroll");
-    sc.startCol = 0;
-    sc.endCol = (MAX_DEVICES * 8) - 1;
-    sc.isCustom = false;
-    sc.isBold = false;
-    sc.align = PA_CENTER;
-    sc.inEffect = PA_SCROLL_LEFT;
-    sc.outEffect = PA_SCROLL_LEFT;
-    sc.speed = 35;
-    sc.pause = 0;
-    sc.startDelay = 0;
-    sc.brightness = 10;
-    sc.repeat = -1;
+    // Serial.println("[Config] No active playlists. Starting full-screen mDNS fallback.");
+    // activeZoneCount = 1;
+    // totalScenes = 1;
 
-    // Format the text: "ledstudio-XXXX.local"
-    String fallbackMsg = String(mdnsHostname) + ".local";
-    strncpy(sc.rawMessage, fallbackMsg.c_str(), sizeof(sc.rawMessage) - 1);
-    sc.rawMessage[sizeof(sc.rawMessage) - 1] = '\0';
+    // // Force Zone 0 to cover the entire display (Module 0 to Max)
+    // zones[0].inUse = true;
+    // strcpy(zones[0].name, "Fallback Zone");
+    // zones[0].startDev = 0;
+    // zones[0].endDev = MAX_DEVICES - 1;
+    // zones[0].sceneCount = 1;
+    // zones[0].sceneList[0] = 0;
+    // zones[0].playlistRepeat = -1;
+
+    // // Create the dummy scrolling scene
+    // SceneConfig &sc = scenes[0];
+    // strcpy(sc.name, "mDNS Scroll");
+    // sc.startCol = 0;
+    // sc.endCol = (MAX_DEVICES * 8) - 1;
+    // sc.isCustom = false;
+    // sc.isBold = false;
+    // sc.align = PA_CENTER;
+    // sc.inEffect = PA_SCROLL_LEFT;
+    // sc.outEffect = PA_SCROLL_LEFT;
+    // sc.speed = 35;
+    // sc.pause = 0;
+    // sc.startDelay = 0;
+    // sc.brightness = 10;
+    // sc.repeat = -1;
+
+    // // Format the text: "ledstudio-XXXX.local"
+    // String fallbackMsg = String(mdnsHostname) + ".local";
+    // strncpy(sc.rawMessage, fallbackMsg.c_str(), sizeof(sc.rawMessage) - 1);
+    // sc.rawMessage[sizeof(sc.rawMessage) - 1] = '\0';
   }
 
   for (uint8_t z = 0; z < activeZoneCount; z++) {
