@@ -1022,19 +1022,36 @@ void saveDefaultConfiguration() {
   matrix["modules"] = 4;
   matrix["hardware_type"] = "FC16_HW";
 
+  // ---> NEW MUSIC SETTINGS <---
   JsonObject ms = doc["music_sync"].to<JsonObject>();
   ms["enabled"] = false;
-  ms["zone"] = "Zone 1";
+  ms["zone"] = "Music Zone";
   ms["start_col"] = 0;
   ms["end_col"] = 31;
-  ms["animation"] = "VU Bar";
-  ms["sensitivity"] = 60;
-  ms["peak_decay"] = "Medium";
+  ms["animation"] = "VU Spectrum";
+  ms["sensitivity"] = 20;
+  ms["peak_decay"] = "Fast";
   ms["brightness"] = 12;
 
-  JsonArray scenesArr = doc["scenes"].to<JsonArray>();
+  // ---> EXPLICITLY CREATE ZONES SO WEB UI DOESN'T LOSE THEM <---
+  JsonArray zonesArr = doc["zones"].to<JsonArray>();
 
-  // Single default scene stretching across the whole display
+  JsonObject zText = zonesArr.add<JsonObject>();
+  zText["id"] = "zone_txt_1";
+  zText["name"] = "Zone 1";
+  zText["start"] = 0;
+  zText["end"] = 31;
+  zText["isMusic"] = false;
+
+  JsonObject zMusic = zonesArr.add<JsonObject>();
+  zMusic["id"] = "zone_mus_1";
+  zMusic["name"] = "Music Zone";
+  zMusic["start"] = 0;
+  zMusic["end"] = 31;
+  zMusic["isMusic"] = true;
+
+  // ---> DEFAULT SCENE <---
+  JsonArray scenesArr = doc["scenes"].to<JsonArray>();
   JsonObject sc1 = scenesArr.add<JsonObject>();
   sc1["sceneName"] = "Welcome";
 
@@ -1045,12 +1062,12 @@ void saveDefaultConfiguration() {
 
   JsonObject m1 = sc1["message"].to<JsonObject>();
   m1["type"] = "plain";
-  m1["content"] = "Led Studio"; // The requested text
-  m1["bold"] = true;            // Bold font requested
+  m1["content"] = "Led Studio";
+  m1["bold"] = true;
   m1["align"] = "center";
 
   JsonObject a1 = sc1["animation"].to<JsonObject>();
-  a1["inEffect"] = "PA_SCROLL_LEFT"; // Scroll left
+  a1["inEffect"] = "PA_SCROLL_LEFT";
   a1["outEffect"] = "PA_SCROLL_LEFT";
   a1["speedMs"] = 35;
   a1["startDelayMs"] = 0;
@@ -1060,17 +1077,15 @@ void saveDefaultConfiguration() {
   d1["brightness"] = 12;
   d1["repeat"] = -1;
 
-  // Generate the mandatory playlist for the default scene
+  // ---> DEFAULT PLAYLIST <---
   JsonArray plArr = doc["playlists"].to<JsonArray>();
-
   JsonObject pl1 = plArr.add<JsonObject>();
   pl1["name"] = "Default Playlist";
   pl1["zone"] = "Zone 1";
   pl1["repeat"] = -1;
-  pl1["enabled"] = true; // Make sure it's turned ON by default
-
+  pl1["enabled"] = true;
   JsonArray pScenes1 = pl1["scenes"].to<JsonArray>();
-  pScenes1.add("Welcome"); // Link to the scene above
+  pScenes1.add("Welcome");
 
   serializeJson(doc, file);
   file.close();
