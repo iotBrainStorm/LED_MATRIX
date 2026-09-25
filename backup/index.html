@@ -644,7 +644,7 @@
         <!-- Music Sync Parameters Container (Visible only when ON) -->
         <div id="music-sync-params" class="hidden space-y-4 pt-1">
           <div
-            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs"
           >
             <!-- Parameter 1: Zone Select (Single Selection Only) -->
             <div>
@@ -692,13 +692,64 @@
               </select>
             </div>
 
-            <!-- Parameter 3: Peak Decay Speed -->
+            <!-- Parameter 3: Dedicated Music Brightness -->
+            <div class="flex flex-col">
+              <div class="flex justify-between items-center mb-1">
+                <label
+                  class="text-slate-300 font-medium flex items-center gap-2"
+                >
+                  3. VU Brightness
+                  <label
+                    class="relative inline-flex items-center cursor-pointer ml-1"
+                    title="Toggle Auto Brightness"
+                  >
+                    <input
+                      type="checkbox"
+                      id="ms-auto-brightness"
+                      class="sr-only peer"
+                      onchange="handleMusicSyncChange()"
+                    />
+                    <div
+                      class="w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"
+                    ></div>
+                  </label>
+                  <span
+                    class="text-[10px] text-cyan-400 font-bold"
+                    id="ms-auto-badge-text"
+                    >AUTO</span
+                  >
+                </label>
+                <span
+                  id="ms-bright-val"
+                  class="font-mono-code text-cyan-400 font-bold"
+                  >12 / 15</span
+                >
+              </div>
+              <div class="flex-1 flex items-center">
+                <input
+                  type="range"
+                  id="ms-brightness"
+                  min="0"
+                  max="15"
+                  value="12"
+                  oninput="
+                    document.getElementById('ms-bright-val').innerText =
+                      this.value + ' / 15';
+                    handleMusicSyncChange();
+                    renderStaticPreview();
+                  "
+                  class="w-full cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <!-- Parameter 4: Peak Decay Speed -->
             <div>
               <label
                 for="ms-peak-decay"
                 class="block text-slate-300 mb-1 font-medium"
               >
-                3. Peak Fall Speed / Decay
+                4. Peak Fall Speed / Decay
               </label>
               <select
                 id="ms-peak-decay"
@@ -711,11 +762,11 @@
               </select>
             </div>
 
-            <!-- Parameter 4: Sensitivity / Gain -->
-            <div>
+            <!-- Parameter 5: Sensitivity / Gain -->
+            <div class="flex flex-col md:col-span-2">
               <div class="flex justify-between items-center mb-1">
                 <label for="ms-sensitivity" class="text-slate-300 font-medium"
-                  >4. Mic Sensitivity / Gain</label
+                  >5. Mic Sensitivity / Gain</label
                 >
                 <span
                   id="ms-sens-val"
@@ -723,46 +774,21 @@
                   >20%</span
                 >
               </div>
-              <input
-                type="range"
-                id="ms-sensitivity"
-                min="1"
-                max="100"
-                value="20"
-                oninput="
-                  document.getElementById('ms-sens-val').innerText =
-                    this.value + '%';
-                  handleMusicSyncChange();
-                "
-                class="w-full mt-2 cursor-pointer"
-              />
-            </div>
-            <!-- Parameter 5: Dedicated Music Brightness -->
-            <div>
-              <div class="flex justify-between items-center mb-1">
-                <label for="ms-brightness" class="text-slate-300 font-medium"
-                  >5. VU Brightness</label
-                >
-                <span
-                  id="ms-bright-val"
-                  class="font-mono-code text-cyan-400 font-bold"
-                  >12 / 15</span
-                >
+              <div class="flex-1 flex items-center">
+                <input
+                  type="range"
+                  id="ms-sensitivity"
+                  min="1"
+                  max="100"
+                  value="20"
+                  oninput="
+                    document.getElementById('ms-sens-val').innerText =
+                      this.value + '%';
+                    handleMusicSyncChange();
+                  "
+                  class="w-full cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                id="ms-brightness"
-                min="0"
-                max="15"
-                value="12"
-                oninput="
-                  document.getElementById('ms-bright-val').innerText =
-                    this.value + ' / 15';
-                  handleMusicSyncChange();
-                  renderStaticPreview();
-                "
-                class="w-full mt-2 cursor-pointer"
-              />
             </div>
           </div>
         </div>
@@ -1313,16 +1339,40 @@
               />
             </div>
 
-            <div>
+            <div class="flex flex-col">
               <div class="flex justify-between items-center mb-1">
-                <label class="text-slate-300 font-medium">Brightness</label>
+                <label
+                  class="text-slate-300 font-medium flex items-center gap-2"
+                >
+                  Brightness
+                  <label
+                    class="relative inline-flex items-center cursor-pointer ml-1"
+                    title="Toggle Auto Brightness"
+                  >
+                    <input
+                      type="checkbox"
+                      id="auto-brightness"
+                      class="sr-only peer"
+                      onchange="handleAutoBrightnessToggle()"
+                    />
+                    <div
+                      class="w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"
+                    ></div>
+                  </label>
+                  <span
+                    class="text-[10px] text-cyan-400 font-bold"
+                    id="auto-badge-text"
+                    >AUTO</span
+                  >
+                </label>
                 <span
                   id="brightness-badge"
                   class="font-mono-code text-cyan-400 font-bold"
                   >12 / 15</span
                 >
               </div>
-              <div class="flex items-center gap-2 mt-2">
+
+              <div class="flex-1 flex items-center">
                 <input
                   type="range"
                   id="brightness"
@@ -2144,6 +2194,8 @@
       let ledColorGlow = "rgba(0, 242, 254, 0.65)";
       let ledBrightnessLevel = 12;
 
+      let ledAutoBrightness = false;
+
       let ledSpriteCanvas = null;
       let ledSpriteRadius = 0;
 
@@ -2363,15 +2415,34 @@
         const sensInput = document.getElementById("ms-sensitivity");
         const peakSel = document.getElementById("ms-peak-decay");
         const brightInp = document.getElementById("ms-brightness");
+        const autoCheck = document.getElementById("ms-auto-brightness");
+        const msBrightLbl = document.getElementById("ms-bright-val");
 
         if (zoneSel) musicSyncConfig.zone = zoneSel.value;
         if (animSel) musicSyncConfig.animation = animSel.value;
         if (sensInput)
           musicSyncConfig.sensitivity = parseInt(sensInput.value) || 60;
         if (peakSel) musicSyncConfig.peakSpeed = peakSel.value;
+
+        if (autoCheck && autoCheck.checked !== musicSyncConfig.auto) {
+          musicSyncConfig.auto = autoCheck.checked;
+          if (brightInp) {
+            // Default to 7 for Auto, 12 for Manual when toggling
+            brightInp.value = musicSyncConfig.auto ? 7 : 12;
+          }
+        }
+
         if (brightInp) {
           const bVal = parseInt(brightInp.value);
           musicSyncConfig.brightness = isNaN(bVal) ? 12 : bVal;
+          if (msBrightLbl) {
+            msBrightLbl.innerText = musicSyncConfig.auto
+              ? `Sens: ${musicSyncConfig.brightness}`
+              : `${musicSyncConfig.brightness} / 15`;
+            brightInp.title = musicSyncConfig.auto
+              ? "Adjust Auto Sensitivity (0 = Darker, 15 = Brighter)"
+              : "Manual Brightness";
+          }
         }
       }
 
@@ -4156,7 +4227,15 @@
 
         if (cfg.display) {
           const bLevel = cfg.display.brightness ?? 12;
+          const isAuto = cfg.display.auto || false;
+
           document.getElementById("brightness").value = bLevel;
+          document.getElementById("auto-brightness").checked = isAuto;
+
+          ledAutoBrightness = isAuto;
+          const badge = document.getElementById("brightness-badge");
+          badge.innerText = isAuto ? `Sens: ${bLevel}` : `${bLevel} / 15`;
+
           handleBrightnessUpdate(bLevel);
 
           if (cfg.display.repeat === -1) {
@@ -4271,29 +4350,70 @@
         handleConfigFieldChange();
       }
 
+      function handleAutoBrightnessToggle() {
+        pauseSimulation();
+        ledAutoBrightness = document.getElementById("auto-brightness").checked;
+        const bInput = document.getElementById("brightness");
+        const badge = document.getElementById("brightness-badge");
+
+        if (ledAutoBrightness) {
+          // Default to 7 when turning Auto ON
+          bInput.value = 7;
+          ledBrightnessLevel = 7;
+          badge.innerText = `Sens: 7`;
+          bInput.title = "Adjust Auto Sensitivity (0 = Darker, 15 = Brighter)";
+        } else {
+          // Default to 12 when turning Auto OFF
+          bInput.value = 12;
+          ledBrightnessLevel = 12;
+          badge.innerText = `12 / 15`;
+          bInput.title = "Manual Brightness";
+        }
+
+        // Update model
+        const targetZoneName = document.getElementById("target-zone")?.value;
+        const curZone = zones.find((z) => z.name === targetZoneName);
+        if (curZone) {
+          curZone.autoBrightness = ledAutoBrightness;
+          curZone.brightness = ledBrightnessLevel;
+        }
+
+        handleConfigFieldChange();
+      }
+
       function handleBrightnessUpdate(val) {
         pauseSimulation();
         ledBrightnessLevel = parseInt(val);
         const badge = document.getElementById("brightness-badge");
-        if (badge) badge.innerText = `${ledBrightnessLevel} / 15`;
+        if (ledAutoBrightness) {
+          badge.innerText = `Sens: ${ledBrightnessLevel}`;
+        } else {
+          badge.innerText = `${ledBrightnessLevel} / 15`;
+        }
 
         // Update only the targeted zone and its scene
         const targetZoneName = document.getElementById("target-zone")?.value;
         const curZone = zones.find((z) => z.name === targetZoneName);
-        if (curZone) curZone.brightness = ledBrightnessLevel;
+        if (curZone) {
+          curZone.brightness = ledBrightnessLevel;
+          curZone.autoBrightness = ledAutoBrightness;
+        }
 
         if (editingSceneId) {
           const sc = scenes.find((s) => s.id === editingSceneId);
-          if (sc?.config?.display)
+          if (sc?.config?.display) {
             sc.config.display.brightness = ledBrightnessLevel;
+            sc.config.display.auto = ledAutoBrightness;
+          }
         } else {
           const sc = scenes.find(
             (s) => s.config?.zone?.name === targetZoneName,
           );
-          if (sc?.config?.display)
+          if (sc?.config?.display) {
             sc.config.display.brightness = ledBrightnessLevel;
+            sc.config.display.auto = ledAutoBrightness;
+          }
         }
-
         renderStaticPreview();
       }
 
@@ -4373,6 +4493,7 @@
           },
           display: {
             brightness: ledBrightnessLevel,
+            auto: ledAutoBrightness,
             repeat:
               document.getElementById("loop-mode").value === "inf"
                 ? -1
@@ -4421,6 +4542,7 @@
             sensitivity: musicSyncConfig.sensitivity,
             peak_decay: musicSyncConfig.peakSpeed,
             brightness: musicSyncConfig.brightness ?? 12,
+            auto: musicSyncConfig.auto || false,
           },
           zones: zones,
           scenes: finalScenes,

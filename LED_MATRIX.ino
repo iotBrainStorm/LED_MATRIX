@@ -3,6 +3,7 @@
 #include <Adafruit_AHT10.h> // AHT10 Temperature & Humidity sensor
 #include <Arduino.h>
 #include <ArduinoJson.h>       // JSON parsing and serialization
+#include <BH1750.h>            // BH1750 Light Sensor
 #include <EEPROM.h>            // EEPROM emulation
 #include <ESPAsyncWebServer.h> // Non-blocking async web server
 #include <ESPmDNS.h>           // Local domain name resolution (.local)
@@ -41,6 +42,12 @@ uint8_t MAX_DEVICES = 4;
 #define CLK_PIN 18
 #define DATA_PIN 23
 #define CS_PIN 5
+
+BH1750 lightMeter;
+bool bh1750Found = false;
+unsigned long lastLightCheck = 0;
+const unsigned long LIGHT_POLL_INTERVAL = 2000; // 2 seconds
+int currentAutoLuxBrightness = 12;              // Mapped brightness (0-15)
 
 // INMP441 I2S MEMS Microphone Pins
 #define I2S_SCK 14
@@ -82,6 +89,7 @@ struct MusicSyncConfig {
   int sensitivity = 60;
   char peakDecay[16] = "Medium";
   uint8_t brightness = 12;
+  bool autoBrightness = false;
 };
 
 MusicSyncConfig musicSync;
@@ -398,6 +406,7 @@ struct SceneConfig {
   uint16_t pause = 0;      // endDelayMs
   uint16_t startDelay = 0; // startDelayMs
   uint8_t brightness = 12;
+  bool autoBrightness = false;
   int repeat = -1;
 };
 
@@ -639,6 +648,15 @@ void runMusicSyncFrame() {
   MD_MAX72XX *mx = P.getGraphicObject();
   if (!mx)
     return;
+
+  // Set Intensity dynamically
+  uint8_t targetIntensity = musicSync.brightness;
+  if (musicSync.autoBrightness && bh1750Found) {
+    // The user's slider (0-15) acts as an offset/sensitivity tweak in Auto mode
+    int adjusted = currentAutoLuxBrightness + (musicSync.brightness - 7);
+    targetIntensity = constrain(adjusted, 0, 15);
+  }
+  mx->control(MD_MAX72XX::INTENSITY, targetIntensity);
 
   int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
   int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
@@ -937,7 +955,12 @@ void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
     P.setFont(z, customThinFont);
   }
 
-  P.setIntensity(z, sc.brightness);
+  uint8_t targetIntensity = sc.brightness;
+  if (sc.autoBrightness && bh1750Found) {
+    int adjusted = currentAutoLuxBrightness + (sc.brightness - 7);
+    targetIntensity = constrain(adjusted, 0, 15);
+  }
+  P.setIntensity(z, targetIntensity);
 
   String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : String(sc.rawMessage);
   resolved.replace("\xC2\xB0", "\x7F");
@@ -1162,6 +1185,7 @@ void loadConfiguration() {
     const char *decay = doc["music_sync"]["peak_decay"] | "Medium";
     strncpy(musicSync.peakDecay, decay, sizeof(musicSync.peakDecay) - 1);
     musicSync.brightness = doc["music_sync"]["brightness"] | 12;
+    musicSync.autoBrightness = doc["music_sync"]["auto"] | false;
   } else {
     musicSync.enabled = false;
   }
@@ -1264,6 +1288,7 @@ void loadConfiguration() {
     curScene.pause = sc["animation"]["endDelayMs"] | 0;
 
     curScene.brightness = sc["display"]["brightness"] | 12;
+    curScene.autoBrightness = sc["display"]["auto"] | false;
     curScene.repeat = sc["display"]["repeat"] | -1;
 
     // Static print adjustments: speed must be 0, outEffect must be PA_NO_EFFECT
@@ -1695,11 +1720,21 @@ void setup() {
   }
 
   Wire.begin(21, 22);
+  // AHT10 Init...
   if (aht.begin()) {
     Serial.println("[Sensor] AHT10 found & initialized.");
     ahtFound = true;
   } else {
     Serial.println("[Sensor] AHT10 not found. Defaulting to virtual readings.");
+  }
+
+  // BH1750 Init
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    Serial.println("[Sensor] BH1750 found & initialized (Continuous Mode).");
+    bh1750Found = true;
+  } else {
+    Serial.println("[Sensor] BH1750 not found. Falling back to Manual Brightness.");
+    bh1750Found = false;
   }
 
   if (SPIFFS.exists(CONFIG_FILE)) {
@@ -1752,13 +1787,37 @@ void setup() {
 // MAIN LOOP
 // ==========================================
 void loop() {
-  // 1. Live config update from browser
+
+  // 1. Asynchronous BH1750 Polling (Non-Blocking)
+  if (bh1750Found && (millis() - lastLightCheck >= LIGHT_POLL_INTERVAL)) {
+    lastLightCheck = millis();
+    float lux = lightMeter.readLightLevel();
+
+    // Map Lux (0-65535) to Brightness (0-15) using a logarithmic curve
+    // In a normal room, 100-300 Lux is typical. Direct sunlight is 10k+.
+    if (lux < 5.0)
+      currentAutoLuxBrightness = 0;
+    else if (lux < 25.0)
+      currentAutoLuxBrightness = 1;
+    else if (lux < 80.0)
+      currentAutoLuxBrightness = 3;
+    else if (lux < 200.0)
+      currentAutoLuxBrightness = 6;
+    else if (lux < 500.0)
+      currentAutoLuxBrightness = 10;
+    else
+      currentAutoLuxBrightness = 15;
+
+    // Serial.printf("[Light] Lux: %.2f | Mapped: %d\n", lux, currentAutoLuxBrightness);
+  }
+
+  // 2. Live config update from browser
   if (configUpdated) {
     configUpdated = false;
     loadConfiguration();
   }
 
-  // 2. Music Sync or Multi-Zone Scene Execution
+  // 3. Music Sync or Multi-Zone Scene Execution
   if (isMusicSyncActive) {
     runMusicSyncFrame();
   } else {
@@ -1858,6 +1917,6 @@ void loop() {
     }
   }
 
-  // 3. Non-blocking background network supervisor
+  // 4. Non-blocking background network supervisor
   checkWiFiAndStartServer();
 }
