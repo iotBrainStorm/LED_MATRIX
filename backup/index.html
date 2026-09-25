@@ -423,7 +423,7 @@
                 <label class="block text-slate-400 mb-1.5 font-medium"
                   >Quick Presets</label
                 >
-                <div class="grid grid-cols-4 gap-1.5 font-mono-code">
+                <div class="grid grid-cols-5 gap-1.5 font-mono-code">
                   <button
                     type="button"
                     onclick="setMatrixPreset(32)"
@@ -1425,7 +1425,7 @@
               </div>
               <div
                 id="scenes-container"
-                class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
               ></div>
             </div>
           </div>
@@ -4196,17 +4196,24 @@
         scenes.forEach((s) => {
           const isSel = s.id === editingSceneId;
           const chip = document.createElement("div");
-          chip.className = `inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
+
+          // Changed to flex instead of inline-flex, and added w-full for grid
+          chip.className = `flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
             isSel
               ? "bg-teal-500/20 text-teal-300 border border-teal-400 font-bold"
               : "bg-slate-800 text-teal-400 border border-slate-700 hover:border-teal-400"
           }`;
           chip.title = "Click to edit scene";
           chip.onclick = () => selectSceneForEdit(s.id);
+
+          // Changed to a flex-col layout for two lines
           chip.innerHTML = `
-              <span>${isSel ? "▶ " : ""}${s.name} <span class="text-slate-400 font-normal">[${s.config.zone?.name || "Zone"}]</span></span>
-              <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>
-            `;
+            <div class="flex flex-col overflow-hidden">
+              <span class="truncate leading-tight">${isSel ? "▶ " : ""}${s.name}</span>
+              <span class="text-[10px] text-slate-400 font-normal truncate mt-0.5">${s.config.zone?.name || "Zone"}</span>
+            </div>
+            <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5 shrink-0">✕</button>
+          `;
           container.appendChild(chip);
         });
       }
