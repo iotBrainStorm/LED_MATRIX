@@ -3664,20 +3664,27 @@
             p.zEnd,
             true,
           );
+
           phaseStep++;
           if (phaseStep >= p.maxOutSteps) {
             phaseStep = 0;
             phaseHoldCounter = 0;
             currentLoopCount++;
+
             if (currentLoopCount >= p.targetLoops) {
-              animPhase = 2;
-              stageLabel = "COMPLETE";
-              if (!isStep) {
-                pauseSimulation();
-              }
+              // Simply tell the state machine to go to Phase 4 on the NEXT tick.
+              // This allows the final frame of the exit animation to actually be drawn!
+              animPhase = 4;
             } else {
               animPhase = p.startDelayMs > 0 ? 0 : 1;
             }
+          }
+        } else if (animPhase === 4) {
+          // This now safely runs on the frame AFTER the exit animation finishes
+          stageLabel = "COMPLETE";
+          renderResult = { buffer: p.emptyBuffer(), alpha: 1 };
+          if (!isStep) {
+            pauseSimulation();
           }
         }
 
@@ -3800,8 +3807,9 @@
               ? currentAnimParams.startDelayMs
               : parseInt(document.getElementById("start-delay").value)) || 0;
           if (
-            animPhase === 2 &&
-            currentLoopCount >= (currentAnimParams?.targetLoops || 1)
+            animPhase === 4 ||
+            (animPhase === 2 &&
+              currentLoopCount >= (currentAnimParams?.targetLoops || 1))
           ) {
             resetAnimState(startDelay);
           } else if (animPhase === 0 && startDelay <= 0) {
