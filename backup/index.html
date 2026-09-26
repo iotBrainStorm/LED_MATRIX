@@ -4453,14 +4453,6 @@
             sc.config.display.brightness = ledBrightnessLevel;
             sc.config.display.auto = ledAutoBrightness;
           }
-        } else {
-          const sc = scenes.find(
-            (s) => s.config?.zone?.name === targetZoneName,
-          );
-          if (sc?.config?.display) {
-            sc.config.display.brightness = ledBrightnessLevel;
-            sc.config.display.auto = ledAutoBrightness;
-          }
         }
         renderStaticPreview();
       }
