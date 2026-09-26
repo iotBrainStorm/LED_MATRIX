@@ -1257,8 +1257,8 @@
                 <option value="PA_SCROLL_DOWN">Scroll Down</option>
                 <option value="PA_SCROLL_LEFT" selected>Scroll Left</option>
                 <option value="PA_SCROLL_RIGHT">Scroll Right</option>
-                <option value="PA_SCROLL_UP_LEFT">Scroll Up Left</option>
-                <option value="PA_SCROLL_UP_RIGHT">Scroll Up Right</option>
+                <option value="PA_SCROLL_UP_LEFT">Up Left</option>
+                <option value="PA_SCROLL_UP_RIGHT">Up Right</option>
                 <option value="PA_SCROLL_DOWN_LEFT">Down Left</option>
                 <option value="PA_SCROLL_DOWN_RIGHT">Down Right</option>
                 <option value="PA_SPRITE">Sprite</option>
@@ -2198,6 +2198,7 @@
 
       let ledSpriteCanvas = null;
       let ledSpriteRadius = 0;
+      let bgCanvas = null;
 
       let canvas, ctx;
       let animRafId = null;
@@ -2288,7 +2289,7 @@
       }
 
       // Retrieves the specific brightness configured for any given matrix column
-      function getBrightnessForColumn(col) {
+      function getBrightnessForColumn(col, targetZoneName, targetBrightness) {
         if (musicSyncConfig.enabled) {
           const msZone =
             zones.find((z) => z.isMusic && z.name === musicSyncConfig.zone) ||
@@ -2304,14 +2305,11 @@
 
         if (!zone) return ledBrightnessLevel;
 
-        // If this column belongs to the zone currently selected in Section 4 form
-        const targetZoneName = document.getElementById("target-zone")?.value;
+        // Use the CACHED parameter instead of querying the DOM here!
         if (targetZoneName && zone.name === targetZoneName) {
-          const bInp = document.getElementById("brightness");
-          if (bInp) return parseInt(bInp.value);
+          return targetBrightness;
         }
 
-        // Check if a saved scene exists for this zone
         const sc = scenes.find((s) => s.config?.zone?.name === zone.name);
         if (sc?.config?.display?.brightness !== undefined) {
           return sc.config.display.brightness;
@@ -2671,6 +2669,7 @@
         canvas.width = matrixWidth * baseDotPitch + dotGap + 12;
         canvas.height = matrixHeight * baseDotPitch + dotGap + 12;
         applyCanvasScale();
+        updateBackgroundCanvas();
 
         const badge = document.getElementById("matrix-spec-badge");
         if (badge) {
@@ -2680,6 +2679,50 @@
         if (modTag) {
           modTag.innerText = `${Math.floor(matrixWidth / 8)} Modules`;
         }
+      }
+
+      function updateBackgroundCanvas() {
+        if (!canvas) return;
+        if (!bgCanvas) {
+          bgCanvas = document.createElement("canvas");
+        }
+        bgCanvas.width = canvas.width;
+        bgCanvas.height = canvas.height;
+        // Use alpha: false to optimize memory since background is completely opaque
+        const bCtx = bgCanvas.getContext("2d", { alpha: false });
+
+        // 1. Draw solid background
+        bCtx.fillStyle = "#090d14";
+        bCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+        const dotDiameter = dotRadius * 2;
+        const pitch = dotDiameter + dotGap;
+        const startX = 6 + dotGap;
+        const startY = 6 + dotGap;
+
+        // 2. Draw Separator lines
+        bCtx.strokeStyle = "#1b2434";
+        bCtx.lineWidth = 1.5;
+        bCtx.beginPath();
+        for (let c = 8; c < matrixWidth; c += 8) {
+          const sepX = startX + c * pitch - dotGap / 2;
+          bCtx.moveTo(sepX, 4);
+          bCtx.lineTo(sepX, bgCanvas.height - 4);
+        }
+        bCtx.stroke();
+
+        // 3. Draw all "OFF" Unlit LEDs
+        bCtx.beginPath();
+        for (let r = 0; r < matrixHeight; r++) {
+          const y = startY + r * pitch + dotRadius;
+          for (let c = 0; c < matrixWidth; c++) {
+            const x = startX + c * pitch + dotRadius;
+            bCtx.moveTo(x + dotRadius, y);
+            bCtx.arc(x, y, dotRadius, 0, Math.PI * 2);
+          }
+        }
+        bCtx.fillStyle = "#111724";
+        bCtx.fill();
       }
 
       function applyCanvasScale() {
@@ -2696,48 +2739,36 @@
       ) {
         if (!ctx) return;
         if (!ledSpriteCanvas) updateLedSprite();
+        if (!bgCanvas) updateBackgroundCanvas();
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#090d14";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bgCanvas, 0, 0);
 
         const dotDiameter = dotRadius * 2;
         const pitch = dotDiameter + dotGap;
         const startX = 6 + dotGap;
         const startY = 6 + dotGap;
-
-        ctx.strokeStyle = "#1b2434";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        for (let c = 8; c < matrixWidth; c += 8) {
-          const sepX = startX + c * pitch - dotGap / 2;
-          ctx.moveTo(sepX, 4);
-          ctx.lineTo(sepX, canvas.height - 4);
-        }
-        ctx.stroke();
-
-        ctx.beginPath();
-        for (let r = 0; r < matrixHeight; r++) {
-          const rowBuf = buffer[r];
-          const y = startY + r * pitch + dotRadius;
-          for (let c = 0; c < matrixWidth; c++) {
-            if (!rowBuf || !rowBuf[c]) {
-              const x = startX + c * pitch + dotRadius;
-              ctx.moveTo(x + dotRadius, y);
-              ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
-            }
-          }
-        }
-        ctx.fillStyle = "#111724";
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1.0;
-        ctx.fill();
-
         const spriteOffset = ledSpriteRadius;
+
+        // === NEW FIX: Pre-calculate brightness per column ONCE per frame ===
+        const targetZoneName = document.getElementById("target-zone")?.value;
+        const bInp = document.getElementById("brightness");
+        const targetBrightness = bInp ? parseInt(bInp.value) : 12;
+
+        const colBrightnesses = new Array(matrixWidth);
+        for (let c = 0; c < matrixWidth; c++) {
+          colBrightnesses[c] = getBrightnessForColumn(
+            c,
+            targetZoneName,
+            targetBrightness,
+          );
+        }
+        // ===================================================================
+
         for (let r = 0; r < matrixHeight; r++) {
           const rowBuf = buffer[r];
           if (!rowBuf) continue;
           const y = startY + r * pitch + dotRadius;
+
           for (let c = 0; c < matrixWidth; c++) {
             if (rowBuf[c]) {
               const x = startX + c * pitch + dotRadius;
@@ -2745,8 +2776,8 @@
                 ? c >= activeZone.start && c <= activeZone.end
                 : true;
 
-              // Get the individual brightness & remapped alpha for this specific column's zone
-              const colBrightness = getBrightnessForColumn(c);
+              // Use the cached value here!
+              const colBrightness = colBrightnesses[c];
               const colAlpha = getBrightnessAlpha(colBrightness);
               const currentAlpha = isColumnInActiveZone
                 ? alphaMultiplier * colAlpha
@@ -2763,6 +2794,7 @@
         }
         ctx.globalAlpha = 1.0;
 
+        // Draw Active Zone bounding box
         if (activeZone) {
           const zStartX = startX + activeZone.start * pitch - dotGap / 2;
           const zEndX = startX + (activeZone.end + 1) * pitch - dotGap / 2;
@@ -3659,9 +3691,16 @@
           }
         }
 
-        document.getElementById("sim-stage-label").innerText = stageLabel;
-        document.getElementById("sim-zone-label").innerText =
-          p.activeZone.name || "Zone 1";
+        const stageLabelEl = document.getElementById("sim-stage-label");
+        if (stageLabelEl && stageLabelEl.textContent !== stageLabel) {
+          stageLabelEl.textContent = stageLabel;
+        }
+
+        const currentZoneLabel = p.activeZone.name || "Zone 1";
+        const zoneLabelEl = document.getElementById("sim-zone-label");
+        if (zoneLabelEl && zoneLabelEl.textContent !== currentZoneLabel) {
+          zoneLabelEl.textContent = currentZoneLabel;
+        }
         drawMatrixFrame(renderResult.buffer, renderResult.alpha, p.activeZone);
       }
 
@@ -3714,8 +3753,9 @@
         if (!isPlaying) return;
 
         if (!lastTickTime) lastTickTime = timestamp;
-        const elapsed = timestamp - lastTickTime;
+        let elapsed = timestamp - lastTickTime;
         lastTickTime = timestamp;
+        if (elapsed > 100) elapsed = 100;
         timeAccumulator += elapsed;
 
         const speed = currentAnimParams ? currentAnimParams.speed : 35;
@@ -5165,7 +5205,11 @@
         }
       }
 
+      let isFetchingStats = false;
+
       async function fetchSystemStats() {
+        if (isFetchingStats) return;
+        isFetchingStats = true;
         try {
           const res = await fetch("/api/system/status", { cache: "no-store" });
           if (!res.ok) return;
@@ -5294,6 +5338,8 @@
           document.getElementById("wifi-arc-1").style.opacity = "1.0";
           document.getElementById("wifi-arc-2").style.opacity = "1.0";
           document.getElementById("wifi-arc-3").style.opacity = "1.0";
+        } finally {
+          isFetchingStats = false; // Always unlock when done
         }
       }
     </script>
