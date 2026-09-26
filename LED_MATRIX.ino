@@ -4,14 +4,12 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>       // JSON parsing and serialization
 #include <BH1750.h>            // BH1750 Light Sensor
-#include <EEPROM.h>            // EEPROM emulation
 #include <ESPAsyncWebServer.h> // Non-blocking async web server
 #include <ESPmDNS.h>           // Local domain name resolution (.local)
 #include <HTTPClient.h>        // HTTP client utility
 #include <HardwareSerial.h>    // Hardware Serial
 #include <MD_MAX72xx.h>        // LED Matrix MAX72XX hardware driver
 #include <MD_Parola.h>         // LED Matrix Parola library
-#include <Preferences.h>       // NVS storage
 #include <SPI.h>               // SPI communication for LED matrix
 #include <SPIFFS.h>            // Flash File System
 #include <WiFi.h>
@@ -1823,9 +1821,9 @@ void loop() {
   } else {
     P.displayAnimate();
 
-    // Check dynamic templates (like clock seconds) at 20 Hz (every 50 ms)
+    // Check dynamic templates (like clock seconds) at 1 Hz (every 1000 ms)
     static unsigned long lastCustomPoll = 0;
-    bool pollCustomTemplates = (millis() - lastCustomPoll >= 50);
+    bool pollCustomTemplates = (millis() - lastCustomPoll >= 1000);
     if (pollCustomTemplates) {
       lastCustomPoll = millis();
     }
