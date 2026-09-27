@@ -698,15 +698,6 @@ void runMusicSyncFrame() {
   if (!mx)
     return;
 
-  // Set Intensity dynamically
-  uint8_t targetIntensity = musicSync.brightness;
-  if (musicSync.autoBrightness && bh1750Found) {
-    // The user's slider (0-15) acts as an offset/sensitivity tweak in Auto mode
-    int adjusted = currentAutoLuxBrightness + (musicSync.brightness - 7);
-    targetIntensity = constrain(adjusted, 0, 15);
-  }
-  mx->control(MD_MAX72XX::INTENSITY, targetIntensity);
-
   int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
   int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
   int zWidth = zEnd - zStart + 1;
@@ -993,6 +984,48 @@ void runMusicSyncFrame() {
 }
 
 // ==========================================
+// UNIFIED BRIGHTNESS CONTROLLER
+// ==========================================
+// ==========================================
+// UNIFIED BRIGHTNESS CONTROLLER
+// ==========================================
+void updateDisplayBrightness() {
+  MD_MAX72XX *mx = P.getGraphicObject();
+  if (!mx)
+    return;
+
+  if (isMusicSyncActive) {
+    // 1. MUSIC SYNC MODE: Apply globally
+    uint8_t target = musicSync.brightness;
+    if (musicSync.autoBrightness && bh1750Found) {
+      int adj = currentAutoLuxBrightness + (musicSync.brightness - 7);
+      target = constrain(adj, 0, 15);
+    }
+    mx->control(MD_MAX72XX::INTENSITY, target);
+
+  } else {
+    // 2. TEXT MODE: Apply safely per-zone, bypassing Parola's internal cache
+    for (uint8_t z = 0; z < MAX_ZONES; z++) {
+      // FIX: Added 'sceneCount > 0' to prevent memory corruption on empty playlists
+      if (zones[z].inUse && zones[z].sceneCount > 0 && zones[z].state != ZSTATE_FINISHED) {
+        uint8_t sIdx = zones[z].sceneList[zones[z].currentSceneIdx];
+        uint8_t target = scenes[sIdx].brightness;
+
+        if (scenes[sIdx].autoBrightness && bh1750Found) {
+          int adj = currentAutoLuxBrightness + (scenes[sIdx].brightness - 7);
+          target = constrain(adj, 0, 15);
+        }
+
+        P.setIntensity(z, target); // Keep Parola library happy
+        for (uint8_t dev = zones[z].startDev; dev <= zones[z].endDev; dev++) {
+          mx->control(dev, MD_MAX72XX::INTENSITY, target); // Force hardware instantly
+        }
+      }
+    }
+  }
+}
+
+// ==========================================
 // SCENE PLAYLIST & TRANSITION MANAGEMENT
 // ==========================================
 void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
@@ -1004,14 +1037,10 @@ void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
     P.setFont(z, customThinFont);
   }
 
-  uint8_t targetIntensity = sc.brightness;
-  if (sc.autoBrightness && bh1750Found) {
-    int adjusted = currentAutoLuxBrightness + (sc.brightness - 7);
-    targetIntensity = constrain(adjusted, 0, 15);
-  }
-  P.setIntensity(z, targetIntensity);
+  updateDisplayBrightness();
 
   String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : String(sc.rawMessage);
+
   resolved.replace("\xC2\xB0", "\x7F");
   resolved.replace("°", "\x7F");
   resolved.replace("{DEG}", "\x7F");
@@ -1215,15 +1244,6 @@ void loadConfiguration() {
     }
   }
 
-  uint8_t baseBrightness = 12;
-  if (doc["scenes"].is<JsonArray>() && doc["scenes"].size() > 0) {
-    baseBrightness = doc["scenes"][0]["display"]["brightness"] | 12;
-  }
-  MD_MAX72XX *mx = P.getGraphicObject();
-  if (mx) {
-    mx->control(MD_MAX72XX::INTENSITY, baseBrightness);
-  }
-
   if (doc["music_sync"].is<JsonObject>()) {
     musicSync.enabled = doc["music_sync"]["enabled"] | false;
     const char *zName = doc["music_sync"]["zone"] | "Zone 1";
@@ -1244,8 +1264,7 @@ void loadConfiguration() {
   if (musicSync.enabled) {
     isMusicSyncActive = true;
     P.displayClear();
-    if (mx)
-      mx->control(MD_MAX72XX::INTENSITY, musicSync.brightness);
+    updateDisplayBrightness(); // Use the safe unified function
     Serial.println("========================================");
     Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
     Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
@@ -1855,8 +1874,7 @@ void loop() {
     lastLightCheck = millis();
     float lux = lightMeter.readLightLevel();
 
-    // Map Lux (0-65535) to Brightness (0-15) using a logarithmic curve
-    // In a normal room, 100-300 Lux is typical. Direct sunlight is 10k+.
+    // Map Lux (0-65535) to Brightness (0-15)
     if (lux < 5.0)
       currentAutoLuxBrightness = 0;
     else if (lux < 25.0)
@@ -1870,7 +1888,8 @@ void loop() {
     else
       currentAutoLuxBrightness = 15;
 
-    // Serial.printf("[Light] Lux: %.2f | Mapped: %d\n", lux, currentAutoLuxBrightness);
+    // Apply the new reading safely to whatever mode is running
+    updateDisplayBrightness();
   }
 
   // 2. Live config update from browser
@@ -1894,7 +1913,8 @@ void loop() {
     }
 
     for (uint8_t z = 0; z < activeZoneCount; z++) {
-      if (!zones[z].inUse || zones[z].state == ZSTATE_FINISHED)
+      // FIX: Skip zones that have 0 scenes (disabled playlists)
+      if (!zones[z].inUse || zones[z].sceneCount == 0 || zones[z].state == ZSTATE_FINISHED)
         continue;
 
       // Handle non-blocking start delay for the current scene
