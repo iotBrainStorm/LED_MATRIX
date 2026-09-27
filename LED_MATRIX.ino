@@ -12,6 +12,7 @@
 #include <MD_Parola.h>         // LED Matrix Parola library
 #include <SPI.h>               // SPI communication for LED matrix
 #include <SPIFFS.h>            // Flash File System
+#include <Ticker.h>
 #include <WiFi.h>
 #include <WiFiManager.h> // Config portal for WiFi credentials
 #include <Wire.h>        // I2C communication for sensors
@@ -74,6 +75,56 @@ const int daylightOffset_sec = 0;
 
 bool ahtFound = false;
 volatile bool configUpdated = false;
+
+// ==========================================
+// STATUS LED TICKER (NON-BLOCKING)
+// ==========================================
+#define STATUS_LED_PIN 2 // Built-in blue LED on most ESP32 boards
+
+Ticker blinkTicker;
+volatile int blinkCounter = 0;
+volatile bool currentLedState = false;
+
+// Hardware Timer Interrupt Function
+void ledToggleISR() {
+  currentLedState = !currentLedState;
+  digitalWrite(STATUS_LED_PIN, currentLedState);
+
+  if (blinkCounter > 0) {
+    blinkCounter--;
+    if (blinkCounter == 0) {
+      blinkTicker.detach();
+      currentLedState = false;
+      digitalWrite(STATUS_LED_PIN, LOW);
+    }
+  }
+}
+
+// Helper to trigger blinking
+// blinks = number of times to blink (-1 for infinite)
+// intervalSec = speed of blink (e.g., 0.1 for fast, 0.5 for slow)
+void triggerStatusBlink(int blinks, float intervalSec) {
+  blinkTicker.detach(); // Stop any existing blink
+  if (blinks > 0) {
+    blinkCounter = blinks * 2; // *2 because one blink = 1 ON + 1 OFF
+  } else {
+    blinkCounter = -1; // Infinite loop
+  }
+
+  currentLedState = true;
+  digitalWrite(STATUS_LED_PIN, HIGH);
+  if (blinkCounter > 0)
+    blinkCounter--; // Account for first turn on
+
+  blinkTicker.attach(intervalSec, ledToggleISR);
+}
+
+void stopStatusBlink() {
+  blinkTicker.detach();
+  currentLedState = false;
+  digitalWrite(STATUS_LED_PIN, LOW);
+  blinkCounter = 0;
+}
 
 // ==========================================
 // MUSIC SYNC CONFIGURATION & FFT STATE
@@ -1016,10 +1067,12 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
     zones[z].stateStartTime = millis();
     P.displayClear(z);
     Serial.printf("[Playlist] Zone %u: Scene %u starting with %u ms start delay...\n", z, listIdx, sc.startDelay);
+    triggerStatusBlink(2, 0.1);
   } else {
     zones[z].state = ZSTATE_PLAYING;
     launchSceneOnDisplay(z, sIdx);
     Serial.printf("[Playlist] Zone %u: Playing scene %u ('%s') [Repeat: %d]\n", z, listIdx, sc.rawMessage, sc.repeat);
+    triggerStatusBlink(2, 0.1);
   }
 }
 
@@ -1501,7 +1554,15 @@ bool connectToSavedWiFi() {
 
   Serial.println("\n[WARNING] No saved WiFi found! Starting Portal...");
   wm.setConfigPortalTimeout(180);
+
+  wm.setAPCallback([](WiFiManager *myWiFiManager) {
+    Serial.println("[WiFi] Entered AP Portal Mode!");
+    // Infinite fast blink (0.2s) while waiting for user to connect
+    triggerStatusBlink(-1, 0.2);
+  });
+
   bool success = wm.autoConnect("LED STUDIO");
+  stopStatusBlink();
 
   if (success) {
     Serial.println("\n[SUCCESS] Connected via Portal");
@@ -1705,6 +1766,9 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
+  pinMode(STATUS_LED_PIN, OUTPUT);
+  digitalWrite(STATUS_LED_PIN, LOW);
+
   Serial.println("\n==============================");
   Serial.println("ESP32 LED Matrix + Music Sync");
   Serial.println("==============================");
@@ -1812,6 +1876,7 @@ void loop() {
   // 2. Live config update from browser
   if (configUpdated) {
     configUpdated = false;
+    triggerStatusBlink(3, 0.1);
     loadConfiguration();
   }
 
