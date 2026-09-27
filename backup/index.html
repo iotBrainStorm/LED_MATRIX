@@ -4336,7 +4336,7 @@
           // Changed to a flex-col layout for two lines
           chip.innerHTML = `
             <div class="flex flex-col overflow-hidden">
-              <span class="truncate leading-tight">${isSel ? "▶ " : ""}${s.name}</span>
+              <span class="truncate leading-tight">${isSel ? "▶&nbsp;&nbsp;" : ""}${s.name}</span>
               <span class="text-[10px] text-slate-400 font-normal truncate mt-0.5">${s.config.zone?.name || "Zone"}</span>
             </div>
             <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5 shrink-0">✕</button>
@@ -4656,14 +4656,12 @@
         // Use innerHTML instead of innerText to render the colors
         document.getElementById("json-code-view").innerHTML = coloredHtml;
         document.getElementById("json-modal").classList.remove("hidden");
+        document.body.classList.add("overflow-hidden");
       }
 
       function closeJsonModal() {
         document.getElementById("json-modal").classList.add("hidden");
-      }
-
-      function closeJsonModal() {
-        document.getElementById("json-modal").classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
       }
 
       // 1. Export JSON: Download ledstudio.json file
@@ -5186,7 +5184,7 @@
         document
           .getElementById("sys-dashboard-modal")
           .classList.remove("hidden");
-        document.body.style.overflow = "hidden";
+        document.body.classList.add("overflow-hidden");
 
         fetchSystemStats();
         if (!sysTelemetryTimer) {
@@ -5197,7 +5195,7 @@
       function closeSysDashboard() {
         // Hide modal and restore body scrolling
         document.getElementById("sys-dashboard-modal").classList.add("hidden");
-        document.body.style.overflow = "";
+        document.body.classList.remove("overflow-hidden");
 
         if (sysTelemetryTimer) {
           clearInterval(sysTelemetryTimer);
