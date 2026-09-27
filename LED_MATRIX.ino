@@ -1875,16 +1875,36 @@ void loop() {
     float lux = lightMeter.readLightLevel();
 
     // Map Lux (0-65535) to Brightness (0-15)
-    if (lux < 5.0)
+    if (lux < 2.0)
       currentAutoLuxBrightness = 0;
-    else if (lux < 25.0)
+    else if (lux < 5.0)
       currentAutoLuxBrightness = 1;
-    else if (lux < 80.0)
+    else if (lux < 10.0)
+      currentAutoLuxBrightness = 2;
+    else if (lux < 20.0)
       currentAutoLuxBrightness = 3;
-    else if (lux < 200.0)
+    else if (lux < 35.0)
+      currentAutoLuxBrightness = 4;
+    else if (lux < 55.0)
+      currentAutoLuxBrightness = 5;
+    else if (lux < 80.0)
       currentAutoLuxBrightness = 6;
-    else if (lux < 500.0)
+    else if (lux < 120.0)
+      currentAutoLuxBrightness = 7;
+    else if (lux < 170.0)
+      currentAutoLuxBrightness = 8;
+    else if (lux < 230.0)
+      currentAutoLuxBrightness = 9;
+    else if (lux < 300.0)
       currentAutoLuxBrightness = 10;
+    else if (lux < 400.0)
+      currentAutoLuxBrightness = 11;
+    else if (lux < 520.0)
+      currentAutoLuxBrightness = 12;
+    else if (lux < 660.0)
+      currentAutoLuxBrightness = 13;
+    else if (lux < 850.0)
+      currentAutoLuxBrightness = 14;
     else
       currentAutoLuxBrightness = 15;
 
