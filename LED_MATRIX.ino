@@ -54,8 +54,8 @@ int currentAutoLuxBrightness = 12;              // Mapped brightness (0-15)
 #define I2S_SD 32
 #define I2S_PORT I2S_NUM_0
 
-#define MAX_ZONES 8
-#define MAX_SCENES 50
+#define MAX_ZONES 20
+#define MAX_SCENES 100
 #define CONFIG_FILE "/config.json"
 const char *BUILD_ETAG = "\"" __DATE__ "-" __TIME__ "\"";
 
@@ -1221,7 +1221,7 @@ void loadConfiguration() {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(24576);
+  DynamicJsonDocument doc(65536);
 #endif
 
   DeserializationError err = deserializeJson(doc, file);

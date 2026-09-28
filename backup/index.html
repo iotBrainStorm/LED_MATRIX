@@ -594,7 +594,7 @@
                 <span
                   id="zone-count-label"
                   class="font-mono-code text-cyan-400 font-bold text-[11px]"
-                  >1 / 8</span
+                  >1 / 20</span
                 >
               </div>
               <div
@@ -1470,7 +1470,7 @@
                 <span
                   id="scene-count-label"
                   class="font-mono-code text-teal-400 font-bold text-[11px]"
-                  >0 / 50</span
+                  >0 / 100</span
                 >
               </div>
               <div
@@ -3988,6 +3988,10 @@
           showToast(`A zone named "${name}" already exists.`);
           return;
         }
+        if (!editingZoneId && zones.length >= 20) {
+          showToast("Hardware Limit Reached: Maximum of 20 zones allowed.");
+          return;
+        }
 
         if (editingZoneId) {
           const idx = zones.findIndex((z) => z.id === editingZoneId);
@@ -4051,7 +4055,7 @@
 
         // Update Zone Counter
         const countLabel = document.getElementById("zone-count-label");
-        if (countLabel) countLabel.innerText = `${zones.length} / 8`;
+        if (countLabel) countLabel.innerText = `${zones.length} / 20`;
 
         container.innerHTML = "";
         if (targetSelect) targetSelect.innerHTML = "";
@@ -4188,8 +4192,13 @@
           showToast(`A scene named "${name}" already exists.`);
           return;
         }
+        if (!editingSceneId && scenes.length >= 100) {
+          showToast("Hardware Limit Reached: Maximum of 100 scenes allowed.");
+          return;
+        }
 
         const config = getFormConfig();
+
         config.zone = {
           name: boundZone.name,
           startCol: boundZone.start,
@@ -4317,7 +4326,7 @@
 
         // Update Scene Counter
         const countLabel = document.getElementById("scene-count-label");
-        if (countLabel) countLabel.innerText = `${scenes.length} / 50`;
+        if (countLabel) countLabel.innerText = `${scenes.length} / 100`;
 
         if (scenes.length === 0) {
           container.innerHTML =
