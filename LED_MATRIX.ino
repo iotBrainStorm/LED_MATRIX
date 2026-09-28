@@ -44,7 +44,7 @@ uint8_t MAX_DEVICES = 4;
 
 BH1750 lightMeter;
 bool bh1750Found = false;
-unsigned long lastLightCheck = 0;
+unsigned long lastLightCheck = 0 - 2000;
 const unsigned long LIGHT_POLL_INTERVAL = 2000; // 2 seconds
 int currentAutoLuxBrightness = 12;              // Mapped brightness (0-15)
 
@@ -1799,6 +1799,8 @@ void setup() {
   } else {
     Serial.println("[FS] SPIFFS mounted successfully.");
   }
+
+  delay(250);
 
   Wire.begin(21, 22);
   // AHT10 Init...
