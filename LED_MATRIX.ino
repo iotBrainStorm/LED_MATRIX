@@ -36,7 +36,7 @@ MD_MAX72XX::moduleType_t parseHardwareType(const char *str) {
   return MD_MAX72XX::FC16_HW; // Default
 }
 
-#define ABSOLUTE_MAX_DEVICES 30
+#define ABSOLUTE_MAX_DEVICES 32
 uint8_t MAX_DEVICES = 4;
 #define CLK_PIN 18
 #define DATA_PIN 23

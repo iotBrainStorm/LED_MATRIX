@@ -385,7 +385,7 @@
                   id="matrix-width"
                   value="32"
                   min="8"
-                  max="192"
+                  max="256"
                   step="8"
                   onchange="handleMatrixWidthChange()"
                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none transition"
@@ -424,6 +424,7 @@
                   >Quick Presets</label
                 >
                 <div class="grid grid-cols-4 gap-1.5 font-mono-code">
+                  <!-- Row 1 -->
                   <button
                     type="button"
                     onclick="setMatrixPreset(32)"
@@ -451,6 +452,36 @@
                     class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
                   >
                     16 (128)
+                  </button>
+
+                  <!-- Row 2 -->
+                  <button
+                    type="button"
+                    onclick="setMatrixPreset(160)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    20 (160)
+                  </button>
+                  <button
+                    type="button"
+                    onclick="setMatrixPreset(192)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    24 (192)
+                  </button>
+                  <button
+                    type="button"
+                    onclick="setMatrixPreset(224)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    28 (224)
+                  </button>
+                  <button
+                    type="button"
+                    onclick="setMatrixPreset(256)"
+                    class="py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-center transition"
+                  >
+                    32 (256)
                   </button>
                 </div>
               </div>
@@ -599,7 +630,7 @@
               </div>
               <div
                 id="zones-container"
-                class="flex flex-wrap gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 min-h-[42px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
               ></div>
             </div>
           </div>
@@ -4068,7 +4099,8 @@
           const isEditing = z.id === editingZoneId;
 
           const chip = document.createElement("div");
-          chip.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono-code shadow-sm select-none transition ${
+          // Tighter vertical spacing: changed py-2 to py-1, removed gap-1
+          chip.className = `flex flex-col w-full px-3 py-1 rounded-lg text-xs font-mono-code shadow-sm select-none transition ${
             !isClickable
               ? "opacity-35 cursor-not-allowed bg-slate-900 border border-slate-800 text-slate-500 pointer-events-none"
               : isEditing
@@ -4089,18 +4121,26 @@
           }
 
           const typeBadge = isZoneMusic
-            ? '<span class="text-[9px] bg-purple-900/80 text-purple-300 px-1 py-0.2 rounded border border-purple-700">VU</span>'
-            : '<span class="text-[9px] bg-cyan-950 text-cyan-400 px-1 py-0.2 rounded border border-cyan-800">TXT</span>';
+            ? '<span class="text-[9px] bg-purple-900/80 text-purple-300 px-1.5 py-0.5 rounded border border-purple-700 leading-none">VU</span>'
+            : '<span class="text-[9px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-800 leading-none">TXT</span>';
 
+          // Removed mt-0.5 on the bottom text to make it thinner
           chip.innerHTML = `
-        ${typeBadge}
-        <span>${z.name} [${z.start}-${z.end}]</span>
-        ${
-          isClickable
-            ? `<button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5">✕</button>`
-            : ""
-        }
-      `;
+            <div class="flex items-center justify-between w-full">
+              <div class="flex items-center gap-1.5 overflow-hidden">
+                ${typeBadge}
+                <span class="truncate font-semibold">${z.name}</span>
+              </div>
+              ${
+                isClickable
+                  ? `<button type="button" onclick="event.stopPropagation(); removeZone('${z.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5 shrink-0">✕</button>`
+                  : ""
+              }
+            </div>
+            <div class="text-[10px] opacity-70 truncate">
+              Cols: ${z.start} - ${z.end}
+            </div>
+          `;
           container.appendChild(chip);
 
           // Populate Section 4 Dropdown: Standard Text Zones ONLY
