@@ -1659,7 +1659,7 @@
             <!-- Existing Playlists Chips List -->
             <div
               id="playlists-container"
-              class="flex flex-wrap gap-2 min-h-[38px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
+              class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 min-h-[38px] p-2 rounded-lg bg-slate-900/60 border border-slate-800"
             ></div>
           </div>
         </form>
@@ -5185,7 +5185,8 @@
           const isEnabled = pl.enabled !== false; // defaults to true
 
           const chip = document.createElement("div");
-          chip.className = `flex flex-col gap-2 w-full sm:w-[calc(50%-0.25rem)] px-3 py-2.5 rounded-lg text-xs font-mono-code border transition cursor-pointer ${
+          // Removed manual width calculations, reduced gap to 1, and py-2.5 to py-1.5
+          chip.className = `flex flex-col gap-1 w-full px-3 py-1.5 rounded-lg text-xs font-mono-code border transition cursor-pointer ${
             isEnabled
               ? "bg-slate-800/90 text-cyan-300 border-cyan-500 shadow-[0_0_8px_rgba(0,242,254,0.15)]"
               : "bg-slate-900/50 text-slate-500 border-slate-700 hover:border-slate-500"
@@ -5199,13 +5200,14 @@
                 <!-- ON/OFF Toggle Switch -->
                 <label class="relative inline-flex items-center cursor-pointer" title="Toggle On/Off">
                   <input type="checkbox" class="sr-only peer" ${isEnabled ? "checked" : ""} onchange="togglePlaylistStatus('${pl.id}', this.checked, event)">
-                  <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"></div>
+                  <!-- Changed translate-x-full to translate-x-4 to fix the alignment -->
+                  <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"></div>
                 </label>
                 <!-- Delete Button -->
                 <button type="button" onclick="removePlaylist('${pl.id}')" class="text-slate-400 hover:text-red-400 font-bold transition text-sm">✕</button>
               </div>
             </div>
-            <div class="text-[10px] ${isEnabled ? "text-slate-400" : "text-slate-600"}">
+            <div class="text-[10px] ${isEnabled ? "text-slate-400" : "text-slate-600"} truncate">
               [${pl.zone}] → ${pl.scenes.length} Scenes (${isInf ? "∞ Loop" : pl.repeat + "x"})
             </div>
           `;
