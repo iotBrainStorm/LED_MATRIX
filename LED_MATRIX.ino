@@ -924,14 +924,19 @@ void runMusicSyncFrame() {
     }
 
     const int startBin = 1;
-    const int maxBin = 28;
+    // MODIFICATION 1: Lowered maxBin from 28 to 22 (~5500Hz).
+    // This maps the right edge to frequencies where music actually has energy.
+    const int maxBin = 22;
     float gain = (float)musicSync.sensitivity / 50.0f;
 
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
 
+      // Ratio of current column position (0.0 to 1.0)
+      float colRatio = (float)i / (float)(zWidth > 1 ? zWidth - 1 : 1);
+
       // Logarithmic distribution across columns
-      float logRatio = powf((float)i / (float)(zWidth > 1 ? zWidth - 1 : 1), 1.35f);
+      float logRatio = powf(colRatio, 1.35f);
       float continuousBin = startBin + logRatio * (maxBin - startBin);
       int bFloor = constrain((int)continuousBin, startBin, maxBin - 1);
       float bFrac = continuousBin - bFloor;
@@ -939,13 +944,16 @@ void runMusicSyncFrame() {
       // Interpolate between adjacent frequency bins
       double rawMag = (vReal[bFloor] * (1.0f - bFrac)) + (vReal[bFloor + 1] * bFrac);
 
-      // 1. Subtract room ambient noise floor so silence stays at 0
-      rawMag -= 500.0;
+      // MODIFICATION 2: Gentler noise floor.
+      // 500 was wiping out the naturally weak high frequencies entirely.
+      rawMag -= 250.0;
       if (rawMag < 0.0)
         rawMag = 0.0;
 
-      // 2. Balanced treble compensation (gentle 1.0x to 2.8x curve)
-      float eqBoost = 1.0f + ((float)i / (float)zWidth) * 1.8f;
+      // MODIFICATION 3: Exponential Treble EQ Boost.
+      // Audio energy drops exponentially, so we must boost exponentially.
+      // This scales from a 1.0x multiplier on the left up to ~11.0x on the right.
+      float eqBoost = 1.0f + powf(colRatio, 2.5f) * 10.0f;
 
       // 3. Sensitivity gain application
       double mag = rawMag * gain * eqBoost;
@@ -953,7 +961,8 @@ void runMusicSyncFrame() {
       // 4. Properly scaled height calculation (0 to 8)
       int height = 0;
       if (mag > 0.0) {
-        float norm = (float)(mag / 18000.0);
+        // MODIFICATION 4: Slightly increased divisor to balance the new heavier EQ boost
+        float norm = (float)(mag / 22000.0);
         if (norm > 1.0f)
           norm = 1.0f;
         height = (int)round(powf(norm, 0.65f) * 8.0f);
@@ -983,9 +992,6 @@ void runMusicSyncFrame() {
   mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
 }
 
-// ==========================================
-// UNIFIED BRIGHTNESS CONTROLLER
-// ==========================================
 // ==========================================
 // UNIFIED BRIGHTNESS CONTROLLER
 // ==========================================
