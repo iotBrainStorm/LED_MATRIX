@@ -911,79 +911,179 @@ void runMusicSyncFrame() {
 
     bool showBars = (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
     bool showPeaks = (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
+
+    // ------------------------------------------------------------
+    // FFT
+    // ------------------------------------------------------------
     FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
     FFT.compute(FFTDirection::Forward);
     FFT.complexToMagnitude();
 
+    // ------------------------------------------------------------
+    // Peak decay
+    // ------------------------------------------------------------
     if (millis() - lastBandDropTime >= decayInterval) {
+
       for (int i = 0; i < zWidth; i++) {
-        if (bandPeaks[i] > 0.0f)
+        if (bandPeaks[i] > 0.0f) {
           bandPeaks[i] -= 0.5f;
+
+          if (bandPeaks[i] < 0.0f)
+            bandPeaks[i] = 0.0f;
+        }
       }
+
       lastBandDropTime = millis();
     }
 
+    // ------------------------------------------------------------
+    // FFT frequency configuration
+    //
+    // FFT bin frequency:
+    // frequency = bin * SAMPLING_FREQ / FFT_SAMPLES
+    //
+    // With:
+    // FFT_SAMPLES   = 32
+    // SAMPLING_FREQ = 16000
+    //
+    // bin spacing = 500 Hz
+    // Nyquist      = 8000 Hz
+    //
+    // Therefore:
+    // bin 1 = 500 Hz
+    // bin 2 = 1000 Hz
+    // ...
+    // bin 15 = 7500 Hz
+    // ------------------------------------------------------------
+
     const int startBin = 1;
-    // MODIFICATION 1: Lowered maxBin from 28 to 22 (~5500Hz).
-    // This maps the right edge to frequencies where music actually has energy.
-    const int maxBin = 22;
+
+    // Never use the Nyquist bin itself for interpolation.
+    const int maxBin = (FFT_SAMPLES / 2) - 1;
+
+    // Sensitivity
     float gain = (float)musicSync.sensitivity / 50.0f;
 
+    // ------------------------------------------------------------
+    // Draw spectrum
+    // ------------------------------------------------------------
     for (int i = 0; i < zWidth; i++) {
+
       int c = zStart + i;
 
-      // Ratio of current column position (0.0 to 1.0)
-      float colRatio = (float)i / (float)(zWidth > 1 ? zWidth - 1 : 1);
+      // ----------------------------------------------------------
+      // Column position 0.0 -> 1.0
+      // ----------------------------------------------------------
+      float colRatio =
+          (float)i / (float)(zWidth > 1 ? zWidth - 1 : 1);
 
-      // Logarithmic distribution across columns
+      // ----------------------------------------------------------
+      // Logarithmic frequency distribution
+      //
+      // More columns are allocated to lower frequencies where
+      // musical information is denser.
+      // ----------------------------------------------------------
       float logRatio = powf(colRatio, 1.35f);
-      float continuousBin = startBin + logRatio * (maxBin - startBin);
-      int bFloor = constrain((int)continuousBin, startBin, maxBin - 1);
-      float bFrac = continuousBin - bFloor;
 
-      // Interpolate between adjacent frequency bins
-      double rawMag = (vReal[bFloor] * (1.0f - bFrac)) + (vReal[bFloor + 1] * bFrac);
+      float continuousBin =
+          startBin +
+          logRatio * (float)(maxBin - startBin);
 
-      // MODIFICATION 2: Gentler noise floor.
-      // 500 was wiping out the naturally weak high frequencies entirely.
+      int bFloor =
+          constrain(
+              (int)continuousBin,
+              startBin,
+              maxBin - 1);
+
+      float bFrac = continuousBin - (float)bFloor;
+
+      // ----------------------------------------------------------
+      // Interpolate between FFT bins
+      // ----------------------------------------------------------
+      double rawMag =
+          (vReal[bFloor] * (1.0f - bFrac)) +
+          (vReal[bFloor + 1] * bFrac);
+
+      // ----------------------------------------------------------
+      // Noise floor
+      // ----------------------------------------------------------
       rawMag -= 250.0;
+
       if (rawMag < 0.0)
         rawMag = 0.0;
 
-      // MODIFICATION 3: Exponential Treble EQ Boost.
-      // Audio energy drops exponentially, so we must boost exponentially.
-      // This scales from a 1.0x multiplier on the left up to ~11.0x on the right.
-      float eqBoost = 1.0f + powf(colRatio, 2.5f) * 10.0f;
+      // ----------------------------------------------------------
+      // Treble compensation
+      //
+      // Higher frequencies normally have lower FFT magnitude.
+      // Gradually compensate toward the right side.
+      // ----------------------------------------------------------
+      float eqBoost =
+          1.0f +
+          powf(colRatio, 2.5f) * 8.0f;
 
-      // 3. Sensitivity gain application
-      double mag = rawMag * gain * eqBoost;
+      // ----------------------------------------------------------
+      // Apply sensitivity + EQ
+      // ----------------------------------------------------------
+      double mag =
+          rawMag *
+          gain *
+          eqBoost;
 
-      // 4. Properly scaled height calculation (0 to 8)
+      // ----------------------------------------------------------
+      // Convert magnitude to LED height
+      // ----------------------------------------------------------
       int height = 0;
+
       if (mag > 0.0) {
-        // MODIFICATION 4: Slightly increased divisor to balance the new heavier EQ boost
-        float norm = (float)(mag / 22000.0);
-        if (norm > 1.0f)
-          norm = 1.0f;
-        height = (int)round(powf(norm, 0.65f) * 8.0f);
+
+        float norm =
+            (float)(mag / 22000.0);
+
+        norm = constrain(norm, 0.0f, 1.0f);
+
+        // Gamma curve:
+        // lower levels become more visible
+        height =
+            (int)round(
+                powf(norm, 0.65f) * 8.0f);
       }
+
       height = constrain(height, 0, 8);
 
-      // Update peak hold dot
-      if (height > bandPeaks[i])
+      // ----------------------------------------------------------
+      // Peak hold
+      // ----------------------------------------------------------
+      if ((float)height > bandPeaks[i])
         bandPeaks[i] = (float)height;
 
-      // Draw equalizer column bar (if not Peak-only)
+      // ----------------------------------------------------------
+      // Bar
+      // ----------------------------------------------------------
       if (showBars) {
-        for (int r = 0; r < height; r++)
+
+        for (int r = 0; r < height; r++) {
           setVUMatrixPoint(mx, r, c, true);
+        }
       }
 
-      // Draw floating peak dot (if not Bar-only)
+      // ----------------------------------------------------------
+      // Peak dot
+      // ----------------------------------------------------------
       if (showPeaks) {
-        int peakRow = (int)bandPeaks[i] - 1;
-        if (peakRow >= 0 && peakRow < 8 && (!showBars || peakRow >= height)) {
-          setVUMatrixPoint(mx, peakRow, c, true);
+
+        int peakRow =
+            (int)bandPeaks[i] - 1;
+
+        if (peakRow >= 0 &&
+            peakRow < 8 &&
+            (!showBars || peakRow >= height)) {
+
+          setVUMatrixPoint(
+              mx,
+              peakRow,
+              c,
+              true);
         }
       }
     }
