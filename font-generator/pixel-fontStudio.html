@@ -410,6 +410,7 @@
                   type="checkbox"
                   id="invertBinarizeInput"
                   class="rounded bg-slate-900 border-slate-700 text-brand-600 focus:ring-0"
+                  checked
                 />
                 <span>Invert Colors</span>
               </label>
@@ -582,7 +583,7 @@
               </div>
             </div>
 
-            <!-- NEW: Floating Zoom Controls -->
+            <!-- Floating Zoom Controls -->
             <div
               id="zoomControlsPanel"
               class="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg flex shadow-lg overflow-hidden z-10 hidden"
@@ -637,7 +638,7 @@
           </div>
         </div>
 
-        <!-- TAB CONTENT 2: Font Family & Custom TTF Generator (NEW) -->
+        <!-- TAB CONTENT 2: Font Family & Custom TTF Generator -->
         <div
           id="tabContentFontFamily"
           class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-y-auto space-y-3 hidden"
@@ -775,7 +776,7 @@
                   </button>
                   <button
                     id="alignCenterBtn"
-                    class="p-1.5 hover:bg-slate-800 text-slate-300 border-l border-r border-slate-700 transition"
+                    class="p-1.5 bg-slate-800 text-brand-400 border-l border-r border-slate-700 transition"
                     data-tooltip="Align Center"
                   >
                     <i class="fa-solid fa-align-center"></i>
@@ -883,9 +884,10 @@
           </div>
 
           <!-- ASCII Characters Scrollable Grid -->
+          <!-- Added `content-start` to stop flex vertical stretching of shorter grid sets -->
           <div
             id="glyphGridContainer"
-            class="flex-1 overflow-y-auto grid grid-cols-5 sm:grid-cols-6 gap-1.5 p-1 bg-slate-950/60 rounded-xl border border-slate-800"
+            class="flex-1 overflow-y-auto grid grid-cols-5 sm:grid-cols-6 gap-1.5 p-1 bg-slate-950/60 rounded-xl border border-slate-800 content-start"
           >
             <!-- Glyph tiles inserted dynamically by JS -->
           </div>
@@ -938,7 +940,7 @@
         class="lg:col-span-5 flex flex-col space-y-3 h-[calc(100vh-85px)]"
       >
         <div
-          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-hidden space-y-3"
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-hidden"
         >
           <!-- Editor Header Toolbar -->
           <div
@@ -999,9 +1001,81 @@
             </div>
           </div>
 
+          <!-- Editor Offset Settings -->
+          <div
+            class="mt-1.5 flex items-center justify-between bg-slate-950/70 p-2 rounded-xl border border-slate-800 text-xs"
+          >
+            <span class="text-slate-400 font-medium px-1"
+              ><i class="fa-solid fa-compress text-brand-400 mr-1.5"></i>Padding
+              Offsets:</span
+            >
+            <div class="flex items-center space-x-4 pr-1">
+              <div
+                class="flex items-center space-x-1.5"
+                data-tooltip="Left Offset"
+              >
+                <span class="text-[10px] text-slate-500 font-mono">L:</span>
+                <input
+                  type="number"
+                  id="offsetLeftInput"
+                  value="0"
+                  min="0"
+                  class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                />
+              </div>
+              <div
+                class="flex items-center space-x-1.5"
+                data-tooltip="Right Offset"
+              >
+                <span class="text-[10px] text-slate-500 font-mono">R:</span>
+                <input
+                  type="number"
+                  id="offsetRightInput"
+                  value="0"
+                  min="0"
+                  class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                />
+              </div>
+              <div
+                class="flex items-center space-x-1.5"
+                data-tooltip="Up Offset"
+              >
+                <span class="text-[10px] text-slate-500 font-mono">U:</span>
+                <input
+                  type="number"
+                  id="offsetUpInput"
+                  value="0"
+                  min="0"
+                  class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                />
+              </div>
+              <div
+                class="flex items-center space-x-1.5"
+                data-tooltip="Down Offset"
+              >
+                <span class="text-[10px] text-slate-500 font-mono">D:</span>
+                <input
+                  type="number"
+                  id="offsetDownInput"
+                  value="0"
+                  min="0"
+                  class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                />
+              </div>
+
+              <button
+                id="resetOffsetsBtn"
+                class="ml-1 px-2 py-0.5 text-slate-400 hover:text-brand-400 bg-slate-800 hover:bg-slate-700 rounded transition"
+                data-tooltip="Reset Offsets"
+              >
+                <i class="fa-solid fa-rotate-left"></i>
+              </button>
+            </div>
+          </div>
+
           <!-- Editor Tool Dock -->
           <div
-            class="flex flex-wrap items-center justify-between bg-slate-950/70 p-1.5 rounded-xl border border-slate-800 gap-1 text-xs"
+            class="mt-1.5 flex flex-wrap items-center justify-between bg-slate-950/70 p-1.5 rounded-xl border border-slate-800 gap-1 text-xs"
           >
             <!-- Primary Tools -->
             <div class="flex items-center space-x-1">
@@ -1038,28 +1112,28 @@
               <button
                 id="shiftUpBtn"
                 class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
-                data-tooltip="Shift Up"
+                data-tooltip="Shift Up (Wrap)"
               >
                 <i class="fa-solid fa-arrow-up"></i>
               </button>
               <button
                 id="shiftDownBtn"
                 class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
-                data-tooltip="Shift Down"
+                data-tooltip="Shift Down (Wrap)"
               >
                 <i class="fa-solid fa-arrow-down"></i>
               </button>
               <button
                 id="shiftLeftBtn"
                 class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
-                data-tooltip="Shift Left"
+                data-tooltip="Shift Left (Wrap)"
               >
                 <i class="fa-solid fa-arrow-left"></i>
               </button>
               <button
                 id="shiftRightBtn"
                 class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
-                data-tooltip="Shift Right"
+                data-tooltip="Shift Right (Wrap)"
               >
                 <i class="fa-solid fa-arrow-right"></i>
               </button>
@@ -1109,7 +1183,7 @@
 
           <!-- MAIN PIXEL CANVAS AREA -->
           <div
-            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-center relative overflow-auto bg-checker"
+            class="mt-3 flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-center relative overflow-auto bg-checker"
           >
             <canvas
               id="pixelCanvas"
@@ -1119,7 +1193,7 @@
 
           <!-- Matrix Coordinates Footer -->
           <div
-            class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col space-y-1.5"
+            class="mt-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col"
           >
             <div
               class="flex items-center justify-between text-xs text-slate-400"
@@ -1363,10 +1437,12 @@
           cropBox: { x: 0, y: 0, w: 8, h: 8 },
           cropDragging: false,
           cropStartPos: { x: 0, y: 0 },
+          offsets: { left: 0, right: 0, top: 0, bottom: 0 },
         };
 
         const ASCII_MIN = 32;
         const ASCII_MAX = 126;
+        let fontTabAlign = "center"; // Alignment state for font rendering
 
         // --- DOM ELEMENTS REFERENCE ---
         const els = {
@@ -1433,7 +1509,7 @@
           zoomControlsPanel: document.getElementById("zoomControlsPanel"),
           canvasViewport: document.getElementById("canvasViewport"),
 
-          // Tab 2: Font Family (NEW)
+          // Tab 2: Font Family
           fontFamilySelect: document.getElementById("fontFamilySelect"),
           ttfFileInput: document.getElementById("ttfFileInput"),
           currentLoadedFontName: document.getElementById(
@@ -1450,6 +1526,11 @@
           activeFontTargetLabel: document.getElementById(
             "activeFontTargetLabel",
           ),
+          alignLeftBtn: document.getElementById("alignLeftBtn"),
+          alignCenterBtn: document.getElementById("alignCenterBtn"),
+          alignRightBtn: document.getElementById("alignRightBtn"),
+          offsetXInput: document.getElementById("offsetXInput"),
+          offsetYInput: document.getElementById("offsetYInput"),
 
           // Tab 3: Glyph Map
           glyphGridContainer: document.getElementById("glyphGridContainer"),
@@ -1460,6 +1541,11 @@
           clearGlyphBtn: document.getElementById("clearGlyphBtn"),
 
           // Editor Panel
+          offsetLeftInput: document.getElementById("offsetLeftInput"),
+          offsetRightInput: document.getElementById("offsetRightInput"),
+          offsetUpInput: document.getElementById("offsetUpInput"),
+          offsetDownInput: document.getElementById("offsetDownInput"),
+          resetOffsetsBtn: document.getElementById("resetOffsetsBtn"),
           editorActiveCharBadge: document.getElementById(
             "editorActiveCharBadge",
           ),
@@ -1622,7 +1708,7 @@
           renderGlyphGrid();
         }
 
-        // --- TAB 2: FONT FAMILY & TTF CONVERTER LOGIC (NEW SECTION) ---
+        // --- TAB 2: FONT FAMILY & TTF CONVERTER LOGIC ---
         els.ttfFileInput.addEventListener("change", async (e) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -1644,6 +1730,34 @@
           }
         });
 
+        // Alignment UI Buttons Manager
+        function setFontAlign(align) {
+          fontTabAlign = align;
+          [els.alignLeftBtn, els.alignCenterBtn, els.alignRightBtn].forEach(
+            (b) => {
+              b.classList.remove("bg-slate-800", "text-brand-400");
+              b.classList.add("hover:bg-slate-800", "text-slate-300");
+            },
+          );
+
+          let activeBtn = els.alignCenterBtn;
+          if (align === "left") activeBtn = els.alignLeftBtn;
+          if (align === "right") activeBtn = els.alignRightBtn;
+
+          activeBtn.classList.remove("hover:bg-slate-800", "text-slate-300");
+          activeBtn.classList.add("bg-slate-800", "text-brand-400");
+          renderFontCharacter();
+        }
+
+        els.alignLeftBtn.addEventListener("click", () => setFontAlign("left"));
+        els.alignCenterBtn.addEventListener("click", () =>
+          setFontAlign("center"),
+        );
+        els.alignRightBtn.addEventListener("click", () =>
+          setFontAlign("right"),
+        );
+
+        // Render Canvas Process
         function renderFontCharacter() {
           const canvas = els.fontSourceCanvas;
           const ctx = canvas.getContext("2d");
@@ -1653,6 +1767,7 @@
           canvas.width = width;
           canvas.height = height;
 
+          // Background Fill (Important for alpha checking)
           ctx.fillStyle = "#000000";
           ctx.fillRect(0, 0, width, height);
 
@@ -1664,27 +1779,41 @@
             ? customFontFaceName
             : els.fontFamilySelect.value;
 
+          const offX = parseInt(els.offsetXInput.value, 10) || 0;
+          const offY = parseInt(els.offsetYInput.value, 10) || 0;
+
           ctx.font = `${fontSize}px ${fontFamily}`;
           ctx.fillStyle = "#ffffff";
-          ctx.textAlign = "center";
           ctx.textBaseline = "middle";
+          ctx.textAlign = fontTabAlign;
 
-          ctx.fillText(charStr, width / 2, height / 2);
+          let drawX = width / 2;
+          if (fontTabAlign === "left") drawX = 0;
+          if (fontTabAlign === "right") drawX = width;
 
+          drawX += offX;
+          const drawY = height / 2 + offY;
+
+          ctx.fillText(charStr, drawX, drawY);
+
+          // Manual pixel binarization
           const threshold = parseInt(els.fontThresholdInput.value, 10);
           const imgData = ctx.getImageData(0, 0, width, height);
           const data = imgData.data;
 
           for (let i = 0; i < data.length; i += 4) {
             const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            // Mix against alpha background
             const val = avg >= threshold ? 255 : 0;
             data[i] = val;
             data[i + 1] = val;
             data[i + 2] = val;
+            data[i + 3] = 255;
           }
           ctx.putImageData(imgData, 0, 0);
         }
 
+        // Live updating inputs for font rendering
         els.fontFamilySelect.addEventListener("change", () => {
           customFontFaceName = null;
           els.currentLoadedFontName.textContent =
@@ -1695,10 +1824,11 @@
         });
 
         els.fontCharInput.addEventListener("input", (e) => {
-          if (e.target.value.length > 0) {
-            renderFontCharacter();
-          }
+          if (e.target.value.length > 0) renderFontCharacter();
         });
+
+        els.offsetXInput.addEventListener("input", renderFontCharacter);
+        els.offsetYInput.addEventListener("input", renderFontCharacter);
 
         els.syncTargetCharBtn.addEventListener("click", () => {
           els.fontCharInput.value = String.fromCharCode(
@@ -1734,6 +1864,7 @@
           for (let y = 0; y < FontState.height; y++) {
             for (let x = 0; x < FontState.width; x++) {
               const idx = (y * FontState.width + x) * 4;
+              // Pure threshold check
               matrix[y][x] = imgData[idx] > 128 ? 1 : 0;
             }
           }
@@ -1897,7 +2028,7 @@
           els.thresholdInput.value = 128;
           els.brightnessInput.value = 0;
           els.contrastInput.value = 0;
-          els.invertBinarizeInput.checked = false;
+          els.invertBinarizeInput.checked = true; // Kept checked as standard mode
           els.thresholdVal.textContent = "128";
           els.brightnessVal.textContent = "0";
           els.contrastVal.textContent = "0";
@@ -1910,9 +2041,23 @@
 
           const canvas = els.binarizedSourceCanvas;
           const ctx = canvas.getContext("2d");
-
           const cropW = EditorState.cropBox.w;
           const cropH = EditorState.cropBox.h;
+
+          // Safe drawing bounds inside Offsets
+          const activeW =
+            FontState.width -
+            EditorState.offsets.left -
+            EditorState.offsets.right;
+          const activeH =
+            FontState.height -
+            EditorState.offsets.top -
+            EditorState.offsets.bottom;
+
+          if (activeW <= 0 || activeH <= 0) {
+            showToast("Offset bounds leave no active drawing area!", "error");
+            return;
+          }
 
           const imgData = ctx.getImageData(
             EditorState.cropBox.x,
@@ -1920,17 +2065,26 @@
             cropW,
             cropH,
           ).data;
-
           const matrix = createEmptyMatrix(FontState.width, FontState.height);
 
           for (let y = 0; y < FontState.height; y++) {
             for (let x = 0; x < FontState.width; x++) {
-              // Nearest-Neighbor mapping: Maps the dynamically resized crop box down to the fixed Font Grid size
-              const srcX = Math.floor((x / FontState.width) * cropW);
-              const srcY = Math.floor((y / FontState.height) * cropH);
-              const idx = (srcY * cropW + srcX) * 4;
+              const isOffset =
+                x < EditorState.offsets.left ||
+                x >= FontState.width - EditorState.offsets.right ||
+                y < EditorState.offsets.top ||
+                y >= FontState.height - EditorState.offsets.bottom;
 
-              matrix[y][x] = imgData[idx] > 128 ? 1 : 0;
+              if (isOffset) {
+                matrix[y][x] = 0; // Clear offset areas entirely
+              } else {
+                const localX = x - EditorState.offsets.left;
+                const localY = y - EditorState.offsets.top;
+                const srcX = Math.floor((localX / activeW) * cropW);
+                const srcY = Math.floor((localY / activeH) * cropH);
+                const idx = (srcY * cropW + srcX) * 4;
+                matrix[y][x] = imgData[idx] > 128 ? 1 : 0;
+              }
             }
           }
 
@@ -1945,7 +2099,7 @@
           generateExportCode();
         });
 
-        // --- NEW: CROP BOX MOUSE DRAGGING & RESIZING LOGIC ---
+        // --- CROP BOX MOUSE DRAGGING & RESIZING LOGIC ---
         let isDraggingCrop = false;
         let isResizingCrop = false;
         let dragStartX = 0;
@@ -2048,7 +2202,21 @@
           if (!loadedSourceImage) return;
           const canvas = els.binarizedSourceCanvas;
 
-          if (isZoomedIn) {
+          if (!isZoomedIn) {
+            // Auto-Fit explicitly calculated
+            const vpRect = els.canvasViewport.getBoundingClientRect();
+            if (vpRect.width > 0) {
+              const fitScaleX = (vpRect.width * 0.9) / loadedSourceImage.width;
+              const fitScaleY =
+                (vpRect.height * 0.9) / loadedSourceImage.height;
+              // Limit auto-upscaling to extreme heights 12x
+              sourceZoom = Math.min(fitScaleX, fitScaleY, 12);
+            }
+            canvas.style.maxWidth = "none";
+            canvas.style.width = `${Math.round(loadedSourceImage.width * sourceZoom)}px`;
+            els.sourceZoomLevel.textContent = "Fit";
+            els.canvasViewport.classList.add("items-center", "justify-center");
+          } else {
             canvas.style.maxWidth = "none";
             canvas.style.width = `${Math.round(loadedSourceImage.width * sourceZoom)}px`;
             els.sourceZoomLevel.textContent = `${Math.round(sourceZoom * 100)}%`;
@@ -2056,11 +2224,6 @@
               "items-center",
               "justify-center",
             );
-          } else {
-            canvas.style.maxWidth = "100%";
-            canvas.style.width = "";
-            els.sourceZoomLevel.textContent = "Fit";
-            els.canvasViewport.classList.add("items-center", "justify-center");
           }
           updateCropBoxOverlay();
         }
@@ -2223,7 +2386,9 @@
 
             const tile = document.createElement("div");
             const isActive = code === FontState.activeCharCode;
-            tile.className = `p-1.5 rounded-lg border flex flex-col items-center justify-center cursor-pointer transition select-none ${
+
+            // `aspect-square` keeps height equal to width uniformly
+            tile.className = `aspect-square p-1.5 rounded-lg border flex flex-col items-center justify-center cursor-pointer transition select-none ${
               isActive
                 ? "bg-brand-600/30 border-brand-500 text-brand-300 badge-active"
                 : "bg-slate-900 border-slate-800 hover:border-slate-600 text-slate-300"
@@ -2323,11 +2488,22 @@
           // Draw Matrix Cells
           for (let y = 0; y < FontState.height; y++) {
             for (let x = 0; x < FontState.width; x++) {
-              ctx.fillStyle = matrix[y][x] ? "#6366f1" : "#0f172a";
+              const isOffset =
+                x < EditorState.offsets.left ||
+                x >= FontState.width - EditorState.offsets.right ||
+                y < EditorState.offsets.top ||
+                y >= FontState.height - EditorState.offsets.bottom;
+
+              let cellColor = isOffset ? "#1e293b" : "#0f172a"; // Offset vs normal bg
+              if (matrix[y][x]) {
+                cellColor = isOffset ? "#334155" : "#6366f1"; // Disabled gray vs Bright indigo
+              }
+
+              ctx.fillStyle = cellColor;
               ctx.fillRect(x * scale, y * scale, scale, scale);
 
               if (EditorState.gridLines) {
-                ctx.strokeStyle = "#1e293b";
+                ctx.strokeStyle = isOffset ? "#334155" : "#1e293b";
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x * scale, y * scale, scale, scale);
               }
@@ -2356,6 +2532,13 @@
           els.cursorCoordReadout.textContent = `X: ${x}, Y: ${y}`;
 
           if (!EditorState.isDrawing) return;
+
+          const isOffset =
+            x < EditorState.offsets.left ||
+            x >= FontState.width - EditorState.offsets.right ||
+            y < EditorState.offsets.top ||
+            y >= FontState.height - EditorState.offsets.bottom;
+          if (isOffset) return;
 
           const code = FontState.activeCharCode;
           const matrix = FontState.glyphs[code];
@@ -2416,45 +2599,51 @@
           });
         });
 
-        // Transform operations
+        // Transform operations (Wrap-around Shift Handlers)
         els.shiftUpBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             const firstRow = m.shift();
-            m.push(Array(FontState.width).fill(0));
+            m.push(firstRow);
           }),
         );
+
         els.shiftDownBtn.addEventListener("click", () =>
           transformMatrix((m) => {
-            m.pop();
-            m.unshift(Array(FontState.width).fill(0));
+            const lastRow = m.pop();
+            m.unshift(lastRow);
           }),
         );
+
         els.shiftLeftBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             m.forEach((row) => {
-              row.shift();
-              row.push(0);
+              const first = row.shift();
+              row.push(first);
             });
           }),
         );
+
         els.shiftRightBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             m.forEach((row) => {
-              row.pop();
-              row.unshift(0);
+              const last = row.pop();
+              row.unshift(last);
             });
           }),
         );
+
         els.flipHBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             m.forEach((row) => row.reverse());
           }),
         );
+
         els.flipVBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             m.reverse();
           }),
         );
+
         els.invertGridBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             for (let y = 0; y < FontState.height; y++) {
@@ -2463,6 +2652,7 @@
             }
           }),
         );
+
         els.clearMatrixBtn.addEventListener("click", () =>
           transformMatrix((m) => {
             for (let y = 0; y < FontState.height; y++) m[y].fill(0);
@@ -2696,6 +2886,29 @@
             els.globalHeightInput.value = h;
             els.applySizeBtn.click();
           });
+        });
+
+        function bindOffsetInputs() {
+          EditorState.offsets.left = parseInt(els.offsetLeftInput.value) || 0;
+          EditorState.offsets.right = parseInt(els.offsetRightInput.value) || 0;
+          EditorState.offsets.top = parseInt(els.offsetUpInput.value) || 0;
+          EditorState.offsets.bottom = parseInt(els.offsetDownInput.value) || 0;
+          renderPixelEditor();
+        }
+
+        els.offsetLeftInput.addEventListener("input", bindOffsetInputs);
+        els.offsetRightInput.addEventListener("input", bindOffsetInputs);
+        els.offsetUpInput.addEventListener("input", bindOffsetInputs);
+        els.offsetDownInput.addEventListener("input", bindOffsetInputs);
+
+        // Reset offsets explicitly
+        els.resetOffsetsBtn.addEventListener("click", () => {
+          els.offsetLeftInput.value = 0;
+          els.offsetRightInput.value = 0;
+          els.offsetUpInput.value = 0;
+          els.offsetDownInput.value = 0;
+          bindOffsetInputs();
+          showToast("Offsets reset to zero", "info");
         });
 
         // Initial Bootstrap
