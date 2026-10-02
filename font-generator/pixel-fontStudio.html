@@ -1,0 +1,2709 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PixelFont Studio - PNG to Bitmap & Custom Font Editor</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#eef2ff",
+                100: "#e0e7ff",
+                400: "#818cf8",
+                500: "#6366f1",
+                600: "#4f46e5",
+                700: "#4338ca",
+                900: "#312e81",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <!-- FontAwesome Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- Google Fonts Inter & Fira Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        user-select: none;
+      }
+      .font-mono-code {
+        font-family: "Fira Code", monospace;
+      }
+      /* Custom scrollbars */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+
+      /* Pixel editor canvas background grid pattern */
+      .bg-checker {
+        background-color: #0f172a;
+        background-image:
+          linear-gradient(45deg, #1e293b 25%, transparent 25%),
+          linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #1e293b 75%),
+          linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+        background-size: 16px 16px;
+        background-position:
+          0 0,
+          0 8px,
+          8px -8px,
+          -8px 0px;
+      }
+
+      /* Slicer canvas interactive crop handles */
+      .crop-overlay {
+        border: 2px dashed #6366f1;
+        background-color: rgba(99, 102, 241, 0.2);
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Tooltip styling */
+      [data-tooltip] {
+        position: relative;
+      }
+      [data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 6px;
+        padding: 4px 8px;
+        background-color: #0f172a;
+        color: #f8fafc;
+        font-size: 11px;
+        white-space: nowrap;
+        border-radius: 4px;
+        border: 1px solid #334155;
+        pointer-events: none;
+        z-index: 50;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      }
+
+      .badge-active {
+        box-shadow: 0 0 0 2px #6366f1;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-slate-950 text-slate-100 min-h-screen flex flex-col overflow-x-hidden"
+  >
+    <!-- Top Navigation Header -->
+    <header
+      class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 py-2.5"
+    >
+      <div
+        class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-4"
+      >
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-3">
+          <div
+            class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-brand-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20"
+          >
+            <i class="fa-solid fa-font text-white text-xl"></i>
+          </div>
+          <div>
+            <h1
+              class="font-bold text-lg leading-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent"
+            >
+              PixelFont
+              <span class="text-brand-400 font-extrabold">Studio</span>
+            </h1>
+            <p class="text-xs text-slate-400">
+              PNG to Bitmap & Custom Pixel Font Generator
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Project Specs Toolbar -->
+        <div
+          class="flex items-center bg-slate-950/80 rounded-xl p-1.5 border border-slate-800 text-xs gap-3"
+        >
+          <div class="flex items-center space-x-2 px-2">
+            <label class="text-slate-400 font-medium">Font Name:</label>
+            <input
+              type="text"
+              id="fontNameInput"
+              value="MyPixelFont"
+              class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 w-28 focus:outline-none focus:border-brand-500 font-mono text-xs"
+            />
+          </div>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <div class="flex items-center space-x-2 px-2">
+            <label class="text-slate-400 font-medium">Size (WxH):</label>
+            <div class="flex items-center space-x-1">
+              <input
+                type="number"
+                id="globalWidthInput"
+                value="8"
+                min="2"
+                max="64"
+                class="bg-slate-900 border border-slate-700 rounded w-12 py-1 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-xs"
+              />
+              <span class="text-slate-500">×</span>
+              <input
+                type="number"
+                id="globalHeightInput"
+                value="8"
+                min="2"
+                max="64"
+                class="bg-slate-900 border border-slate-700 rounded w-12 py-1 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-xs"
+              />
+            </div>
+            <button
+              id="applySizeBtn"
+              class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded transition text-xs font-medium"
+              data-tooltip="Resize all glyphs in font"
+            >
+              Apply
+            </button>
+          </div>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <div class="flex items-center space-x-1 px-1">
+            <span class="text-slate-400 font-medium mr-1">Presets:</span>
+            <button
+              class="preset-btn bg-slate-800 hover:bg-brand-600/30 hover:text-brand-300 text-slate-300 px-2 py-0.5 rounded text-[11px]"
+              data-w="8"
+              data-h="8"
+            >
+              8x8
+            </button>
+            <button
+              class="preset-btn bg-slate-800 hover:bg-brand-600/30 hover:text-brand-300 text-slate-300 px-2 py-0.5 rounded text-[11px]"
+              data-w="8"
+              data-h="12"
+            >
+              8x12
+            </button>
+            <button
+              class="preset-btn bg-slate-800 hover:bg-brand-600/30 hover:text-brand-300 text-slate-300 px-2 py-0.5 rounded text-[11px]"
+              data-w="8"
+              data-h="16"
+            >
+              8x16
+            </button>
+            <button
+              class="preset-btn bg-slate-800 hover:bg-brand-600/30 hover:text-brand-300 text-slate-300 px-2 py-0.5 rounded text-[11px]"
+              data-w="16"
+              data-h="16"
+            >
+              16x16
+            </button>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-2">
+          <button
+            id="newProjectBtn"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 border border-slate-700"
+          >
+            <i class="fa-solid fa-file-circle-plus"></i>
+            <span>New</span>
+          </button>
+
+          <label
+            class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 border border-slate-700 cursor-pointer"
+          >
+            <i class="fa-solid fa-folder-open text-amber-400"></i>
+            <span>Open Project</span>
+            <input
+              type="file"
+              id="importProjectFile"
+              accept=".json"
+              class="hidden"
+            />
+          </label>
+
+          <button
+            id="exportProjectBtn"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 border border-slate-700"
+            data-tooltip="Save project to JSON file"
+          >
+            <i class="fa-solid fa-floppy-disk text-emerald-400"></i>
+            <span>Save JSON</span>
+          </button>
+
+          <button
+            id="quickExportHeaderBtn"
+            class="bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-brand-500/20 transition flex items-center space-x-1.5"
+          >
+            <i class="fa-solid fa-code"></i>
+            <span>Export Header</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Studio Workspace Container -->
+    <main
+      class="flex-1 max-w-[1920px] w-full mx-auto p-3 grid grid-cols-1 lg:grid-cols-12 gap-3"
+    >
+      <!-- LEFT PANEL: Image Slicer, Font Family & Character Selector (Cols 3) -->
+      <section
+        class="lg:col-span-3 flex flex-col space-y-3 h-[calc(100vh-85px)]"
+      >
+        <!-- Tab Controls for Left Panel -->
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex space-x-1 shrink-0"
+        >
+          <button
+            id="tabBtnSlicer"
+            class="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 bg-brand-600 text-white shadow"
+          >
+            <i class="fa-solid fa-file-image"></i>
+            <span>PNG Import</span>
+          </button>
+
+          <button
+            id="tabBtnFontFamily"
+            class="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 text-slate-400 hover:text-slate-200"
+          >
+            <i class="fa-solid fa-font"></i>
+            <span>Font Family</span>
+          </button>
+
+          <button
+            id="tabBtnGlyphs"
+            class="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 text-slate-400 hover:text-slate-200"
+          >
+            <i class="fa-solid fa-border-all"></i>
+            <span>Glyph Map</span>
+          </button>
+        </div>
+
+        <!-- TAB CONTENT 1: PNG Import & Slicer -->
+        <div
+          id="tabContentSlicer"
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-y-auto overflow-x-hidden space-y-3"
+        >
+          <!-- Dropzone / Upload area -->
+          <div
+            id="imageDropzone"
+            class="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/50 flex flex-col items-center justify-center group"
+          >
+            <i
+              class="fa-solid fa-cloud-arrow-up text-2xl text-slate-500 group-hover:text-brand-400 mb-1 transition"
+            ></i>
+            <p class="text-xs font-medium text-slate-300">
+              Drop PNG Screenshot here or
+              <span class="text-brand-400 underline">Browse</span>
+            </p>
+            <p class="text-[10px] text-slate-500 mt-1">
+              Monochrome binarization & tile extraction
+            </p>
+            <input
+              type="file"
+              id="pngFileInput"
+              accept="image/png, image/jpeg, image/webp"
+              class="hidden"
+            />
+          </div>
+
+          <!-- Image Controls -->
+          <div
+            id="imageControls"
+            class="space-y-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 hidden text-xs"
+          >
+            <div
+              class="flex items-center justify-between font-semibold text-slate-300 pb-1 border-b border-slate-800"
+            >
+              <span>Binarization Settings</span>
+              <button
+                id="resetImageFiltersBtn"
+                class="text-[10px] text-brand-400 hover:underline"
+              >
+                Reset Filters
+              </button>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-slate-400 text-[11px] mb-1">
+                <span>Threshold</span>
+                <span id="thresholdVal" class="font-mono text-brand-400"
+                  >128</span
+                >
+              </div>
+              <input
+                type="range"
+                id="thresholdInput"
+                min="0"
+                max="255"
+                value="128"
+                class="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <div
+                  class="flex justify-between text-slate-400 text-[11px] mb-1"
+                >
+                  <span>Brightness</span>
+                  <span id="brightnessVal" class="font-mono">0</span>
+                </div>
+                <input
+                  type="range"
+                  id="brightnessInput"
+                  min="-100"
+                  max="100"
+                  value="0"
+                  class="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+                />
+              </div>
+              <div>
+                <div
+                  class="flex justify-between text-slate-400 text-[11px] mb-1"
+                >
+                  <span>Contrast</span>
+                  <span id="contrastVal" class="font-mono">0</span>
+                </div>
+                <input
+                  type="range"
+                  id="contrastInput"
+                  min="-100"
+                  max="100"
+                  value="0"
+                  class="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <label
+                class="flex items-center space-x-2 cursor-pointer text-slate-300"
+              >
+                <input
+                  type="checkbox"
+                  id="invertBinarizeInput"
+                  class="rounded bg-slate-900 border-slate-700 text-brand-600 focus:ring-0"
+                />
+                <span>Invert Colors</span>
+              </label>
+              <span
+                class="text-[10px] text-slate-500"
+                id="sourceImageDimensions"
+                >0 x 0 px</span
+              >
+            </div>
+            <!-- Position & Size Adjustments -->
+            <div class="pt-3 border-t border-slate-800 mt-2">
+              <div class="flex justify-between text-slate-400 text-[11px] mb-2">
+                <span>Crop Box Adjustments (Pixel)</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <!-- Move Position -->
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono w-4"
+                      >X:</span
+                    >
+                    <button
+                      id="cropNudgeLeft"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Move Left"
+                    >
+                      <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <input
+                      type="number"
+                      id="cropXInput"
+                      value="0"
+                      class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                    <button
+                      id="cropNudgeRight"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Move Right"
+                    >
+                      <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono w-4"
+                      >Y:</span
+                    >
+                    <button
+                      id="cropNudgeUp"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Move Up"
+                    >
+                      <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                    <input
+                      type="number"
+                      id="cropYInput"
+                      value="0"
+                      class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                    <button
+                      id="cropNudgeDown"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Move Down"
+                    >
+                      <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+                  </div>
+                </div>
+                <!-- Scale Size -->
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono w-4"
+                      >W:</span
+                    >
+                    <button
+                      id="cropSizeWDec"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Decrease Width"
+                    >
+                      <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <input
+                      type="number"
+                      id="cropWInput"
+                      value="8"
+                      class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                    <button
+                      id="cropSizeWInc"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Increase Width"
+                    >
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-slate-500 font-mono w-4"
+                      >H:</span
+                    >
+                    <button
+                      id="cropSizeHDec"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Decrease Height"
+                    >
+                      <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <input
+                      type="number"
+                      id="cropHInput"
+                      value="8"
+                      class="w-10 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                    <button
+                      id="cropSizeHInc"
+                      class="bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 transition"
+                      data-tooltip="Increase Height"
+                    >
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Image Preview Box & Crop Area -->
+          <div class="flex-1 relative min-h-[220px]">
+            <div
+              class="absolute inset-0 bg-slate-950 border border-slate-800 rounded-xl p-2 overflow-auto"
+            >
+              <div
+                id="canvasViewport"
+                class="relative flex items-center justify-center min-w-full min-h-full transition-all"
+              >
+                <!-- Tightly fitted relative wrapper to keep crop box aligned with the canvas bounds -->
+                <div id="sourceImageWrapper" class="relative inline-block">
+                  <canvas
+                    id="binarizedSourceCanvas"
+                    class="block rounded border border-slate-800 cursor-crosshair max-w-full"
+                    style="image-rendering: pixelated"
+                  ></canvas>
+
+                  <!-- Crop box is now absolutely positioned to this wrapper, not the flex container -->
+                  <div
+                    id="cropBox"
+                    class="crop-overlay absolute hidden cursor-move origin-top-left"
+                    style="top: 0; left: 0"
+                  >
+                    <div
+                      class="absolute -top-6 left-0 bg-brand-600 text-white text-[10px] px-1.5 py-0.5 rounded shadow font-mono font-bold whitespace-nowrap"
+                      id="cropBoxLabel"
+                    >
+                      Crop Box
+                    </div>
+                    <!-- Resizer Handle -->
+                    <div
+                      id="cropResizeHandle"
+                      class="absolute -bottom-1 -right-1 w-3 h-3 bg-brand-400 border border-white cursor-se-resize rounded-full shadow-sm"
+                    ></div>
+                  </div>
+                </div>
+
+                <div
+                  id="noImagePlaceholder"
+                  class="absolute inset-0 flex flex-col items-center justify-center text-center text-slate-600 text-xs pointer-events-none"
+                >
+                  <i class="fa-solid fa-image text-3xl mb-2 block"></i>
+                  Upload image to extract font glyphs
+                </div>
+              </div>
+            </div>
+
+            <!-- NEW: Floating Zoom Controls -->
+            <div
+              id="zoomControlsPanel"
+              class="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg flex shadow-lg overflow-hidden z-10 hidden"
+            >
+              <button
+                id="zoomSourceOutBtn"
+                class="px-2 py-1 text-slate-300 hover:bg-slate-800 hover:text-white transition border-r border-slate-700"
+                data-tooltip="Zoom Out"
+              >
+                <i class="fa-solid fa-minus"></i>
+              </button>
+              <span
+                id="sourceZoomLevel"
+                class="px-2 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-center min-w-[3rem]"
+                >Fit</span
+              >
+              <button
+                id="zoomSourceInBtn"
+                class="px-2 py-1 text-slate-300 hover:bg-slate-800 hover:text-white transition border-l border-slate-700"
+                data-tooltip="Zoom In"
+              >
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Extraction Action Bar -->
+          <div class="space-y-2 pt-1">
+            <button
+              id="extractCropBtn"
+              class="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow flex items-center justify-center space-x-2 transition disabled:opacity-50"
+              disabled
+            >
+              <i class="fa-solid fa-crop-simple"></i>
+              <span
+                >Grab Selection to Character [<span
+                  id="activeCharTargetLabel"
+                  class="font-mono text-amber-300"
+                  >A</span
+                >]</span
+              >
+            </button>
+
+            <button
+              id="autoSliceGridBtn"
+              class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-1.5 px-3 rounded-lg border border-slate-700 flex items-center justify-center space-x-2 transition disabled:opacity-50"
+              disabled
+            >
+              <i class="fa-solid fa-table-cells"></i>
+              <span>Auto-Slice Image to ASCII Glyphs</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT 2: Font Family & Custom TTF Generator (NEW) -->
+        <div
+          id="tabContentFontFamily"
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-y-auto space-y-3 hidden"
+        >
+          <!-- Font Selector & Custom Upload Box -->
+          <div
+            class="space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-xs"
+          >
+            <div
+              class="font-semibold text-slate-300 pb-1 border-b border-slate-800 flex justify-between items-center"
+            >
+              <span>Font Source</span>
+              <span
+                id="currentLoadedFontName"
+                class="text-[10px] text-brand-400 font-mono"
+                >Standard (Sans-Serif)</span
+              >
+            </div>
+
+            <!-- System Font Selection -->
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1"
+                >Standard Font Family</label
+              >
+              <select
+                id="fontFamilySelect"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500 font-mono"
+              >
+                <option value="sans-serif" selected>
+                  Sans-Serif (System default)
+                </option>
+                <option value="monospace">Monospace</option>
+                <option value="'Fira Code', monospace">Fira Code</option>
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="serif">Serif</option>
+                <option value="'Courier New', monospace">Courier New</option>
+                <option value="Arial, sans-serif">Arial</option>
+              </select>
+            </div>
+
+            <!-- Custom TTF / OTF Upload -->
+            <div class="pt-1">
+              <label class="block text-[11px] text-slate-400 mb-1"
+                >Upload Custom Font (.ttf, .otf, .woff)</label
+              >
+              <label
+                class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 px-3 rounded-lg border border-slate-700 flex items-center justify-center space-x-2 cursor-pointer transition"
+              >
+                <i class="fa-solid fa-file-arrow-up text-brand-400"></i>
+                <span>Choose TTF / OTF File</span>
+                <input
+                  type="file"
+                  id="ttfFileInput"
+                  accept=".ttf,.otf,.woff,.woff2"
+                  class="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          <!-- Character Input & Size Adjustment -->
+          <div
+            class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-2 text-xs"
+          >
+            <div class="flex items-center justify-between">
+              <label class="text-slate-400 text-[11px]"
+                >Render Character:</label
+              >
+              <div class="flex items-center space-x-2">
+                <input
+                  type="text"
+                  id="fontCharInput"
+                  value="A"
+                  maxlength="1"
+                  class="w-10 bg-slate-900 border border-slate-700 text-center text-slate-100 font-mono font-bold py-1 rounded focus:outline-none focus:border-brand-500"
+                />
+                <button
+                  id="syncTargetCharBtn"
+                  class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2 py-1 rounded"
+                  data-tooltip="Use active target character"
+                >
+                  Active ('A')
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-slate-400 text-[11px] mb-1">
+                <span>Font Size (px)</span>
+                <span id="fontSizeVal" class="font-mono text-brand-400"
+                  >8px</span
+                >
+              </div>
+              <input
+                type="range"
+                id="fontSizeInput"
+                min="6"
+                max="64"
+                value="8"
+                class="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+            </div>
+
+            <div>
+              <div class="flex justify-between text-slate-400 text-[11px] mb-1">
+                <span>Binarization Threshold</span>
+                <span id="fontThresholdVal" class="font-mono text-brand-400"
+                  >128</span
+                >
+              </div>
+              <input
+                type="range"
+                id="fontThresholdInput"
+                min="0"
+                max="255"
+                value="128"
+                class="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+            </div>
+            <!-- Position & Alignment Adjustments -->
+            <div class="pt-3 border-t border-slate-800 space-y-2 mt-2">
+              <div class="flex justify-between text-slate-400 text-[11px] mb-1">
+                <span>Position & Alignment</span>
+              </div>
+
+              <div class="flex items-center justify-between gap-2">
+                <!-- Alignment Buttons -->
+                <div class="flex bg-slate-900 rounded border border-slate-700">
+                  <button
+                    id="alignLeftBtn"
+                    class="p-1.5 hover:bg-slate-800 text-slate-300 rounded-l transition"
+                    data-tooltip="Align Left"
+                  >
+                    <i class="fa-solid fa-align-left"></i>
+                  </button>
+                  <button
+                    id="alignCenterBtn"
+                    class="p-1.5 hover:bg-slate-800 text-slate-300 border-l border-r border-slate-700 transition"
+                    data-tooltip="Align Center"
+                  >
+                    <i class="fa-solid fa-align-center"></i>
+                  </button>
+                  <button
+                    id="alignRightBtn"
+                    class="p-1.5 hover:bg-slate-800 text-slate-300 rounded-r transition"
+                    data-tooltip="Align Right"
+                  >
+                    <i class="fa-solid fa-align-right"></i>
+                  </button>
+                </div>
+
+                <!-- X / Y Nudge Inputs -->
+                <div class="flex items-center space-x-2">
+                  <div class="flex items-center space-x-1">
+                    <label class="text-[10px] text-slate-500">X:</label>
+                    <input
+                      type="number"
+                      id="offsetXInput"
+                      value="0"
+                      class="w-12 bg-slate-900 border border-slate-700 rounded py-1 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <label class="text-[10px] text-slate-500">Y:</label>
+                    <input
+                      type="number"
+                      id="offsetYInput"
+                      value="0"
+                      class="w-12 bg-slate-900 border border-slate-700 rounded py-1 text-center text-slate-200 focus:outline-none focus:border-brand-500 font-mono text-[10px]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Render Preview Box -->
+          <div
+            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 relative overflow-auto min-h-[300px] flex items-center justify-center"
+          >
+            <canvas
+              id="fontSourceCanvas"
+              class="border border-slate-800 rounded bg-black cursor-crosshair w-full max-w-[280px] h-auto aspect-square object-contain"
+              style="image-rendering: pixelated"
+            ></canvas>
+          </div>
+
+          <!-- Extraction Action -->
+          <button
+            id="extractFontCharBtn"
+            class="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold py-2 px-3 rounded-lg shadow flex items-center justify-center space-x-2 transition"
+          >
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span
+              >Convert Character to Bitmap [<span
+                id="activeFontTargetLabel"
+                class="font-mono text-amber-300"
+                >A</span
+              >]</span
+            >
+          </button>
+        </div>
+
+        <!-- TAB CONTENT 3: Character Glyph Selector Grid -->
+        <div
+          id="tabContentGlyphs"
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-hidden space-y-2 hidden"
+        >
+          <!-- Filter Category Tabs -->
+          <div
+            class="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg text-[11px] text-slate-400"
+          >
+            <button
+              class="glyph-filter-btn flex-1 py-1 rounded bg-slate-800 text-slate-200 font-medium"
+              data-filter="all"
+            >
+              All (95)
+            </button>
+            <button
+              class="glyph-filter-btn flex-1 py-1 rounded hover:text-slate-200"
+              data-filter="upper"
+            >
+              A-Z
+            </button>
+            <button
+              class="glyph-filter-btn flex-1 py-1 rounded hover:text-slate-200"
+              data-filter="lower"
+            >
+              a-z
+            </button>
+            <button
+              class="glyph-filter-btn flex-1 py-1 rounded hover:text-slate-200"
+              data-filter="digits"
+            >
+              0-9
+            </button>
+            <button
+              class="glyph-filter-btn flex-1 py-1 rounded hover:text-slate-200"
+              data-filter="symbols"
+            >
+              Sym
+            </button>
+          </div>
+
+          <!-- ASCII Characters Scrollable Grid -->
+          <div
+            id="glyphGridContainer"
+            class="flex-1 overflow-y-auto grid grid-cols-5 sm:grid-cols-6 gap-1.5 p-1 bg-slate-950/60 rounded-xl border border-slate-800"
+          >
+            <!-- Glyph tiles inserted dynamically by JS -->
+          </div>
+
+          <!-- Quick Glyph Bar Info -->
+          <div
+            class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs flex items-center justify-between text-slate-400"
+          >
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-500">Selected:</span>
+              <span
+                id="selectedCharDisplay"
+                class="font-mono text-brand-400 font-bold bg-slate-900 border border-slate-700 px-2 py-0.5 rounded text-sm"
+                >'A'</span
+              >
+              <span id="selectedCharAscii" class="text-[10px] text-slate-500"
+                >(Dec: 65, Hex: 0x41)</span
+              >
+            </div>
+
+            <div class="flex space-x-1">
+              <button
+                id="copyGlyphBtn"
+                class="p-1.5 hover:bg-slate-800 rounded text-slate-300"
+                data-tooltip="Copy Glyph Data"
+              >
+                <i class="fa-solid fa-copy"></i>
+              </button>
+              <button
+                id="pasteGlyphBtn"
+                class="p-1.5 hover:bg-slate-800 rounded text-slate-300"
+                data-tooltip="Paste Glyph Data"
+              >
+                <i class="fa-solid fa-paste"></i>
+              </button>
+              <button
+                id="clearGlyphBtn"
+                class="p-1.5 hover:bg-slate-800 rounded text-rose-400"
+                data-tooltip="Clear Glyph"
+              >
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER PANEL: Interactive Matrix Pixel Grid Editor (Cols 5) -->
+      <section
+        class="lg:col-span-5 flex flex-col space-y-3 h-[calc(100vh-85px)]"
+      >
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col flex-1 overflow-hidden space-y-3"
+        >
+          <!-- Editor Header Toolbar -->
+          <div
+            class="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800"
+          >
+            <div class="flex items-center space-x-3">
+              <div class="flex items-center space-x-1.5">
+                <span class="text-xs text-slate-400">Editing:</span>
+                <span
+                  id="editorActiveCharBadge"
+                  class="text-lg font-bold text-amber-300 font-mono bg-slate-900 border border-slate-700 px-2 py-0.5 rounded shadow"
+                  >A</span
+                >
+              </div>
+              <div class="text-[11px] text-slate-400 font-mono">
+                <span id="editorMatrixDimensions">8 x 8</span> px
+              </div>
+            </div>
+
+            <!-- History & View controls -->
+            <div class="flex items-center space-x-1">
+              <button
+                id="undoBtn"
+                class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded text-xs"
+                data-tooltip="Undo (Ctrl+Z)"
+              >
+                <i class="fa-solid fa-rotate-left"></i>
+              </button>
+              <button
+                id="redoBtn"
+                class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded text-xs"
+                data-tooltip="Redo (Ctrl+Y)"
+              >
+                <i class="fa-solid fa-rotate-right"></i>
+              </button>
+              <div class="h-4 w-px bg-slate-800 mx-1"></div>
+              <button
+                id="toggleGridBtn"
+                class="p-1.5 text-brand-400 hover:bg-slate-800 rounded text-xs"
+                data-tooltip="Toggle Grid Lines"
+              >
+                <i class="fa-solid fa-border-all"></i>
+              </button>
+              <button
+                id="zoomInBtn"
+                class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded text-xs"
+                data-tooltip="Zoom In"
+              >
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+              </button>
+              <button
+                id="zoomOutBtn"
+                class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded text-xs"
+                data-tooltip="Zoom Out"
+              >
+                <i class="fa-solid fa-magnifying-glass-minus"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Editor Tool Dock -->
+          <div
+            class="flex flex-wrap items-center justify-between bg-slate-950/70 p-1.5 rounded-xl border border-slate-800 gap-1 text-xs"
+          >
+            <!-- Primary Tools -->
+            <div class="flex items-center space-x-1">
+              <button
+                id="toolPencil"
+                class="tool-btn active p-2 rounded-lg bg-brand-600 text-white font-medium flex items-center space-x-1"
+                data-tool="pencil"
+                data-tooltip="Pencil (Draw Pixel)"
+              >
+                <i class="fa-solid fa-pen-nib"></i>
+              </button>
+              <button
+                id="toolEraser"
+                class="tool-btn p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 font-medium flex items-center space-x-1"
+                data-tool="eraser"
+                data-tooltip="Eraser (Clear Pixel)"
+              >
+                <i class="fa-solid fa-eraser"></i>
+              </button>
+              <button
+                id="toolFill"
+                class="tool-btn p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 font-medium flex items-center space-x-1"
+                data-tool="fill"
+                data-tooltip="Bucket Fill Region"
+              >
+                <i class="fa-solid fa-fill-drip"></i>
+              </button>
+            </div>
+
+            <div class="h-5 w-px bg-slate-800"></div>
+
+            <!-- Transform Operations -->
+            <div class="flex items-center space-x-1">
+              <button
+                id="shiftUpBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Shift Up"
+              >
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button
+                id="shiftDownBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Shift Down"
+              >
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button
+                id="shiftLeftBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Shift Left"
+              >
+                <i class="fa-solid fa-arrow-left"></i>
+              </button>
+              <button
+                id="shiftRightBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Shift Right"
+              >
+                <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+
+            <div class="h-5 w-px bg-slate-800"></div>
+
+            <!-- Manipulations -->
+            <div class="flex items-center space-x-1">
+              <button
+                id="flipHBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Flip Horizontal"
+              >
+                <i class="fa-solid fa-arrows-left-right"></i>
+              </button>
+              <button
+                id="flipVBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Flip Vertical"
+              >
+                <i class="fa-solid fa-arrows-up-down"></i>
+              </button>
+              <button
+                id="rotate90Btn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Rotate 90 Clockwise"
+              >
+                <i class="fa-solid fa-rotate-right text-brand-400"></i>
+              </button>
+              <button
+                id="invertGridBtn"
+                class="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+                data-tooltip="Invert All Bits"
+              >
+                <i class="fa-solid fa-circle-half-stroke"></i>
+              </button>
+              <button
+                id="clearMatrixBtn"
+                class="p-2 text-rose-400 hover:bg-rose-950/40 rounded-lg"
+                data-tooltip="Clear Matrix"
+              >
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- MAIN PIXEL CANVAS AREA -->
+          <div
+            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-center relative overflow-auto bg-checker"
+          >
+            <canvas
+              id="pixelCanvas"
+              class="border border-slate-700 shadow-2xl rounded cursor-crosshair block"
+            ></canvas>
+          </div>
+
+          <!-- Matrix Coordinates Footer -->
+          <div
+            class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col space-y-1.5"
+          >
+            <div
+              class="flex items-center justify-between text-xs text-slate-400"
+            >
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-crosshairs text-brand-400"></i>
+                <span
+                  >Cursor Position:
+                  <strong
+                    id="cursorCoordReadout"
+                    class="font-mono text-slate-200"
+                    >X: -, Y: -</strong
+                  ></span
+                >
+              </div>
+              <div class="flex items-center space-x-2">
+                <span
+                  >Active Tool:
+                  <strong
+                    id="activeToolReadout"
+                    class="text-brand-400 capitalize font-medium"
+                    >Pencil</strong
+                  ></span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: Live Text Preview Sandbox & Code Exporter (Cols 4) -->
+      <section
+        class="lg:col-span-4 flex flex-col space-y-3 h-[calc(100vh-85px)]"
+      >
+        <!-- TOP BOX: Live Font Text Preview Sandbox -->
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col space-y-2.5 h-1/2"
+        >
+          <div
+            class="flex items-center justify-between pb-1 border-b border-slate-800"
+          >
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-eye text-brand-400 text-xs"></i>
+              <h3 class="font-semibold text-xs text-slate-200">
+                Live Font Preview Sandbox
+              </h3>
+            </div>
+            <span class="text-[10px] text-slate-500">Real-time Rendering</span>
+          </div>
+
+          <!-- Custom Input Text -->
+          <input
+            type="text"
+            id="previewTextInput"
+            value="HELLO WORLD! 012345"
+            class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500 font-mono"
+          />
+
+          <!-- Preview Settings Toolbar -->
+          <div
+            class="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800"
+          >
+            <div class="flex items-center justify-between space-x-1">
+              <span>Pixel Size:</span>
+              <select
+                id="previewScaleSelect"
+                class="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 font-mono text-xs"
+              >
+                <option value="1">1x</option>
+                <option value="2">2x</option>
+                <option value="3" selected>3x</option>
+                <option value="4">4x</option>
+                <option value="6">6x</option>
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between space-x-1">
+              <span>Spacing:</span>
+              <input
+                type="number"
+                id="previewSpacingInput"
+                value="1"
+                min="0"
+                max="10"
+                class="bg-slate-900 border border-slate-700 rounded w-12 py-0.5 text-center text-slate-200 font-mono text-xs"
+              />
+            </div>
+
+            <div class="flex items-center justify-between space-x-1">
+              <span>Text Color:</span>
+              <input
+                type="color"
+                id="previewFgColor"
+                value="#38bdf8"
+                class="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+              />
+            </div>
+
+            <div class="flex items-center justify-between space-x-1">
+              <span>BG Color:</span>
+              <input
+                type="color"
+                id="previewBgColor"
+                value="#0f172a"
+                class="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+              />
+            </div>
+          </div>
+
+          <!-- Rendered Canvas Display -->
+          <div
+            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2 relative overflow-auto flex items-center justify-center"
+          >
+            <canvas
+              id="previewCanvas"
+              class="block max-w-full rounded shadow"
+            ></canvas>
+          </div>
+        </div>
+
+        <!-- BOTTOM BOX: Header & Code Exporter -->
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col space-y-2.5 h-1/2 overflow-hidden"
+        >
+          <div
+            class="flex items-center justify-between pb-1 border-b border-slate-800"
+          >
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-code text-emerald-400 text-xs"></i>
+              <h3 class="font-semibold text-xs text-slate-200">
+                Export Font Code
+              </h3>
+            </div>
+
+            <!-- Format Selector Dropdown -->
+            <select
+              id="exportFormatSelect"
+              class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-brand-300 font-mono focus:outline-none"
+            >
+              <option value="c_header">C/C++ PROGMEM Header (.h)</option>
+              <option value="adafruit">Adafruit GFX Font Format</option>
+              <option value="hex_array">Hex Array / MicroPython</option>
+              <option value="binary_matrix">Binary 0/1 Matrix Text</option>
+            </select>
+          </div>
+
+          <!-- Format Configurations Options -->
+          <div
+            class="grid grid-cols-2 gap-2 text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800"
+          >
+            <div class="flex items-center justify-between">
+              <span>Scan Line Order:</span>
+              <select
+                id="exportScanOrder"
+                class="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-[11px]"
+              >
+                <option value="horizontal">Horizontal (Row-wise)</option>
+                <option value="vertical">Vertical (Col-wise)</option>
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <span>Bit Order:</span>
+              <select
+                id="exportBitOrder"
+                class="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-[11px]"
+              >
+                <option value="msb">MSB First (Bit 7)</option>
+                <option value="lsb">LSB First (Bit 0)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Generated Code Preview Display -->
+          <div
+            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2 relative overflow-hidden flex flex-col"
+          >
+            <textarea
+              id="codeExportDisplay"
+              readonly
+              class="w-full h-full bg-transparent font-mono-code text-[11px] text-emerald-400 leading-relaxed resize-none focus:outline-none scrollbar-thin select-text"
+            ></textarea>
+          </div>
+
+          <!-- Export Action Buttons -->
+          <div class="grid grid-cols-3 gap-2 pt-1">
+            <button
+              id="copyCodeBtn"
+              class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-1.5 rounded-lg border border-slate-700 font-medium transition flex items-center justify-center space-x-1.5"
+            >
+              <i class="fa-solid fa-copy"></i>
+              <span>Copy Code</span>
+            </button>
+
+            <button
+              id="downloadCodeBtn"
+              class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-1.5 rounded-lg border border-slate-700 font-medium transition flex items-center justify-center space-x-1.5"
+            >
+              <i class="fa-solid fa-download"></i>
+              <span>Download .h</span>
+            </button>
+
+            <button
+              id="downloadSpriteSheetBtn"
+              class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-1.5 rounded-lg border border-slate-700 font-medium transition flex items-center justify-center space-x-1.5"
+              data-tooltip="Download full PNG sprite atlas"
+            >
+              <i class="fa-solid fa-file-image text-amber-400"></i>
+              <span>PNG Atlas</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Container -->
+    <div
+      id="toastContainer"
+      class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"
+    ></div>
+
+    <!-- COMPLETE APPLICATION SCRIPT LOGIC -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // --- STATE MANAGERS ---
+        const FontState = {
+          name: "MyPixelFont",
+          width: 8,
+          height: 8,
+          glyphs: {}, // key: ASCII code integer (32..126), value: Array[height][width] (0 or 1)
+          activeCharCode: 65, // Default 'A'
+          clipboardGlyph: null,
+          history: {}, // key: ASCII code -> { undo: [], redo: [] }
+        };
+
+        const EditorState = {
+          activeTool: "pencil", // 'pencil', 'eraser', 'fill'
+          isDrawing: false,
+          gridLines: true,
+          scale: 24, // Canvas pixel multiplier
+          cropBox: { x: 0, y: 0, w: 8, h: 8 },
+          cropDragging: false,
+          cropStartPos: { x: 0, y: 0 },
+        };
+
+        const ASCII_MIN = 32;
+        const ASCII_MAX = 126;
+
+        // --- DOM ELEMENTS REFERENCE ---
+        const els = {
+          // Top Nav
+          fontNameInput: document.getElementById("fontNameInput"),
+          globalWidthInput: document.getElementById("globalWidthInput"),
+          globalHeightInput: document.getElementById("globalHeightInput"),
+          applySizeBtn: document.getElementById("applySizeBtn"),
+          newProjectBtn: document.getElementById("newProjectBtn"),
+          importProjectFile: document.getElementById("importProjectFile"),
+          exportProjectBtn: document.getElementById("exportProjectBtn"),
+          quickExportHeaderBtn: document.getElementById("quickExportHeaderBtn"),
+
+          // Tab Controls
+          tabBtnSlicer: document.getElementById("tabBtnSlicer"),
+          tabBtnFontFamily: document.getElementById("tabBtnFontFamily"),
+          tabBtnGlyphs: document.getElementById("tabBtnGlyphs"),
+          tabContentSlicer: document.getElementById("tabContentSlicer"),
+          tabContentFontFamily: document.getElementById("tabContentFontFamily"),
+          tabContentGlyphs: document.getElementById("tabContentGlyphs"),
+
+          // Tab 1: Slicer
+          imageDropzone: document.getElementById("imageDropzone"),
+          pngFileInput: document.getElementById("pngFileInput"),
+          imageControls: document.getElementById("imageControls"),
+          thresholdInput: document.getElementById("thresholdInput"),
+          thresholdVal: document.getElementById("thresholdVal"),
+          brightnessInput: document.getElementById("brightnessInput"),
+          brightnessVal: document.getElementById("brightnessVal"),
+          contrastInput: document.getElementById("contrastInput"),
+          contrastVal: document.getElementById("contrastVal"),
+          invertBinarizeInput: document.getElementById("invertBinarizeInput"),
+          resetImageFiltersBtn: document.getElementById("resetImageFiltersBtn"),
+          binarizedSourceCanvas: document.getElementById(
+            "binarizedSourceCanvas",
+          ),
+          noImagePlaceholder: document.getElementById("noImagePlaceholder"),
+          cropBox: document.getElementById("cropBox"),
+          cropBoxLabel: document.getElementById("cropBoxLabel"),
+          cropResizeHandle: document.getElementById("cropResizeHandle"),
+          extractCropBtn: document.getElementById("extractCropBtn"),
+          autoSliceGridBtn: document.getElementById("autoSliceGridBtn"),
+          activeCharTargetLabel: document.getElementById(
+            "activeCharTargetLabel",
+          ),
+          sourceImageDimensions: document.getElementById(
+            "sourceImageDimensions",
+          ),
+          cropNudgeLeft: document.getElementById("cropNudgeLeft"),
+          cropNudgeRight: document.getElementById("cropNudgeRight"),
+          cropNudgeUp: document.getElementById("cropNudgeUp"),
+          cropNudgeDown: document.getElementById("cropNudgeDown"),
+          cropSizeWDec: document.getElementById("cropSizeWDec"),
+          cropSizeWInc: document.getElementById("cropSizeWInc"),
+          cropSizeHDec: document.getElementById("cropSizeHDec"),
+          cropSizeHInc: document.getElementById("cropSizeHInc"),
+          cropXInput: document.getElementById("cropXInput"),
+          cropYInput: document.getElementById("cropYInput"),
+          cropWInput: document.getElementById("cropWInput"),
+          cropHInput: document.getElementById("cropHInput"),
+          zoomSourceOutBtn: document.getElementById("zoomSourceOutBtn"),
+          zoomSourceInBtn: document.getElementById("zoomSourceInBtn"),
+          sourceZoomLevel: document.getElementById("sourceZoomLevel"),
+          zoomControlsPanel: document.getElementById("zoomControlsPanel"),
+          canvasViewport: document.getElementById("canvasViewport"),
+
+          // Tab 2: Font Family (NEW)
+          fontFamilySelect: document.getElementById("fontFamilySelect"),
+          ttfFileInput: document.getElementById("ttfFileInput"),
+          currentLoadedFontName: document.getElementById(
+            "currentLoadedFontName",
+          ),
+          fontCharInput: document.getElementById("fontCharInput"),
+          syncTargetCharBtn: document.getElementById("syncTargetCharBtn"),
+          fontSizeInput: document.getElementById("fontSizeInput"),
+          fontSizeVal: document.getElementById("fontSizeVal"),
+          fontThresholdInput: document.getElementById("fontThresholdInput"),
+          fontThresholdVal: document.getElementById("fontThresholdVal"),
+          fontSourceCanvas: document.getElementById("fontSourceCanvas"),
+          extractFontCharBtn: document.getElementById("extractFontCharBtn"),
+          activeFontTargetLabel: document.getElementById(
+            "activeFontTargetLabel",
+          ),
+
+          // Tab 3: Glyph Map
+          glyphGridContainer: document.getElementById("glyphGridContainer"),
+          selectedCharDisplay: document.getElementById("selectedCharDisplay"),
+          selectedCharAscii: document.getElementById("selectedCharAscii"),
+          copyGlyphBtn: document.getElementById("copyGlyphBtn"),
+          pasteGlyphBtn: document.getElementById("pasteGlyphBtn"),
+          clearGlyphBtn: document.getElementById("clearGlyphBtn"),
+
+          // Editor Panel
+          editorActiveCharBadge: document.getElementById(
+            "editorActiveCharBadge",
+          ),
+          editorMatrixDimensions: document.getElementById(
+            "editorMatrixDimensions",
+          ),
+          pixelCanvas: document.getElementById("pixelCanvas"),
+          cursorCoordReadout: document.getElementById("cursorCoordReadout"),
+          activeToolReadout: document.getElementById("activeToolReadout"),
+          undoBtn: document.getElementById("undoBtn"),
+          redoBtn: document.getElementById("redoBtn"),
+          toggleGridBtn: document.getElementById("toggleGridBtn"),
+          zoomInBtn: document.getElementById("zoomInBtn"),
+          zoomOutBtn: document.getElementById("zoomOutBtn"),
+
+          // Tool buttons
+          toolPencil: document.getElementById("toolPencil"),
+          toolEraser: document.getElementById("toolEraser"),
+          toolFill: document.getElementById("toolFill"),
+          shiftUpBtn: document.getElementById("shiftUpBtn"),
+          shiftDownBtn: document.getElementById("shiftDownBtn"),
+          shiftLeftBtn: document.getElementById("shiftLeftBtn"),
+          shiftRightBtn: document.getElementById("shiftRightBtn"),
+          flipHBtn: document.getElementById("flipHBtn"),
+          flipVBtn: document.getElementById("flipVBtn"),
+          rotate90Btn: document.getElementById("rotate90Btn"),
+          invertGridBtn: document.getElementById("invertGridBtn"),
+          clearMatrixBtn: document.getElementById("clearMatrixBtn"),
+
+          // Preview Sandbox
+          previewTextInput: document.getElementById("previewTextInput"),
+          previewScaleSelect: document.getElementById("previewScaleSelect"),
+          previewSpacingInput: document.getElementById("previewSpacingInput"),
+          previewFgColor: document.getElementById("previewFgColor"),
+          previewBgColor: document.getElementById("previewBgColor"),
+          previewCanvas: document.getElementById("previewCanvas"),
+
+          // Code Exporter
+          exportFormatSelect: document.getElementById("exportFormatSelect"),
+          exportScanOrder: document.getElementById("exportScanOrder"),
+          exportBitOrder: document.getElementById("exportBitOrder"),
+          codeExportDisplay: document.getElementById("codeExportDisplay"),
+          copyCodeBtn: document.getElementById("copyCodeBtn"),
+          downloadCodeBtn: document.getElementById("downloadCodeBtn"),
+          downloadSpriteSheetBtn: document.getElementById(
+            "downloadSpriteSheetBtn",
+          ),
+          toastContainer: document.getElementById("toastContainer"),
+        };
+
+        let loadedSourceImage = null;
+        let customFontFaceName = null;
+
+        // --- INITIALIZATION ---
+        function initFontState(width, height) {
+          FontState.width = width;
+          FontState.height = height;
+          FontState.glyphs = {};
+          FontState.history = {};
+
+          for (let code = ASCII_MIN; code <= ASCII_MAX; code++) {
+            FontState.glyphs[code] = createEmptyMatrix(width, height);
+            FontState.history[code] = { undo: [], redo: [] };
+          }
+
+          // Generate a standard pixel fallback shape for 'A'
+          if (width === 8 && height === 8) {
+            FontState.glyphs[65] = [
+              [0, 0, 1, 1, 1, 1, 0, 0],
+              [0, 1, 0, 0, 0, 0, 1, 0],
+              [0, 1, 0, 0, 0, 0, 1, 0],
+              [0, 1, 1, 1, 1, 1, 1, 0],
+              [0, 1, 0, 0, 0, 0, 1, 0],
+              [0, 1, 0, 0, 0, 0, 1, 0],
+              [0, 1, 0, 0, 0, 0, 1, 0],
+              [0, 0, 0, 0, 0, 0, 0, 0],
+            ];
+          }
+        }
+
+        function createEmptyMatrix(w, h) {
+          return Array.from({ length: h }, () => Array(w).fill(0));
+        }
+
+        function cloneMatrix(matrix) {
+          return matrix.map((row) => [...row]);
+        }
+
+        function showToast(msg, type = "info") {
+          const toast = document.createElement("div");
+          toast.className = `px-3 py-2 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 text-slate-100 shadow-xl flex items-center space-x-2 transition transform translate-y-2 opacity-0`;
+          const icon =
+            type === "success"
+              ? "fa-check-circle text-emerald-400"
+              : "fa-info-circle text-brand-400";
+          toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${msg}</span>`;
+          els.toastContainer.appendChild(toast);
+
+          requestAnimationFrame(() => {
+            toast.classList.remove("translate-y-2", "opacity-0");
+          });
+
+          setTimeout(() => {
+            toast.classList.add("opacity-0", "translate-y-2");
+            setTimeout(() => toast.remove(), 200);
+          }, 2500);
+        }
+
+        // --- TAB SWITCHER ---
+        function switchTab(tab) {
+          els.tabContentSlicer.classList.add("hidden");
+          els.tabContentFontFamily.classList.add("hidden");
+          els.tabContentGlyphs.classList.add("hidden");
+
+          els.tabBtnSlicer.className =
+            "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 text-slate-400 hover:text-slate-200";
+          els.tabBtnFontFamily.className =
+            "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 text-slate-400 hover:text-slate-200";
+          els.tabBtnGlyphs.className =
+            "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 text-slate-400 hover:text-slate-200";
+
+          if (tab === "slicer") {
+            els.tabContentSlicer.classList.remove("hidden");
+            els.tabBtnSlicer.className =
+              "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 bg-brand-600 text-white shadow";
+          } else if (tab === "fontFamily") {
+            els.tabContentFontFamily.classList.remove("hidden");
+            els.tabBtnFontFamily.className =
+              "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 bg-brand-600 text-white shadow";
+            renderFontCharacter();
+          } else if (tab === "glyphs") {
+            els.tabContentGlyphs.classList.remove("hidden");
+            els.tabBtnGlyphs.className =
+              "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5 bg-brand-600 text-white shadow";
+            renderGlyphGrid();
+          }
+        }
+
+        els.tabBtnSlicer.addEventListener("click", () => switchTab("slicer"));
+        els.tabBtnFontFamily.addEventListener("click", () =>
+          switchTab("fontFamily"),
+        );
+        els.tabBtnGlyphs.addEventListener("click", () => switchTab("glyphs"));
+
+        // --- ACTIVE CHARACTER SELECTION ---
+        function setActiveCharacter(code) {
+          if (code < ASCII_MIN || code > ASCII_MAX) return;
+          FontState.activeCharCode = code;
+          const charStr = String.fromCharCode(code);
+
+          els.editorActiveCharBadge.textContent = charStr;
+          els.activeCharTargetLabel.textContent = charStr;
+          els.activeFontTargetLabel.textContent = charStr;
+          els.fontCharInput.value = charStr;
+          els.selectedCharDisplay.textContent = `'${charStr}'`;
+          els.selectedCharAscii.textContent = `(Dec: ${code}, Hex: 0x${code.toString(16).toUpperCase()})`;
+
+          renderPixelEditor();
+          renderFontCharacter();
+          renderGlyphGrid();
+        }
+
+        // --- TAB 2: FONT FAMILY & TTF CONVERTER LOGIC (NEW SECTION) ---
+        els.ttfFileInput.addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const fontName = "CustomFont_" + Date.now();
+          const buffer = await file.arrayBuffer();
+
+          try {
+            const fontFace = new FontFace(fontName, buffer);
+            await fontFace.load();
+            document.fonts.add(fontFace);
+
+            customFontFaceName = fontName;
+            els.currentLoadedFontName.textContent = file.name;
+            showToast(`Loaded TTF/OTF Font: ${file.name}`, "success");
+            renderFontCharacter();
+          } catch (err) {
+            showToast("Failed to parse font file: " + err.message, "error");
+          }
+        });
+
+        function renderFontCharacter() {
+          const canvas = els.fontSourceCanvas;
+          const ctx = canvas.getContext("2d");
+
+          const width = FontState.width;
+          const height = FontState.height;
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, width, height);
+
+          const charStr =
+            els.fontCharInput.value ||
+            String.fromCharCode(FontState.activeCharCode);
+          const fontSize = parseInt(els.fontSizeInput.value, 10);
+          const fontFamily = customFontFaceName
+            ? customFontFaceName
+            : els.fontFamilySelect.value;
+
+          ctx.font = `${fontSize}px ${fontFamily}`;
+          ctx.fillStyle = "#ffffff";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          ctx.fillText(charStr, width / 2, height / 2);
+
+          const threshold = parseInt(els.fontThresholdInput.value, 10);
+          const imgData = ctx.getImageData(0, 0, width, height);
+          const data = imgData.data;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            const val = avg >= threshold ? 255 : 0;
+            data[i] = val;
+            data[i + 1] = val;
+            data[i + 2] = val;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+
+        els.fontFamilySelect.addEventListener("change", () => {
+          customFontFaceName = null;
+          els.currentLoadedFontName.textContent =
+            els.fontFamilySelect.options[
+              els.fontFamilySelect.selectedIndex
+            ].text;
+          renderFontCharacter();
+        });
+
+        els.fontCharInput.addEventListener("input", (e) => {
+          if (e.target.value.length > 0) {
+            renderFontCharacter();
+          }
+        });
+
+        els.syncTargetCharBtn.addEventListener("click", () => {
+          els.fontCharInput.value = String.fromCharCode(
+            FontState.activeCharCode,
+          );
+          renderFontCharacter();
+        });
+
+        els.fontSizeInput.addEventListener("input", (e) => {
+          els.fontSizeVal.textContent = e.target.value + "px";
+          renderFontCharacter();
+        });
+
+        els.fontThresholdInput.addEventListener("input", (e) => {
+          els.fontThresholdVal.textContent = e.target.value;
+          renderFontCharacter();
+        });
+
+        els.extractFontCharBtn.addEventListener("click", () => {
+          pushHistory();
+          const canvas = els.fontSourceCanvas;
+          const ctx = canvas.getContext("2d");
+          const imgData = ctx.getImageData(
+            0,
+            0,
+            FontState.width,
+            FontState.height,
+          ).data;
+
+          const charCode = FontState.activeCharCode;
+          const matrix = createEmptyMatrix(FontState.width, FontState.height);
+
+          for (let y = 0; y < FontState.height; y++) {
+            for (let x = 0; x < FontState.width; x++) {
+              const idx = (y * FontState.width + x) * 4;
+              matrix[y][x] = imgData[idx] > 128 ? 1 : 0;
+            }
+          }
+
+          FontState.glyphs[charCode] = matrix;
+          showToast(
+            `Converted '${String.fromCharCode(charCode)}' to bitmap matrix!`,
+            "success",
+          );
+
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+        });
+
+        // --- TAB 1: PNG IMPORT & SLICER LOGIC ---
+        els.imageDropzone.addEventListener("click", () =>
+          els.pngFileInput.click(),
+        );
+        els.pngFileInput.addEventListener("change", (e) =>
+          handleImageUpload(e.target.files[0]),
+        );
+
+        ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+          els.imageDropzone.addEventListener(eventName, (e) =>
+            e.preventDefault(),
+          );
+        });
+
+        els.imageDropzone.addEventListener("drop", (e) => {
+          const file = e.dataTransfer.files[0];
+          if (file) handleImageUpload(file);
+        });
+
+        function handleImageUpload(file) {
+          if (!file || !file.type.startsWith("image/")) return;
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const img = new Image();
+            img.onload = () => {
+              loadedSourceImage = img;
+              els.imageControls.classList.remove("hidden");
+              els.noImagePlaceholder.classList.add("hidden");
+              els.extractCropBtn.disabled = false;
+              els.autoSliceGridBtn.disabled = false;
+              els.sourceImageDimensions.textContent = `${img.width} x ${img.height} px`;
+
+              // Initialize zoom
+              els.zoomControlsPanel.classList.remove("hidden");
+              els.binarizedSourceCanvas.style.width = "";
+              els.binarizedSourceCanvas.style.maxWidth = "100%";
+              els.canvasViewport.classList.add(
+                "items-center",
+                "justify-center",
+              );
+              isZoomedIn = false;
+              sourceZoom = 1;
+              els.sourceZoomLevel.textContent = "Fit";
+
+              // Center crop box
+              EditorState.cropBox = {
+                x: Math.floor(Math.max(0, (img.width - FontState.width) / 2)),
+                y: Math.floor(Math.max(0, (img.height - FontState.height) / 2)),
+                w: FontState.width,
+                h: FontState.height,
+              };
+
+              updateBinarizedSource();
+            };
+            img.src = evt.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        function updateBinarizedSource() {
+          if (!loadedSourceImage) return;
+
+          const canvas = els.binarizedSourceCanvas;
+          const ctx = canvas.getContext("2d");
+          canvas.width = loadedSourceImage.width;
+          canvas.height = loadedSourceImage.height;
+
+          ctx.drawImage(loadedSourceImage, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+
+          const threshold = parseInt(els.thresholdInput.value, 10);
+          const brightness = parseInt(els.brightnessInput.value, 10);
+          const contrast = parseInt(els.contrastInput.value, 10);
+          const invert = els.invertBinarizeInput.checked;
+
+          const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+
+          for (let i = 0; i < data.length; i += 4) {
+            let r = data[i] + brightness;
+            let g = data[i + 1] + brightness;
+            let b = data[i + 2] + brightness;
+
+            r = factor * (r - 128) + 128;
+            g = factor * (g - 128) + 128;
+            b = factor * (b - 128) + 128;
+
+            let avg = (r + g + b) / 3;
+            let val = avg >= threshold ? 255 : 0;
+            if (invert) val = 255 - val;
+
+            data[i] = val;
+            data[i + 1] = val;
+            data[i + 2] = val;
+          }
+
+          ctx.putImageData(imgData, 0, 0);
+          updateCropBoxOverlay();
+        }
+
+        function updateCropBoxOverlay() {
+          const cb = els.cropBox;
+          cb.classList.remove("hidden");
+
+          // Calculate visual display scale vs actual pixel size
+          const rect = els.binarizedSourceCanvas.getBoundingClientRect();
+          const scaleX = rect.width / els.binarizedSourceCanvas.width;
+          const scaleY = rect.height / els.binarizedSourceCanvas.height;
+
+          // Apply scale to the overlay positioning and size so it visually maps 1:1 perfectly
+          cb.style.left = `${EditorState.cropBox.x * scaleX}px`;
+          cb.style.top = `${EditorState.cropBox.y * scaleY}px`;
+          cb.style.width = `${EditorState.cropBox.w * scaleX}px`;
+          cb.style.height = `${EditorState.cropBox.h * scaleY}px`;
+
+          els.cropBoxLabel.textContent = `${EditorState.cropBox.w}x${EditorState.cropBox.h}`;
+
+          // Sync the nudge UI inputs
+          if (els.cropXInput) els.cropXInput.value = EditorState.cropBox.x;
+          if (els.cropYInput) els.cropYInput.value = EditorState.cropBox.y;
+          if (els.cropWInput) els.cropWInput.value = EditorState.cropBox.w;
+          if (els.cropHInput) els.cropHInput.value = EditorState.cropBox.h;
+        }
+
+        els.thresholdInput.addEventListener("input", (e) => {
+          els.thresholdVal.textContent = e.target.value;
+          updateBinarizedSource();
+        });
+
+        els.brightnessInput.addEventListener("input", (e) => {
+          els.brightnessVal.textContent = e.target.value;
+          updateBinarizedSource();
+        });
+
+        els.contrastInput.addEventListener("input", (e) => {
+          els.contrastVal.textContent = e.target.value;
+          updateBinarizedSource();
+        });
+
+        els.invertBinarizeInput.addEventListener(
+          "change",
+          updateBinarizedSource,
+        );
+
+        els.resetImageFiltersBtn.addEventListener("click", () => {
+          els.thresholdInput.value = 128;
+          els.brightnessInput.value = 0;
+          els.contrastInput.value = 0;
+          els.invertBinarizeInput.checked = false;
+          els.thresholdVal.textContent = "128";
+          els.brightnessVal.textContent = "0";
+          els.contrastVal.textContent = "0";
+          updateBinarizedSource();
+        });
+
+        els.extractCropBtn.addEventListener("click", () => {
+          if (!loadedSourceImage) return;
+          pushHistory();
+
+          const canvas = els.binarizedSourceCanvas;
+          const ctx = canvas.getContext("2d");
+
+          const cropW = EditorState.cropBox.w;
+          const cropH = EditorState.cropBox.h;
+
+          const imgData = ctx.getImageData(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            cropW,
+            cropH,
+          ).data;
+
+          const matrix = createEmptyMatrix(FontState.width, FontState.height);
+
+          for (let y = 0; y < FontState.height; y++) {
+            for (let x = 0; x < FontState.width; x++) {
+              // Nearest-Neighbor mapping: Maps the dynamically resized crop box down to the fixed Font Grid size
+              const srcX = Math.floor((x / FontState.width) * cropW);
+              const srcY = Math.floor((y / FontState.height) * cropH);
+              const idx = (srcY * cropW + srcX) * 4;
+
+              matrix[y][x] = imgData[idx] > 128 ? 1 : 0;
+            }
+          }
+
+          FontState.glyphs[FontState.activeCharCode] = matrix;
+          showToast(
+            `Grabbed crop selection into '${String.fromCharCode(FontState.activeCharCode)}'`,
+            "success",
+          );
+
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+        });
+
+        // --- NEW: CROP BOX MOUSE DRAGGING & RESIZING LOGIC ---
+        let isDraggingCrop = false;
+        let isResizingCrop = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let initialCropX = 0;
+        let initialCropY = 0;
+        let initialCropW = 0;
+        let initialCropH = 0;
+
+        els.cropBox.addEventListener("mousedown", (e) => {
+          // If they click the resize handle, let the handle's event listener take over
+          if (e.target === els.cropResizeHandle) return;
+
+          isDraggingCrop = true;
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          initialCropX = EditorState.cropBox.x;
+          initialCropY = EditorState.cropBox.y;
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        els.cropResizeHandle?.addEventListener("mousedown", (e) => {
+          isResizingCrop = true;
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          initialCropW = EditorState.cropBox.w;
+          initialCropH = EditorState.cropBox.h;
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        document.addEventListener("mousemove", (e) => {
+          if (!loadedSourceImage) return;
+
+          const rect = els.binarizedSourceCanvas.getBoundingClientRect();
+          const scaleX = els.binarizedSourceCanvas.width / rect.width;
+          const scaleY = els.binarizedSourceCanvas.height / rect.height;
+
+          if (isResizingCrop) {
+            const dx = (e.clientX - dragStartX) * scaleX;
+            const dy = (e.clientY - dragStartY) * scaleY;
+
+            let newW = Math.round(initialCropW + dx);
+            let newH = Math.round(initialCropH + dy);
+
+            // Constrain width and height (min 2x2 px, max edges of canvas)
+            const canvas = els.binarizedSourceCanvas;
+            newW = Math.max(
+              2,
+              Math.min(newW, canvas.width - EditorState.cropBox.x),
+            );
+            newH = Math.max(
+              2,
+              Math.min(newH, canvas.height - EditorState.cropBox.y),
+            );
+
+            EditorState.cropBox.w = newW;
+            EditorState.cropBox.h = newH;
+            updateCropBoxOverlay();
+          } else if (isDraggingCrop) {
+            const dx = (e.clientX - dragStartX) * scaleX;
+            const dy = (e.clientY - dragStartY) * scaleY;
+
+            let newX = Math.round(initialCropX + dx);
+            let newY = Math.round(initialCropY + dy);
+
+            // Constrain moving strictly inside canvas bounds
+            const canvas = els.binarizedSourceCanvas;
+            newX = Math.max(
+              0,
+              Math.min(newX, canvas.width - EditorState.cropBox.w),
+            );
+            newY = Math.max(
+              0,
+              Math.min(newY, canvas.height - EditorState.cropBox.h),
+            );
+
+            EditorState.cropBox.x = newX;
+            EditorState.cropBox.y = newY;
+            updateCropBoxOverlay();
+          }
+        });
+
+        document.addEventListener("mouseup", () => {
+          isDraggingCrop = false;
+          isResizingCrop = false;
+        });
+
+        // Ensure box stays mapped on window resize
+        window.addEventListener("resize", () => {
+          if (loadedSourceImage) updateCropBoxOverlay();
+        });
+
+        // --- ZOOM CONTROLS LOGIC ---
+        let sourceZoom = 1;
+        let isZoomedIn = false;
+
+        function applySourceZoom() {
+          if (!loadedSourceImage) return;
+          const canvas = els.binarizedSourceCanvas;
+
+          if (isZoomedIn) {
+            canvas.style.maxWidth = "none";
+            canvas.style.width = `${Math.round(loadedSourceImage.width * sourceZoom)}px`;
+            els.sourceZoomLevel.textContent = `${Math.round(sourceZoom * 100)}%`;
+            els.canvasViewport.classList.remove(
+              "items-center",
+              "justify-center",
+            );
+          } else {
+            canvas.style.maxWidth = "100%";
+            canvas.style.width = "";
+            els.sourceZoomLevel.textContent = "Fit";
+            els.canvasViewport.classList.add("items-center", "justify-center");
+          }
+          updateCropBoxOverlay();
+        }
+
+        els.zoomSourceInBtn?.addEventListener("click", () => {
+          if (!isZoomedIn) {
+            isZoomedIn = true;
+            sourceZoom = 1;
+          } else {
+            sourceZoom = Math.min(8.0, sourceZoom + 0.5);
+          }
+          applySourceZoom();
+        });
+
+        els.zoomSourceOutBtn?.addEventListener("click", () => {
+          if (isZoomedIn) {
+            sourceZoom -= 0.5;
+            if (sourceZoom <= 0.5) {
+              isZoomedIn = false;
+            }
+            applySourceZoom();
+          }
+        });
+
+        // --- CROP BOX PIXEL NUDGE & RESIZE CONTROLS LOGIC ---
+        function setCropBox(x, y, w, h) {
+          if (!loadedSourceImage) return;
+          const canvas = els.binarizedSourceCanvas;
+
+          // Constrain Width/Height (Min 2px, Max Canvas Size)
+          w = Math.max(2, Math.min(w, canvas.width - x));
+          h = Math.max(2, Math.min(h, canvas.height - y));
+          // Constrain Position strictly within Canvas bounds
+          x = Math.max(0, Math.min(x, canvas.width - w));
+          y = Math.max(0, Math.min(y, canvas.height - h));
+
+          EditorState.cropBox.x = x;
+          EditorState.cropBox.y = y;
+          EditorState.cropBox.w = w;
+          EditorState.cropBox.h = h;
+          updateCropBoxOverlay();
+        }
+
+        els.cropNudgeLeft?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x - 1,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropNudgeRight?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x + 1,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropNudgeUp?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y - 1,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropNudgeDown?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y + 1,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+
+        els.cropSizeWDec?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w - 1,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropSizeWInc?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w + 1,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropSizeHDec?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h - 1,
+          ),
+        );
+        els.cropSizeHInc?.addEventListener("click", () =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h + 1,
+          ),
+        );
+
+        els.cropXInput?.addEventListener("change", (e) =>
+          setCropBox(
+            parseInt(e.target.value) || 0,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropYInput?.addEventListener("change", (e) =>
+          setCropBox(
+            EditorState.cropBox.x,
+            parseInt(e.target.value) || 0,
+            EditorState.cropBox.w,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropWInput?.addEventListener("change", (e) =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            parseInt(e.target.value) || 2,
+            EditorState.cropBox.h,
+          ),
+        );
+        els.cropHInput?.addEventListener("change", (e) =>
+          setCropBox(
+            EditorState.cropBox.x,
+            EditorState.cropBox.y,
+            EditorState.cropBox.w,
+            parseInt(e.target.value) || 2,
+          ),
+        );
+
+        // --- TAB 3: ASCII GLYPH MAP ---
+        function renderGlyphGrid(filter = "all") {
+          els.glyphGridContainer.innerHTML = "";
+
+          for (let code = ASCII_MIN; code <= ASCII_MAX; code++) {
+            const charStr = String.fromCharCode(code);
+
+            if (filter === "upper" && (code < 65 || code > 90)) continue;
+            if (filter === "lower" && (code < 97 || code > 122)) continue;
+            if (filter === "digits" && (code < 48 || code > 57)) continue;
+            if (
+              filter === "symbols" &&
+              ((code >= 48 && code <= 57) ||
+                (code >= 65 && code <= 90) ||
+                (code >= 97 && code <= 122))
+            )
+              continue;
+
+            const tile = document.createElement("div");
+            const isActive = code === FontState.activeCharCode;
+            tile.className = `p-1.5 rounded-lg border flex flex-col items-center justify-center cursor-pointer transition select-none ${
+              isActive
+                ? "bg-brand-600/30 border-brand-500 text-brand-300 badge-active"
+                : "bg-slate-900 border-slate-800 hover:border-slate-600 text-slate-300"
+            }`;
+
+            const tileCanvas = document.createElement("canvas");
+            tileCanvas.width = FontState.width;
+            tileCanvas.height = FontState.height;
+            tileCanvas.className =
+              "w-6 h-6 my-1 border border-slate-800 bg-black rounded-sm";
+
+            const ctx = tileCanvas.getContext("2d");
+            const matrix =
+              FontState.glyphs[code] ||
+              createEmptyMatrix(FontState.width, FontState.height);
+            ctx.fillStyle = "#ffffff";
+
+            for (let y = 0; y < FontState.height; y++) {
+              for (let x = 0; x < FontState.width; x++) {
+                if (matrix[y][x]) ctx.fillRect(x, y, 1, 1);
+              }
+            }
+
+            tile.appendChild(tileCanvas);
+            tile.innerHTML += `<span class="text-[10px] font-mono">${charStr === " " ? "SPC" : charStr}</span>`;
+
+            tile.addEventListener("click", () => setActiveCharacter(code));
+            els.glyphGridContainer.appendChild(tile);
+          }
+        }
+
+        document.querySelectorAll(".glyph-filter-btn").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            document
+              .querySelectorAll(".glyph-filter-btn")
+              .forEach(
+                (b) =>
+                  (b.className =
+                    "glyph-filter-btn flex-1 py-1 rounded hover:text-slate-200"),
+              );
+            e.target.className =
+              "glyph-filter-btn flex-1 py-1 rounded bg-slate-800 text-slate-200 font-medium";
+            renderGlyphGrid(e.target.dataset.filter);
+          });
+        });
+
+        els.copyGlyphBtn.addEventListener("click", () => {
+          FontState.clipboardGlyph = cloneMatrix(
+            FontState.glyphs[FontState.activeCharCode],
+          );
+          showToast(
+            `Copied glyph '${String.fromCharCode(FontState.activeCharCode)}' to clipboard`,
+            "info",
+          );
+        });
+
+        els.pasteGlyphBtn.addEventListener("click", () => {
+          if (!FontState.clipboardGlyph)
+            return showToast("Clipboard is empty!", "error");
+          pushHistory();
+          FontState.glyphs[FontState.activeCharCode] = cloneMatrix(
+            FontState.clipboardGlyph,
+          );
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+          showToast("Pasted glyph data", "success");
+        });
+
+        els.clearGlyphBtn.addEventListener("click", () => {
+          pushHistory();
+          FontState.glyphs[FontState.activeCharCode] = createEmptyMatrix(
+            FontState.width,
+            FontState.height,
+          );
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+          showToast("Cleared active glyph", "info");
+        });
+
+        // --- CENTER PANEL: MATRIX PIXEL GRID EDITOR ---
+        function renderPixelEditor() {
+          const canvas = els.pixelCanvas;
+          const ctx = canvas.getContext("2d");
+          const scale = EditorState.scale;
+
+          canvas.width = FontState.width * scale;
+          canvas.height = FontState.height * scale;
+
+          els.editorMatrixDimensions.textContent = `${FontState.width} x ${FontState.height}`;
+
+          const matrix =
+            FontState.glyphs[FontState.activeCharCode] ||
+            createEmptyMatrix(FontState.width, FontState.height);
+
+          // Draw Matrix Cells
+          for (let y = 0; y < FontState.height; y++) {
+            for (let x = 0; x < FontState.width; x++) {
+              ctx.fillStyle = matrix[y][x] ? "#6366f1" : "#0f172a";
+              ctx.fillRect(x * scale, y * scale, scale, scale);
+
+              if (EditorState.gridLines) {
+                ctx.strokeStyle = "#1e293b";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x * scale, y * scale, scale, scale);
+              }
+            }
+          }
+        }
+
+        function pushHistory() {
+          const code = FontState.activeCharCode;
+          if (!FontState.history[code])
+            FontState.history[code] = { undo: [], redo: [] };
+          FontState.history[code].undo.push(
+            cloneMatrix(FontState.glyphs[code]),
+          );
+          FontState.history[code].redo = [];
+        }
+
+        function handleCanvasDraw(e) {
+          const rect = els.pixelCanvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.left) / EditorState.scale);
+          const y = Math.floor((e.clientY - rect.top) / EditorState.scale);
+
+          if (x < 0 || x >= FontState.width || y < 0 || y >= FontState.height)
+            return;
+
+          els.cursorCoordReadout.textContent = `X: ${x}, Y: ${y}`;
+
+          if (!EditorState.isDrawing) return;
+
+          const code = FontState.activeCharCode;
+          const matrix = FontState.glyphs[code];
+
+          if (EditorState.activeTool === "pencil") {
+            matrix[y][x] = 1;
+          } else if (EditorState.activeTool === "eraser") {
+            matrix[y][x] = 0;
+          } else if (EditorState.activeTool === "fill") {
+            floodFill(matrix, x, y, matrix[y][x] ? 0 : 1);
+            EditorState.isDrawing = false;
+          }
+
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+        }
+
+        function floodFill(matrix, startX, startY, fillVal) {
+          const targetVal = matrix[startY][startX];
+          if (targetVal === fillVal) return;
+
+          const stack = [[startX, startY]];
+          while (stack.length) {
+            const [x, y] = stack.pop();
+            if (x < 0 || x >= FontState.width || y < 0 || y >= FontState.height)
+              continue;
+            if (matrix[y][x] === targetVal) {
+              matrix[y][x] = fillVal;
+              stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+            }
+          }
+        }
+
+        els.pixelCanvas.addEventListener("mousedown", (e) => {
+          pushHistory();
+          EditorState.isDrawing = true;
+          handleCanvasDraw(e);
+        });
+
+        els.pixelCanvas.addEventListener("mousemove", handleCanvasDraw);
+        window.addEventListener(
+          "mouseup",
+          () => (EditorState.isDrawing = false),
+        );
+
+        // Tool dock handlers
+        document.querySelectorAll(".tool-btn").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            document.querySelectorAll(".tool-btn").forEach((b) => {
+              b.classList.remove("bg-brand-600", "text-white", "active");
+              b.classList.add("text-slate-400");
+            });
+            const target = e.currentTarget;
+            target.classList.add("bg-brand-600", "text-white", "active");
+            EditorState.activeTool = target.dataset.tool;
+            els.activeToolReadout.textContent = EditorState.activeTool;
+          });
+        });
+
+        // Transform operations
+        els.shiftUpBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            const firstRow = m.shift();
+            m.push(Array(FontState.width).fill(0));
+          }),
+        );
+        els.shiftDownBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            m.pop();
+            m.unshift(Array(FontState.width).fill(0));
+          }),
+        );
+        els.shiftLeftBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            m.forEach((row) => {
+              row.shift();
+              row.push(0);
+            });
+          }),
+        );
+        els.shiftRightBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            m.forEach((row) => {
+              row.pop();
+              row.unshift(0);
+            });
+          }),
+        );
+        els.flipHBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            m.forEach((row) => row.reverse());
+          }),
+        );
+        els.flipVBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            m.reverse();
+          }),
+        );
+        els.invertGridBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            for (let y = 0; y < FontState.height; y++) {
+              for (let x = 0; x < FontState.width; x++)
+                m[y][x] = m[y][x] ? 0 : 1;
+            }
+          }),
+        );
+        els.clearMatrixBtn.addEventListener("click", () =>
+          transformMatrix((m) => {
+            for (let y = 0; y < FontState.height; y++) m[y].fill(0);
+          }),
+        );
+
+        function transformMatrix(fn) {
+          pushHistory();
+          fn(FontState.glyphs[FontState.activeCharCode]);
+          renderPixelEditor();
+          updatePreviewCanvas();
+          generateExportCode();
+        }
+
+        els.undoBtn.addEventListener("click", () => {
+          const code = FontState.activeCharCode;
+          if (FontState.history[code]?.undo.length) {
+            FontState.history[code].redo.push(
+              cloneMatrix(FontState.glyphs[code]),
+            );
+            FontState.glyphs[code] = FontState.history[code].undo.pop();
+            renderPixelEditor();
+            updatePreviewCanvas();
+            generateExportCode();
+          }
+        });
+
+        els.toggleGridBtn.addEventListener("click", () => {
+          EditorState.gridLines = !EditorState.gridLines;
+          renderPixelEditor();
+        });
+
+        els.zoomInBtn.addEventListener("click", () => {
+          EditorState.scale = Math.min(48, EditorState.scale + 4);
+          renderPixelEditor();
+        });
+
+        els.zoomOutBtn.addEventListener("click", () => {
+          EditorState.scale = Math.max(8, EditorState.scale - 4);
+          renderPixelEditor();
+        });
+
+        // --- RIGHT PANEL: LIVE TEXT PREVIEW SANDBOX ---
+        function updatePreviewCanvas() {
+          const canvas = els.previewCanvas;
+          const ctx = canvas.getContext("2d");
+
+          const text = els.previewTextInput.value || " ";
+          const scale = parseInt(els.previewScaleSelect.value, 10);
+          const spacing = parseInt(els.previewSpacingInput.value, 10);
+          const fgColor = els.previewFgColor.value;
+          const bgColor = els.previewBgColor.value;
+
+          const totalWidth =
+            text.length * (FontState.width * scale + spacing * scale);
+          const totalHeight = FontState.height * scale;
+
+          canvas.width = Math.max(totalWidth, 10);
+          canvas.height = totalHeight;
+
+          ctx.fillStyle = bgColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.fillStyle = fgColor;
+          for (let i = 0; i < text.length; i++) {
+            const charCode = text.charCodeAt(i);
+            const matrix =
+              FontState.glyphs[charCode] ||
+              createEmptyMatrix(FontState.width, FontState.height);
+            const charOffsetX = i * (FontState.width * scale + spacing * scale);
+
+            for (let y = 0; y < FontState.height; y++) {
+              for (let x = 0; x < FontState.width; x++) {
+                if (matrix[y][x]) {
+                  ctx.fillRect(
+                    charOffsetX + x * scale,
+                    y * scale,
+                    scale,
+                    scale,
+                  );
+                }
+              }
+            }
+          }
+        }
+
+        els.previewTextInput.addEventListener("input", updatePreviewCanvas);
+        els.previewScaleSelect.addEventListener("change", updatePreviewCanvas);
+        els.previewSpacingInput.addEventListener("input", updatePreviewCanvas);
+        els.previewFgColor.addEventListener("input", updatePreviewCanvas);
+        els.previewBgColor.addEventListener("input", updatePreviewCanvas);
+
+        // --- CODE EXPORT ENGINE ---
+        function generateExportCode() {
+          const format = els.exportFormatSelect.value;
+          const fontName =
+            els.fontNameInput.value.replace(/\s+/g, "_") || "MyPixelFont";
+          const w = FontState.width;
+          const h = FontState.height;
+          const isHorizontal = els.exportScanOrder.value === "horizontal";
+          const isMsb = els.exportBitOrder.value === "msb";
+
+          let code = "";
+
+          if (format === "c_header") {
+            code += `// Generated by PixelFont Studio\n`;
+            code += `#ifndef ${fontName.toUpperCase()}_H\n#define ${fontName.toUpperCase()}_H\n\n`;
+            code += `#include <stdint.h>\n#include <avr/pgmspace.h>\n\n`;
+            code += `#define ${fontName.toUpperCase()}_WIDTH ${w}\n`;
+            code += `#define ${fontName.toUpperCase()}_HEIGHT ${h}\n\n`;
+            code += `const uint8_t ${fontName}_Bitmaps[] PROGMEM = {\n`;
+
+            for (let c = ASCII_MIN; c <= ASCII_MAX; c++) {
+              const matrix = FontState.glyphs[c];
+              const charStr =
+                c === 92 ? "\\\\" : c === 39 ? "\\'" : String.fromCharCode(c);
+              code += `  // ASCII ${c} '${charStr}'\n  `;
+
+              const bytes = matrixToBytes(matrix, w, h, isHorizontal, isMsb);
+              code +=
+                bytes
+                  .map(
+                    (b) => `0x${b.toString(16).padStart(2, "0").toUpperCase()}`,
+                  )
+                  .join(", ") + ",\n";
+            }
+            code += `};\n\n#endif // ${fontName.toUpperCase()}_H\n`;
+          } else if (format === "hex_array") {
+            code += `# MicroPython / Hex Array\n${fontName} = {\n`;
+            for (let c = ASCII_MIN; c <= ASCII_MAX; c++) {
+              const matrix = FontState.glyphs[c];
+              const bytes = matrixToBytes(matrix, w, h, isHorizontal, isMsb);
+              code += `  ${c}: [${bytes.map((b) => "0x" + b.toString(16).padStart(2, "0").toUpperCase()).join(", ")}], # '${String.fromCharCode(c)}'\n`;
+            }
+            code += `}\n`;
+          } else if (format === "binary_matrix") {
+            for (let c = ASCII_MIN; c <= ASCII_MAX; c++) {
+              code += `// Character '${String.fromCharCode(c)}' (${c})\n`;
+              const matrix = FontState.glyphs[c];
+              for (let y = 0; y < h; y++) {
+                code += matrix[y].join("") + "\n";
+              }
+              code += "\n";
+            }
+          }
+
+          els.codeExportDisplay.value = code;
+        }
+
+        function matrixToBytes(matrix, w, h, isHorizontal, isMsb) {
+          const bytes = [];
+          let currentByte = 0;
+          let bitIndex = 0;
+
+          if (isHorizontal) {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const bit = matrix[y][x];
+                if (bit) {
+                  currentByte |= isMsb ? 1 << (7 - bitIndex) : 1 << bitIndex;
+                }
+                bitIndex++;
+                if (bitIndex === 8) {
+                  bytes.push(currentByte);
+                  currentByte = 0;
+                  bitIndex = 0;
+                }
+              }
+            }
+          } else {
+            for (let x = 0; x < w; x++) {
+              for (let y = 0; y < h; y++) {
+                const bit = matrix[y][x];
+                if (bit) {
+                  currentByte |= isMsb ? 1 << (7 - bitIndex) : 1 << bitIndex;
+                }
+                bitIndex++;
+                if (bitIndex === 8) {
+                  bytes.push(currentByte);
+                  currentByte = 0;
+                  bitIndex = 0;
+                }
+              }
+            }
+          }
+
+          if (bitIndex > 0) bytes.push(currentByte);
+          return bytes;
+        }
+
+        els.exportFormatSelect.addEventListener("change", generateExportCode);
+        els.exportScanOrder.addEventListener("change", generateExportCode);
+        els.exportBitOrder.addEventListener("change", generateExportCode);
+        els.fontNameInput.addEventListener("input", generateExportCode);
+
+        els.copyCodeBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(els.codeExportDisplay.value);
+          showToast("Code copied to clipboard!", "success");
+        });
+
+        els.downloadCodeBtn.addEventListener("click", () => {
+          const blob = new Blob([els.codeExportDisplay.value], {
+            type: "text/plain",
+          });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `${els.fontNameInput.value || "Font"}.h`;
+          link.click();
+        });
+
+        // --- GLOBAL SIZE RESIZING ---
+        els.applySizeBtn.addEventListener("click", () => {
+          const w = parseInt(els.globalWidthInput.value, 10);
+          const h = parseInt(els.globalHeightInput.value, 10);
+          initFontState(w, h);
+          EditorState.cropBox.w = w;
+          EditorState.cropBox.h = h;
+          if (loadedSourceImage) updateCropBoxOverlay();
+          renderPixelEditor();
+          renderFontCharacter();
+          updatePreviewCanvas();
+          generateExportCode();
+          showToast(`Resized canvas matrix to ${w}x${h}`, "info");
+        });
+
+        document.querySelectorAll(".preset-btn").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const w = parseInt(e.target.dataset.w, 10);
+            const h = parseInt(e.target.dataset.h, 10);
+            els.globalWidthInput.value = w;
+            els.globalHeightInput.value = h;
+            els.applySizeBtn.click();
+          });
+        });
+
+        // Initial Bootstrap
+        initFontState(8, 8);
+        setActiveCharacter(65);
+        updatePreviewCanvas();
+        generateExportCode();
+      });
+    </script>
+  </body>
+</html>
