@@ -421,26 +421,6 @@
                 </p>
               </div>
 
-              <!-- Absolute Max Devices / Memory Limit -->
-              <div>
-                <label
-                  for="matrix-absolute-max"
-                  class="block text-slate-300 mb-1 font-medium"
-                  >Absolute Max Memory Limit</label
-                >
-                <input
-                  type="number"
-                  id="matrix-absolute-max"
-                  value="32"
-                  min="4"
-                  max="256"
-                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
-                />
-                <p class="text-[10px] text-slate-500 mt-1">
-                  Default 32. Increase upto 64 only for S3 / N16R8.
-                </p>
-              </div>
-
               <!-- Quick Matrix Presets -->
               <div class="pt-1">
                 <label class="block text-slate-400 mb-1.5 font-medium"
@@ -848,11 +828,6 @@
 
           <!-- Advanced Audio Configuration (Future-Proof / N16R8) -->
           <div class="border-t border-slate-800 mt-4 pt-5">
-            <h3
-              class="text-slate-400 font-bold mb-3 uppercase tracking-wider text-[10px]"
-            >
-              Advanced Audio Processing (ESP32-S3 / N16R8 Support)
-            </h3>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               <div>
                 <label
@@ -867,9 +842,7 @@
                 >
                   <option value="64">64 (Legacy)</option>
                   <option value="128" selected>128 (Standard)</option>
-                  <option value="256">256 (High Res)</option>
-                  <option value="512">512 (S3 / N16R8)</option>
-                  <option value="1024">1024 (Studio Grade S3)</option>
+                  <option value="256">256 (ESP32 Max)</option>
                 </select>
               </div>
               <div>
@@ -2599,14 +2572,14 @@
         const maxFreq = freq / 2;
 
         if (usableBins <= 0) {
-          infoEl.innerHTML = `<span class="text-rose-400 font-bold">Invalid bin settings! Start bin must be less than ${maxBin}.</span>`;
+          infoEl.innerHTML = `<span class="text-rose-400 font-bold">Invalid settings! Start bin must be less than ${maxBin}.</span>`;
         } else {
           infoEl.innerHTML = `
                 <div class="font-mono-code space-y-1.5 text-slate-300">
-                    <div>Nyquist Limit (Max Visible Audio): <span class="text-emerald-400 font-bold">0 Hz &rarr; ${maxFreq} Hz</span></div>
-                    <div>Chunk Resolution: <span class="text-cyan-400 font-bold">${binRes.toFixed(1)} Hz per Bin</span></div>
-                    <div>Generated Data Points: <span class="text-amber-400 font-bold">${usableBins} Bins</span></div>
-                    <div class="mt-2 pt-2 border-t border-cyan-900/50">Ideal Screen Width: <span class="text-white font-bold px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">${Math.max(8, Math.floor(usableBins * 0.75))} to ${usableBins * 2}</span> columns.</div>
+                    <div>Audio Range Detected: <span class="text-emerald-400 font-bold">0 Hz &rarr; ${maxFreq} Hz</span></div>
+                    <div>Frequency Detail Level: <span class="text-cyan-400 font-bold">${binRes.toFixed(1)} Hz per step</span></div>
+                    <div>Usable Audio Bands: <span class="text-amber-400 font-bold">${usableBins} bands</span></div>
+                    <div class="mt-2 pt-2 border-t border-cyan-900/50">Recommended Matrix Width: <span class="text-white font-bold px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">${Math.max(8, Math.floor(usableBins * 0.75))} to ${usableBins * 2}</span> columns.</div>
                 </div>
             `;
         }

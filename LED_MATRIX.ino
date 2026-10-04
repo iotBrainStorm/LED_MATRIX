@@ -36,14 +36,9 @@ MD_MAX72XX::moduleType_t parseHardwareType(const char *str) {
   return MD_MAX72XX::FC16_HW; // Default
 }
 
-// Future-proof limits based on compile board target
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-#define MAX_SUPPORTED_DEVICES 64
-#define MAX_SUPPORTED_FFT 1024
-#else
+// Memory limits strictly set for standard ESP32 Dev Kit
 #define MAX_SUPPORTED_DEVICES 32
 #define MAX_SUPPORTED_FFT 256
-#endif
 
 int ABSOLUTE_MAX_DEVICES = 32; // Now a configurable variable
 uint8_t MAX_DEVICES = 4;
