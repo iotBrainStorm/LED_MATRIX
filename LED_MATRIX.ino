@@ -36,7 +36,16 @@ MD_MAX72XX::moduleType_t parseHardwareType(const char *str) {
   return MD_MAX72XX::FC16_HW; // Default
 }
 
-#define ABSOLUTE_MAX_DEVICES 32
+// Future-proof limits based on compile board target
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define MAX_SUPPORTED_DEVICES 64
+#define MAX_SUPPORTED_FFT 1024
+#else
+#define MAX_SUPPORTED_DEVICES 32
+#define MAX_SUPPORTED_FFT 256
+#endif
+
+int ABSOLUTE_MAX_DEVICES = 32; // Now a configurable variable
 uint8_t MAX_DEVICES = 4;
 #define CLK_PIN 18
 #define DATA_PIN 23
@@ -139,24 +148,25 @@ struct MusicSyncConfig {
   char peakDecay[16] = "Medium";
   uint8_t brightness = 12;
   bool autoBrightness = false;
+  int fftSamples = 128;
+  int samplingFreq = 16000;
+  int startBin = 1;
 };
 
 MusicSyncConfig musicSync;
 bool isMusicSyncActive = false;
 
-#define FFT_SAMPLES 64
-#define SAMPLING_FREQ 16000
-double vReal[FFT_SAMPLES];
-double vImag[FFT_SAMPLES];
-ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, FFT_SAMPLES, SAMPLING_FREQ);
+double vReal[MAX_SUPPORTED_FFT];
+double vImag[MAX_SUPPORTED_FFT];
+ArduinoFFT<double> *FFT = nullptr;
 
 float smoothVol = 0.0f;
 float peakPos = 0.0f;
 unsigned long lastPeakDropTime = 0;
 float bouncePos = 0.0f;
 float bounceVel = 0.0f;
-float waveHistory[ABSOLUTE_MAX_DEVICES * 8] = {0};
-float bandPeaks[ABSOLUTE_MAX_DEVICES * 8] = {0};
+float waveHistory[MAX_SUPPORTED_DEVICES * 8] = {0};
+float bandPeaks[MAX_SUPPORTED_DEVICES * 8] = {0};
 unsigned long lastBandDropTime = 0;
 
 // ==========================================
@@ -637,13 +647,13 @@ String processTemplate(const String &tmpl) {
 void initI2S() {
   const i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-      .sample_rate = SAMPLING_FREQ,
+      .sample_rate = (uint32_t)musicSync.samplingFreq,
       .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
       .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 4,
-      .dma_buf_len = FFT_SAMPLES,
+      .dma_buf_len = musicSync.fftSamples,
       .use_apll = false,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0};
@@ -690,204 +700,407 @@ void clearVUZone(MD_MAX72XX *mx, int startCol, int endCol) {
 // ==========================================
 void runMusicSyncFrame() {
   static unsigned long lastVUDraw = 0;
+
   if (millis() - lastVUDraw < 15)
     return;
+
   lastVUDraw = millis();
 
   MD_MAX72XX *mx = P.getGraphicObject();
   if (!mx)
     return;
 
-  int zStart = constrain(musicSync.startCol, 0, (MAX_DEVICES * 8) - 1);
-  int zEnd = constrain(musicSync.endCol, zStart, (MAX_DEVICES * 8) - 1);
-  int zWidth = zEnd - zStart + 1;
+  // ------------------------------------------------------------
+  // ZONE
+  // ------------------------------------------------------------
 
-  int32_t i2sRawBuffer[FFT_SAMPLES];
+  int zStart =
+      constrain(
+          musicSync.startCol,
+          0,
+          (MAX_DEVICES * 8) - 1);
+
+  int zEnd =
+      constrain(
+          musicSync.endCol,
+          zStart,
+          (MAX_DEVICES * 8) - 1);
+
+  int zWidth =
+      zEnd - zStart + 1;
+
+  if (zWidth <= 0)
+    return;
+
+  // ------------------------------------------------------------
+  // READ I2S AUDIO
+  // ------------------------------------------------------------
+
+  int32_t i2sRawBuffer[MAX_SUPPORTED_FFT];
   size_t bytesRead = 0;
 
-  while (i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 0) == ESP_OK && bytesRead > 0) {
+  // Drain old samples so we always process the newest audio frame.
+  while (
+      i2s_read(
+          I2S_PORT,
+          i2sRawBuffer,
+          sizeof(i2sRawBuffer),
+          &bytesRead,
+          0) == ESP_OK &&
+      bytesRead > 0) {
   }
+
   if (bytesRead == 0) {
-    i2s_read(I2S_PORT, i2sRawBuffer, sizeof(i2sRawBuffer), &bytesRead, 10 / portTICK_PERIOD_MS);
+    i2s_read(
+        I2S_PORT,
+        i2sRawBuffer,
+        sizeof(i2sRawBuffer),
+        &bytesRead,
+        10 / portTICK_PERIOD_MS);
   }
+
   if (bytesRead == 0)
     return;
 
+  // ------------------------------------------------------------
+  // SAMPLE COUNT
+  // ------------------------------------------------------------
+
+  int sampleCount =
+      bytesRead / sizeof(int32_t);
+
+  if (sampleCount <= 0)
+    return;
+
+  // ------------------------------------------------------------
+  // DC OFFSET
+  // ------------------------------------------------------------
+
   int64_t sum = 0;
-  int sampleCount = bytesRead / sizeof(int32_t);
 
   for (int i = 0; i < sampleCount; i++) {
-    int32_t sample = i2sRawBuffer[i] >> 14;
+    int32_t sample =
+        i2sRawBuffer[i] >> 14;
+
     sum += sample;
   }
-  int32_t dcOffset = sum / sampleCount;
 
-  float sumSquares = 0.0f;
+  int32_t dcOffset =
+      sum / sampleCount;
+
+  // ------------------------------------------------------------
+  // PREPARE & COMPUTE FFT GLOBALLY (FOR ALL EFFECTS)
+  // ------------------------------------------------------------
+
   for (int i = 0; i < sampleCount; i++) {
-    int32_t acSample = (i2sRawBuffer[i] >> 14) - dcOffset;
+    int32_t acSample =
+        (i2sRawBuffer[i] >> 14) -
+        dcOffset;
+
     vReal[i] = (double)acSample;
     vImag[i] = 0.0;
-    sumSquares += (float)acSample * acSample;
   }
 
-  float rms = sqrtf(sumSquares / sampleCount);
+  if (FFT) {
+    FFT->windowing(FFTWindow::Hamming, FFTDirection::Forward);
+    FFT->compute(FFTDirection::Forward);
+    FFT->complexToMagnitude();
+  }
 
-  const float noiseFloor = 30.0f;
-  if (rms < noiseFloor)
-    rms = 0.0f;
-  else
-    rms -= noiseFloor;
+  // ------------------------------------------------------------
+  // FREQUENCY RANGE DEFINITION (FULL SPECTRUM)
+  // ------------------------------------------------------------
 
-  float gain = (float)musicSync.sensitivity / 50.0f;
-  float rawVol = (rms * gain) / 2800.0f;
-  rawVol = constrain(rawVol, 0.0f, 1.0f);
-  rawVol = powf(rawVol, 0.85f);
+  int startBin = musicSync.startBin;
+  int maxBin = (musicSync.fftSamples / 2) - 1;
+
+  // Safety check
+  if (maxBin <= startBin) {
+    mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
+    return;
+  }
+
+  // ------------------------------------------------------------
+  // CALCULATE VOLUME STRICTLY FROM 2000-8000Hz
+  // (Used by Bar, Mirror, Bounce, Pulse, Wave)
+  // ------------------------------------------------------------
+
+  float sumMag = 0.0f;
+  for (int i = startBin; i <= maxBin; i++) {
+    sumMag += (float)vReal[i];
+  }
+
+  float avgMag = sumMag / (float)(maxBin - startBin + 1);
+
+  // ------------------------------------------------------------
+  // NOISE FLOOR & SENSITIVITY
+  // ------------------------------------------------------------
+
+  const float noiseFloor = 100.0f;
+
+  if (avgMag < noiseFloor) {
+    avgMag = 0.0f;
+  } else {
+    avgMag -= noiseFloor;
+  }
+
+  float gain =
+      (float)musicSync.sensitivity / 50.0f;
+
+  float rawVol =
+      (avgMag * gain) / 3000.0f;
+
+  rawVol =
+      constrain(
+          rawVol,
+          0.0f,
+          1.0f);
+
+  // Slight gamma compression.
+  rawVol =
+      powf(
+          rawVol,
+          0.85f);
+
+  // ------------------------------------------------------------
+  // SMOOTH AUDIO LEVEL
+  // ------------------------------------------------------------
 
   if (rawVol > smoothVol) {
+    // Fast attack
     smoothVol = rawVol;
   } else {
-    smoothVol = (smoothVol * 0.45f) + (rawVol * 0.55f);
+    // Smooth release
+    smoothVol =
+        (smoothVol * 0.45f) +
+        (rawVol * 0.55f);
   }
 
-  unsigned long decayInterval = 60;
-  if (strcmp(musicSync.peakDecay, "Fast") == 0)
-    decayInterval = 30;
-  else if (strcmp(musicSync.peakDecay, "Smooth") == 0)
-    decayInterval = 120;
+  smoothVol = constrain(smoothVol, 0.0f, 1.0f);
 
-  mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
-  clearVUZone(mx, zStart, zEnd);
+  // ------------------------------------------------------------
+  // AUTOMATIC AUDIO NORMALIZATION
+  // ------------------------------------------------------------
+
+  static float autoMaxVol = 0.20f;
+
+  if (smoothVol > autoMaxVol) {
+    autoMaxVol = smoothVol;
+  } else {
+    autoMaxVol +=
+        (smoothVol - autoMaxVol) *
+        0.005f;
+  }
+
+  if (autoMaxVol < 0.05f)
+    autoMaxVol = 0.05f;
+
+  // ------------------------------------------------------------
+  // FINAL NORMALIZED VU LEVEL (0.0 to 1.0)
+  // ------------------------------------------------------------
+
+  float vuLevel =
+      smoothVol /
+      autoMaxVol;
+
+  vuLevel = constrain(vuLevel, 0.0f, 1.0f);
+
+  // ------------------------------------------------------------
+  // PEAK DECAY TIMING (For Single Peak)
+  // ------------------------------------------------------------
+
+  unsigned long decayInterval = 35; // Medium Default (was 60)
+
+  if (strcmp(musicSync.peakDecay, "Fast") == 0) {
+    decayInterval = 15; // Much faster drop (was 30)
+  } else if (strcmp(musicSync.peakDecay, "Smooth") == 0) {
+    decayInterval = 70; // Slightly faster smooth drop (was 120)
+  }
+
+  // ------------------------------------------------------------
+  // TURN OFF DISPLAY UPDATES WHILE DRAWING
+  // ------------------------------------------------------------
+
+  mx->control(
+      MD_MAX72XX::UPDATE,
+      MD_MAX72XX::OFF);
+
+  clearVUZone(
+      mx,
+      zStart,
+      zEnd);
+
+  // ============================================================
+  // VU BAR
+  // ============================================================
 
   if (strcmp(musicSync.animation, "VU Bar") == 0) {
-    float level = constrain(smoothVol, 0.0f, 1.0f);
-    int fillCols = (int)round(level * zWidth);
+    int fillCols =
+        constrain(
+            (int)round(vuLevel * (float)zWidth),
+            0,
+            zWidth);
+
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       bool on = (i < fillCols);
-      for (int r = 0; r < 8; r++)
-        setVUMatrixPoint(mx, r, c, on);
-    }
-  } else if (strcmp(musicSync.animation, "VU Peak") == 0) {
-    float level = constrain(smoothVol, 0.0f, 1.0f);
-    int fillCols = constrain((int)round(level * zWidth), 0, zWidth);
 
-    if (fillCols > peakPos) {
-      peakPos = fillCols;
+      for (int r = 0; r < 8; r++) {
+        setVUMatrixPoint(mx, r, c, on);
+      }
+    }
+
+    // ============================================================
+    // VU PEAK
+    // ============================================================
+
+  } else if (strcmp(musicSync.animation, "VU Peak") == 0) {
+    int fillCols =
+        constrain(
+            (int)round(vuLevel * (float)zWidth),
+            0,
+            zWidth);
+
+    if ((float)fillCols > peakPos) {
+      peakPos = (float)fillCols;
       lastPeakDropTime = millis();
     } else if (millis() - lastPeakDropTime >= decayInterval) {
       if (peakPos > 0.0f)
         peakPos -= 1.0f;
       lastPeakDropTime = millis();
     }
+
     peakPos = constrain(peakPos, 0.0f, (float)zWidth);
 
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
       bool on = (i < fillCols);
-      for (int r = 0; r < 8; r++)
+
+      for (int r = 0; r < 8; r++) {
         setVUMatrixPoint(mx, r, c, on);
+      }
     }
 
     if (peakPos > 0.0f) {
       int peakCol = (int)peakPos - 1;
       if (peakCol >= 0 && peakCol < zWidth) {
         int c = zStart + peakCol;
-        for (int r = 0; r < 8; r++)
+        for (int r = 0; r < 8; r++) {
           setVUMatrixPoint(mx, r, c, true);
+        }
       }
     }
+
+    // ============================================================
+    // VU MIRROR
+    // ============================================================
+
   } else if (strcmp(musicSync.animation, "VU Mirror") == 0) {
-    float level = constrain(smoothVol, 0.0f, 1.0f);
     float maxHalfWidth = zWidth / 2.0f;
-    float halfSpan = level * maxHalfWidth;
+    float halfSpan = vuLevel * maxHalfWidth;
     float center = ((float)zWidth - 1.0f) / 2.0f;
 
     for (int i = 0; i < zWidth; i++) {
       float distance = fabsf((float)i - center);
       bool on = (distance <= halfSpan);
       int c = zStart + i;
-      for (int r = 0; r < 8; r++)
+
+      for (int r = 0; r < 8; r++) {
         setVUMatrixPoint(mx, r, c, on);
+      }
     }
+
+    // ============================================================
+    // VU BOUNCE
+    // ============================================================
+
   } else if (strcmp(musicSync.animation, "VU Bounce") == 0) {
-    // 1. Calculate target based on music volume
-    float targetPos = smoothVol * (float)(zWidth - 2);
+    float targetPos = vuLevel * (float)max(0, zWidth - 2);
     float diff = targetPos - bouncePos;
 
-    // 2. Beat-driven spring physics:
-    // Strong punch forward on volume spikes; elastic spring pulling back on drops
     if (diff > 0.0f) {
-      bounceVel += (diff * 0.32f) + (smoothVol * 0.45f);
+      bounceVel += (diff * 0.32f) + (vuLevel * 0.45f);
     } else {
       bounceVel += diff * 0.16f;
     }
 
-    // Natural fluid damping to create elastic musical bounce
     bounceVel *= 0.84f;
     bouncePos += bounceVel;
 
-    // 3. Elastic wall bounce on right edge
-    float maxPos = (float)(zWidth - 2);
+    float maxPos = (float)max(0, zWidth - 2);
+
     if (bouncePos > maxPos) {
       bouncePos = maxPos;
-      bounceVel = -fabsf(bounceVel) * 0.5f; // Rebound off the right wall
+      bounceVel = -fabsf(bounceVel) * 0.5f;
     }
 
-    // 4. Elastic wall bounce on left edge
     if (bouncePos < 0.0f) {
       bouncePos = 0.0f;
-      bounceVel = fabsf(bounceVel) * 0.35f; // Soft rebound off the left wall
+      bounceVel = fabsf(bounceVel) * 0.35f;
     }
 
-    // 5. Render the original clean 2-column block (rows 2 to 5)
     int bCol = zStart + (int)round(bouncePos);
+    bCol = constrain(bCol, zStart, zEnd);
+
     for (int r = 2; r < 6; r++) {
       setVUMatrixPoint(mx, r, bCol, true);
-      if (bCol + 1 <= zEnd)
+      if (bCol + 1 <= zEnd) {
         setVUMatrixPoint(mx, r, bCol + 1, true);
+      }
     }
+
+    // ============================================================
+    // VU PULSE
+    // ============================================================
+
   } else if (strcmp(musicSync.animation, "VU Pulse") == 0) {
-    int center = zStart + (zWidth / 2);
-    int radius = (int)round(smoothVol * (zWidth / 2.0f));
-    int vertHeight = (int)round(smoothVol * 4.0f);
+    float center = ((float)zWidth - 1.0f) / 2.0f;
+    int centerCol = zStart + (int)round(center);
+
+    int radius = (int)round(vuLevel * (zWidth / 2.0f));
+    radius = constrain(radius, 0, zWidth / 2);
+
+    int vertHeight = (int)round(vuLevel * 4.0f);
+    vertHeight = constrain(vertHeight, 0, 4);
 
     for (int d = 0; d <= radius; d++) {
-      int c1 = center - d;
-      int c2 = center + d;
+      int c1 = centerCol - d;
+      int c2 = centerCol + d;
+
       int h = constrain(vertHeight - (d / 2), 0, 4);
 
       for (int r = 3 - h; r <= 4 + h; r++) {
-        if (c1 >= zStart)
+        if (c1 >= zStart && c1 <= zEnd) {
           setVUMatrixPoint(mx, r, c1, true);
-        if (c2 <= zEnd)
+        }
+        if (c2 >= zStart && c2 <= zEnd) {
           setVUMatrixPoint(mx, r, c2, true);
+        }
       }
     }
+
+    // ============================================================
+    // VU WAVE
+    // ============================================================
+
   } else if (strcmp(musicSync.animation, "VU Wave") == 0) {
-    // 1. Shift history buffer towards the right (Left-to-Right wave propagation)
     for (int i = zWidth - 1; i > 0; i--) {
       waveHistory[i] = waveHistory[i - 1];
     }
 
-    // 2. Inject new energy at the left edge (index 0)
-    float instantEnergy = (rawVol * 0.75f) + (smoothVol * 0.25f);
+    float instantEnergy = constrain(vuLevel, 0.0f, 1.0f);
     waveHistory[0] = instantEnergy;
 
-    // 3. Phase advancing forward in time
     static float wavePhase = 0.0f;
-    wavePhase += 0.20f + (smoothVol * 0.35f);
+    wavePhase += 0.20f + (vuLevel * 0.35f);
+    if (wavePhase > TWO_PI)
+      wavePhase -= TWO_PI;
 
-    float gain = (float)musicSync.sensitivity / 50.0f;
-
-    // 4. Render solid acoustic wave ribbon from peak to center axis
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
-
-      // Amplitude scaling with gain
-      float v = constrain(waveHistory[i] * gain * 1.6f, 0.0f, 1.0f);
+      float v = constrain(waveHistory[i], 0.0f, 1.0f);
       float amp = powf(v, 0.65f) * 3.8f;
 
-      // Harmonic ripple formula traveling left-to-right
       float angle = ((float)i * 0.42f) - wavePhase;
       float ripple = (sinf(angle) + 0.35f * sinf(angle * 2.0f + 0.5f)) / 1.35f;
 
@@ -900,243 +1113,133 @@ void runMusicSyncFrame() {
         botY = constrain(3 - h, 0, 3);
       }
 
-      // Fill continuously from botY up to topY (solid fill through the center axis)
       for (int r = botY; r <= topY; r++) {
         setVUMatrixPoint(mx, r, c, true);
       }
     }
-  } else if (strcmp(musicSync.animation, "VU Spectrum") == 0 ||
-             strcmp(musicSync.animation, "VU Spectrum Bar") == 0 ||
-             strcmp(musicSync.animation, "VU Spectrum Peak") == 0) {
 
-    bool showBars =
-        (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
+    // ============================================================
+    // VU SPECTRUM
+    // ============================================================
 
-    bool showPeaks =
-        (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
+  } else if (
+      strcmp(musicSync.animation, "VU Spectrum") == 0 ||
+      strcmp(musicSync.animation, "VU Spectrum Bar") == 0 ||
+      strcmp(musicSync.animation, "VU Spectrum Peak") == 0) {
 
-    // ------------------------------------------------------------
-    // FFT
-    // ------------------------------------------------------------
-    FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
-    FFT.compute(FFTDirection::Forward);
-    FFT.complexToMagnitude();
+    bool showBars = (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
+    bool showPeaks = (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
 
-    // ------------------------------------------------------------
-    // Peak decay
-    // ------------------------------------------------------------
-    if (millis() - lastBandDropTime >= decayInterval) {
+    // ----------------------------------------------------------
+    // SMOOTH PEAK PHYSICS
+    // We use a dedicated internal float array to guarantee smooth
+    // gravity drop logic, bypassing any global integer arrays.
+    // ----------------------------------------------------------
+    static float specPeaks[MAX_SUPPORTED_DEVICES * 8] = {0.0f};
+    static unsigned long lastSpecDecay = 0;
 
-      for (int i = 0; i < zWidth; i++) {
-
-        if (bandPeaks[i] > 0.0f) {
-
-          bandPeaks[i] -= 0.5f;
-
-          if (bandPeaks[i] < 0.0f)
-            bandPeaks[i] = 0.0f;
+    // Fast 20ms refresh for smooth gravity animation
+    if (millis() - lastSpecDecay >= 20) {
+      // Much faster drop physics per frame
+      float dropSpeed = 0.35f; // Medium default (was 0.15f)
+      if (strcmp(musicSync.peakDecay, "Fast") == 0) {
+        dropSpeed = 0.75f; // Extremely fast drop
+      } else if (strcmp(musicSync.peakDecay, "Smooth") == 0) {
+        dropSpeed = 0.18f; // Slow, floating decay
+      }
+      for (int i = 0; i < zWidth && i < (MAX_SUPPORTED_DEVICES * 8); i++) {
+        if (specPeaks[i] > 0.0f) {
+          specPeaks[i] -= dropSpeed;
+          if (specPeaks[i] < 0.0f) {
+            specPeaks[i] = 0.0f;
+          }
         }
       }
-
-      lastBandDropTime = millis();
+      lastSpecDecay = millis();
     }
 
-    // ------------------------------------------------------------
-    // FFT frequency range
-    //
-    // Example:
-    //
-    // FFT_SAMPLES   = 64
-    // SAMPLING_FREQ = 16000
-    //
-    // Frequency resolution = 250 Hz/bin
-    // Nyquist frequency    = 8000 Hz
-    //
-    // We intentionally START at a higher frequency.
-    // This removes the constantly-active deep-bass region.
-    // ------------------------------------------------------------
-
-    // Start frequency bin.
-    //
-    // For FFT_SAMPLES = 64 @ 16 kHz:
-    //
-    // bin 1 = 250 Hz
-    // bin 2 = 500 Hz
-    // bin 3 = 750 Hz
-    // bin 4 = 1000 Hz
-    // bin 5 = 1250 Hz
-    // bin 6 = 1500 Hz
-    // bin 7 = 1750 Hz
-    // bin 8 = 2000 Hz
-    //
-    // Start at approximately 2 kHz.
-    const int startBin = 8;
-
-    // Last usable bin before Nyquist.
-    const int maxBin = (FFT_SAMPLES / 2) - 1;
-
-    // ------------------------------------------------------------
-    // Sensitivity
-    // ------------------------------------------------------------
-    float gain =
-        (float)musicSync.sensitivity / 50.0f;
-
-    // ------------------------------------------------------------
-    // Draw spectrum
-    // ------------------------------------------------------------
-    for (int i = 0; i < zWidth; i++) {
-
+    // ----------------------------------------------------------
+    // DRAW SPECTRUM
+    // ----------------------------------------------------------
+    for (int i = 0; i < zWidth && i < (MAX_SUPPORTED_DEVICES * 8); i++) {
       int c = zStart + i;
 
-      // ----------------------------------------------------------
-      // Column position
-      //
-      // 0.0 = lowest selected frequency
-      // 1.0 = highest selected frequency
-      // ----------------------------------------------------------
-      float colRatio =
-          (float)i /
-          (float)(zWidth > 1 ? zWidth - 1 : 1);
+      // --------------------------------------------------------
+      // LINEAR DISTRIBUTION mapping
+      // --------------------------------------------------------
+      float colRatio = (float)i / (float)(zWidth > 1 ? zWidth - 1 : 1);
+      float continuousBin = startBin + colRatio * (float)(maxBin - startBin);
 
-      // ----------------------------------------------------------
-      // Logarithmic frequency distribution
-      //
-      // This keeps more visual resolution toward the lower
-      // frequencies while still using the complete display width.
-      // ----------------------------------------------------------
-      float logRatio =
-          powf(colRatio, 1.35f);
+      int bFloor = constrain((int)continuousBin, startBin, maxBin - 1);
+      float bFrac = continuousBin - (float)bFloor;
 
-      // ----------------------------------------------------------
-      // Map complete 64-column display between:
-      //
-      // startBin -> maxBin
-      //
-      // NO columns are discarded.
-      // ----------------------------------------------------------
-      float continuousBin =
-          startBin +
-          logRatio *
-              (float)(maxBin - startBin);
-
-      // ----------------------------------------------------------
-      // Interpolation
-      // ----------------------------------------------------------
-      int bFloor =
-          constrain(
-              (int)continuousBin,
-              startBin,
-              maxBin - 1);
-
-      float bFrac =
-          continuousBin -
-          (float)bFloor;
-
-      // ----------------------------------------------------------
-      // Interpolate FFT magnitude
-      // ----------------------------------------------------------
+      // --------------------------------------------------------
+      // INTERPOLATED FFT MAGNITUDE
+      // --------------------------------------------------------
       double rawMag =
           (vReal[bFloor] * (1.0f - bFrac)) +
           (vReal[bFloor + 1] * bFrac);
 
-      // ----------------------------------------------------------
-      // Noise floor
-      // ----------------------------------------------------------
       rawMag -= 250.0;
-
       if (rawMag < 0.0)
         rawMag = 0.0;
 
-      // ----------------------------------------------------------
-      // Treble compensation
-      //
-      // Higher frequencies normally have less energy.
-      // Gradually compensate toward the right side.
-      // ----------------------------------------------------------
-      float eqBoost =
-          1.0f +
-          powf(colRatio, 2.5f) * 8.0f;
+      // --------------------------------------------------------
+      // TREBLE COMPENSATION
+      // --------------------------------------------------------
+      float eqBoost = 1.0f + (colRatio * 1.5f);
+      double mag = rawMag * gain * eqBoost;
 
-      // ----------------------------------------------------------
-      // Apply sensitivity + EQ
-      // ----------------------------------------------------------
-      double mag =
-          rawMag *
-          gain *
-          eqBoost;
-
-      // ----------------------------------------------------------
-      // Convert magnitude to LED height
-      // ----------------------------------------------------------
+      // --------------------------------------------------------
+      // CONVERT TO LED HEIGHT
+      // --------------------------------------------------------
       int height = 0;
 
       if (mag > 0.0) {
-
-        float norm =
-            (float)(mag / 22000.0);
-
-        norm =
-            constrain(
-                norm,
-                0.0f,
-                1.0f);
-
-        // Gamma curve
-        height =
-            (int)round(
-                powf(norm, 0.65f) * 8.0f);
+        float norm = (float)(mag / 22000.0);
+        norm = constrain(norm, 0.0f, 1.0f);
+        height = (int)round(powf(norm, 0.65f) * 8.0f);
       }
 
-      height =
-          constrain(
-              height,
-              0,
-              8);
+      height = constrain(height, 0, 8);
 
-      // ----------------------------------------------------------
-      // Peak hold
-      // ----------------------------------------------------------
-      if ((float)height > bandPeaks[i])
-        bandPeaks[i] = (float)height;
+      // --------------------------------------------------------
+      // PEAK HOLD
+      // --------------------------------------------------------
+      if ((float)height > specPeaks[i]) {
+        specPeaks[i] = (float)height;
+      }
 
-      // ----------------------------------------------------------
-      // Draw bar
-      // ----------------------------------------------------------
+      // --------------------------------------------------------
+      // DRAW BAR
+      // --------------------------------------------------------
       if (showBars) {
-
         for (int r = 0; r < height; r++) {
-
-          setVUMatrixPoint(
-              mx,
-              r,
-              c,
-              true);
+          setVUMatrixPoint(mx, r, c, true);
         }
       }
 
-      // ----------------------------------------------------------
-      // Draw peak
-      // ----------------------------------------------------------
+      // --------------------------------------------------------
+      // DRAW PEAK
+      // --------------------------------------------------------
       if (showPeaks) {
+        // ceil() provides realistic 'hang time' before the dot drops
+        int peakRow = (int)ceil(specPeaks[i]) - 1;
 
-        int peakRow =
-            (int)bandPeaks[i] - 1;
-
-        if (peakRow >= 0 &&
-            peakRow < 8 &&
-            (!showBars || peakRow >= height)) {
-
-          setVUMatrixPoint(
-              mx,
-              peakRow,
-              c,
-              true);
+        if (peakRow >= 0 && peakRow < 8 && (!showBars || peakRow >= height)) {
+          setVUMatrixPoint(mx, peakRow, c, true);
         }
       }
     }
   }
 
-  mx->control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
+  // ------------------------------------------------------------
+  // UPDATE DISPLAY
+  // ------------------------------------------------------------
+
+  mx->control(
+      MD_MAX72XX::UPDATE,
+      MD_MAX72XX::ON);
 }
 
 // ==========================================
@@ -1277,6 +1380,7 @@ void saveDefaultConfiguration() {
   matrix["width"] = 32;
   matrix["modules"] = 4;
   matrix["hardware_type"] = "FC16_HW";
+  matrix["absolute_max_devices"] = 32;
 
   // ---> NEW MUSIC SETTINGS <---
   JsonObject ms = doc["music_sync"].to<JsonObject>();
@@ -1288,6 +1392,9 @@ void saveDefaultConfiguration() {
   ms["sensitivity"] = 20;
   ms["peak_decay"] = "Fast";
   ms["brightness"] = 12;
+  ms["fft_samples"] = 128;
+  ms["sampling_freq"] = 16000;
+  ms["start_bin"] = 1;
 
   // ---> EXPLICITLY CREATE ZONES SO WEB UI DOESN'T LOSE THEM <---
   JsonArray zonesArr = doc["zones"].to<JsonArray>();
@@ -1386,6 +1493,10 @@ void loadConfiguration() {
   }
 
   if (doc["matrix"].is<JsonObject>()) {
+    ABSOLUTE_MAX_DEVICES = doc["matrix"]["absolute_max_devices"] | 32;
+    if (ABSOLUTE_MAX_DEVICES > MAX_SUPPORTED_DEVICES)
+      ABSOLUTE_MAX_DEVICES = MAX_SUPPORTED_DEVICES;
+
     uint8_t newMax = doc["matrix"]["modules"] | MAX_DEVICES;
     const char *newHw = doc["matrix"]["hardware_type"] | "FC16_HW";
 
@@ -1410,6 +1521,18 @@ void loadConfiguration() {
     strncpy(musicSync.peakDecay, decay, sizeof(musicSync.peakDecay) - 1);
     musicSync.brightness = doc["music_sync"]["brightness"] | 12;
     musicSync.autoBrightness = doc["music_sync"]["auto"] | false;
+    musicSync.fftSamples = doc["music_sync"]["fft_samples"] | 128;
+    musicSync.samplingFreq = doc["music_sync"]["sampling_freq"] | 16000;
+    musicSync.startBin = doc["music_sync"]["start_bin"] | 1;
+
+    if (musicSync.fftSamples > MAX_SUPPORTED_FFT)
+      musicSync.fftSamples = MAX_SUPPORTED_FFT;
+
+    // Dynamically spin up the FFT processor with the loaded settings
+    if (FFT != nullptr)
+      delete FFT;
+    FFT = new ArduinoFFT<double>(vReal, vImag, musicSync.fftSamples, musicSync.samplingFreq);
+
   } else {
     musicSync.enabled = false;
   }
@@ -1418,12 +1541,21 @@ void loadConfiguration() {
     isMusicSyncActive = true;
     P.displayClear();
     updateDisplayBrightness(); // Use the safe unified function
+
+    Serial.println("\n========================================");
+    Serial.println(" 🎵 STARTING MUSIC SYNC MODE");
     Serial.println("========================================");
-    Serial.println("[TASK SWITCH] MUSIC SYNC IS ACTIVE!");
-    Serial.printf(" -> Dedicated Mode : ESP runs exclusively as VU Meter\n");
-    Serial.printf(" -> Zone Mapped    : '%s' [Cols %d -> %d]\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
-    Serial.printf(" -> Animation      : %s | Gain: %d%% | Decay: %s | Brightness: %u\n", musicSync.animation, musicSync.sensitivity, musicSync.peakDecay, musicSync.brightness);
-    Serial.println("========================================");
+    Serial.printf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
+    Serial.printf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
+    Serial.printf(" [Audio]     FFT Samples: %d Points\n", musicSync.fftSamples);
+    Serial.printf(" [Audio]     Sample Freq: %d Hz\n", musicSync.samplingFreq);
+    Serial.printf(" [Audio]     Start Bin  : %d\n", musicSync.startBin);
+    Serial.println("----------------------------------------");
+    Serial.printf(" [Visuals]   Target Zone: '%s' (Cols %d to %d)\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
+    Serial.printf(" [Visuals]   Animation  : %s\n", musicSync.animation);
+    Serial.printf(" [Visuals]   Options    : Gain %d%% | %s Decay\n", musicSync.sensitivity, musicSync.peakDecay);
+    Serial.printf(" [Visuals]   Brightness : %u / 15 %s\n", musicSync.brightness, musicSync.autoBrightness ? "(Auto)" : "");
+    Serial.println("========================================\n");
     return;
   }
 
@@ -1606,8 +1738,14 @@ void loadConfiguration() {
   // INITIALIZE HARDWARE ZONES & START PLAYLISTS
   // =========================================================================
   P.displayClear();
+  Serial.println("\n========================================");
+  Serial.println(" 📝 STARTING TEXT & SCENE MODE");
   Serial.println("========================================");
-  Serial.printf("[Config] Total Scenes: %d | Formed %d Unique Physical Zones:\n", totalScenes, activeZoneCount);
+  Serial.printf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
+  Serial.printf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
+  Serial.printf(" [Setup]     Formed %d Unique Physical Zones\n", activeZoneCount);
+  Serial.printf(" [Content]   %d Total Scenes Loaded to RAM\n", totalScenes);
+  Serial.println("----------------------------------------");
 
   // 1. Check if any playlists are actually active
   bool hasActivePlaylists = false;
@@ -2000,8 +2138,6 @@ void setup() {
   P.setSpriteData(pacman1, W_PMAN1, F_PMAN1, pacman2, W_PMAN2, F_PMAN2);
   P.displayClear();
 
-  initI2S();
-
   if (connectToSavedWiFi()) {
     initMDNS();
 
@@ -2017,6 +2153,7 @@ void setup() {
   initNTP();
   setupWebServer();
   loadConfiguration();
+  initI2S();
 }
 
 // ==========================================
