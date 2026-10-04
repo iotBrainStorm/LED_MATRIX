@@ -909,8 +909,11 @@ void runMusicSyncFrame() {
              strcmp(musicSync.animation, "VU Spectrum Bar") == 0 ||
              strcmp(musicSync.animation, "VU Spectrum Peak") == 0) {
 
-    bool showBars = (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
-    bool showPeaks = (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
+    bool showBars =
+        (strcmp(musicSync.animation, "VU Spectrum Peak") != 0);
+
+    bool showPeaks =
+        (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
 
     // ------------------------------------------------------------
     // FFT
@@ -925,7 +928,9 @@ void runMusicSyncFrame() {
     if (millis() - lastBandDropTime >= decayInterval) {
 
       for (int i = 0; i < zWidth; i++) {
+
         if (bandPeaks[i] > 0.0f) {
+
           bandPeaks[i] -= 0.5f;
 
           if (bandPeaks[i] < 0.0f)
@@ -937,32 +942,44 @@ void runMusicSyncFrame() {
     }
 
     // ------------------------------------------------------------
-    // FFT frequency configuration
+    // FFT frequency range
     //
-    // FFT bin frequency:
-    // frequency = bin * SAMPLING_FREQ / FFT_SAMPLES
+    // Example:
     //
-    // With:
-    // FFT_SAMPLES   = 32
+    // FFT_SAMPLES   = 64
     // SAMPLING_FREQ = 16000
     //
-    // bin spacing = 500 Hz
-    // Nyquist      = 8000 Hz
+    // Frequency resolution = 250 Hz/bin
+    // Nyquist frequency    = 8000 Hz
     //
-    // Therefore:
-    // bin 1 = 500 Hz
-    // bin 2 = 1000 Hz
-    // ...
-    // bin 15 = 7500 Hz
+    // We intentionally START at a higher frequency.
+    // This removes the constantly-active deep-bass region.
     // ------------------------------------------------------------
 
-    const int startBin = 1;
+    // Start frequency bin.
+    //
+    // For FFT_SAMPLES = 64 @ 16 kHz:
+    //
+    // bin 1 = 250 Hz
+    // bin 2 = 500 Hz
+    // bin 3 = 750 Hz
+    // bin 4 = 1000 Hz
+    // bin 5 = 1250 Hz
+    // bin 6 = 1500 Hz
+    // bin 7 = 1750 Hz
+    // bin 8 = 2000 Hz
+    //
+    // Start at approximately 2 kHz.
+    const int startBin = 8;
 
-    // Never use the Nyquist bin itself for interpolation.
+    // Last usable bin before Nyquist.
     const int maxBin = (FFT_SAMPLES / 2) - 1;
 
+    // ------------------------------------------------------------
     // Sensitivity
-    float gain = (float)musicSync.sensitivity / 50.0f;
+    // ------------------------------------------------------------
+    float gain =
+        (float)musicSync.sensitivity / 50.0f;
 
     // ------------------------------------------------------------
     // Draw spectrum
@@ -972,33 +989,51 @@ void runMusicSyncFrame() {
       int c = zStart + i;
 
       // ----------------------------------------------------------
-      // Column position 0.0 -> 1.0
+      // Column position
+      //
+      // 0.0 = lowest selected frequency
+      // 1.0 = highest selected frequency
       // ----------------------------------------------------------
       float colRatio =
-          (float)i / (float)(zWidth > 1 ? zWidth - 1 : 1);
+          (float)i /
+          (float)(zWidth > 1 ? zWidth - 1 : 1);
 
       // ----------------------------------------------------------
       // Logarithmic frequency distribution
       //
-      // More columns are allocated to lower frequencies where
-      // musical information is denser.
+      // This keeps more visual resolution toward the lower
+      // frequencies while still using the complete display width.
       // ----------------------------------------------------------
-      float logRatio = powf(colRatio, 1.35f);
+      float logRatio =
+          powf(colRatio, 1.35f);
 
+      // ----------------------------------------------------------
+      // Map complete 64-column display between:
+      //
+      // startBin -> maxBin
+      //
+      // NO columns are discarded.
+      // ----------------------------------------------------------
       float continuousBin =
           startBin +
-          logRatio * (float)(maxBin - startBin);
+          logRatio *
+              (float)(maxBin - startBin);
 
+      // ----------------------------------------------------------
+      // Interpolation
+      // ----------------------------------------------------------
       int bFloor =
           constrain(
               (int)continuousBin,
               startBin,
               maxBin - 1);
 
-      float bFrac = continuousBin - (float)bFloor;
+      float bFrac =
+          continuousBin -
+          (float)bFloor;
 
       // ----------------------------------------------------------
-      // Interpolate between FFT bins
+      // Interpolate FFT magnitude
       // ----------------------------------------------------------
       double rawMag =
           (vReal[bFloor] * (1.0f - bFrac)) +
@@ -1015,7 +1050,7 @@ void runMusicSyncFrame() {
       // ----------------------------------------------------------
       // Treble compensation
       //
-      // Higher frequencies normally have lower FFT magnitude.
+      // Higher frequencies normally have less energy.
       // Gradually compensate toward the right side.
       // ----------------------------------------------------------
       float eqBoost =
@@ -1040,16 +1075,23 @@ void runMusicSyncFrame() {
         float norm =
             (float)(mag / 22000.0);
 
-        norm = constrain(norm, 0.0f, 1.0f);
+        norm =
+            constrain(
+                norm,
+                0.0f,
+                1.0f);
 
-        // Gamma curve:
-        // lower levels become more visible
+        // Gamma curve
         height =
             (int)round(
                 powf(norm, 0.65f) * 8.0f);
       }
 
-      height = constrain(height, 0, 8);
+      height =
+          constrain(
+              height,
+              0,
+              8);
 
       // ----------------------------------------------------------
       // Peak hold
@@ -1058,17 +1100,22 @@ void runMusicSyncFrame() {
         bandPeaks[i] = (float)height;
 
       // ----------------------------------------------------------
-      // Bar
+      // Draw bar
       // ----------------------------------------------------------
       if (showBars) {
 
         for (int r = 0; r < height; r++) {
-          setVUMatrixPoint(mx, r, c, true);
+
+          setVUMatrixPoint(
+              mx,
+              r,
+              c,
+              true);
         }
       }
 
       // ----------------------------------------------------------
-      // Peak dot
+      // Draw peak
       // ----------------------------------------------------------
       if (showPeaks) {
 
