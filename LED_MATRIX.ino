@@ -145,7 +145,8 @@ struct MusicSyncConfig {
   bool autoBrightness = false;
   int fftSamples = 128;
   int samplingFreq = 16000;
-  int startBin = 1;
+  int startFreq = 0;
+  int endFreq = 8000;
 };
 
 MusicSyncConfig musicSync;
@@ -739,6 +740,34 @@ void runMusicSyncFrame() {
 
   float rms = sqrtf(sumSquares / sampleCount);
 
+  // --- 1. FREQUENCY RATIO FILTER (CROPS NOISE FOR ALL EFFECTS) ---
+  if (FFT) {
+    FFT->windowing(FFTWindow::Hamming, FFTDirection::Forward);
+    FFT->compute(FFTDirection::Forward);
+    FFT->complexToMagnitude();
+
+    float binRes = (float)musicSync.samplingFreq / (float)musicSync.fftSamples;
+    int sBin = max(1, (int)(musicSync.startFreq / binRes));
+    int eBin = min((musicSync.fftSamples / 2) - 1, (int)(musicSync.endFreq / binRes));
+
+    float validEnergy = 0.0f;
+    float totalEnergy = 0.0f;
+
+    for (int i = 1; i < (musicSync.fftSamples / 2); i++) {
+      totalEnergy += vReal[i];
+      if (i >= sBin && i <= eBin)
+        validEnergy += vReal[i];
+    }
+
+    if (totalEnergy > 0.1f) {
+      float ratio = validEnergy / totalEnergy;
+      rms *= ratio; // Mute the volume if the sound is outside your frequency range!
+    } else {
+      rms = 0.0f;
+    }
+  }
+  // ---------------------------------------------------------------
+
   const float noiseFloor = 30.0f;
   if (rms < noiseFloor)
     rms = 0.0f;
@@ -922,15 +951,6 @@ void runMusicSyncFrame() {
     bool showPeaks = (strcmp(musicSync.animation, "VU Spectrum Bar") != 0);
 
     // ------------------------------------------------------------
-    // FFT
-    // ------------------------------------------------------------
-    if (FFT) {
-      FFT->windowing(FFTWindow::Hamming, FFTDirection::Forward);
-      FFT->compute(FFTDirection::Forward);
-      FFT->complexToMagnitude();
-    }
-
-    // ------------------------------------------------------------
     // Peak decay
     // ------------------------------------------------------------
     if (millis() - lastBandDropTime >= decayInterval) {
@@ -948,26 +968,17 @@ void runMusicSyncFrame() {
     }
 
     // ------------------------------------------------------------
-    // FFT frequency configuration (Dynamic from Web UI)
+    // FFT frequency configuration (Using Web UI Frequencies)
     // ------------------------------------------------------------
-
-    // 1. Use the exact start bin commanded by the Web UI
-    // 1. Use the exact start bin commanded by the Web UI
-    int startBin = musicSync.startBin;
-    if (startBin < 1)
-      startBin = 1;
-
-    // 2. Calculate actual frequency resolution of each bin
-    int nyquistLimit = (musicSync.fftSamples / 2) - 1;
     float binResolution = (float)musicSync.samplingFreq / (float)musicSync.fftSamples;
+    int nyquistLimit = (musicSync.fftSamples / 2) - 1;
 
-    // 3. Target ~8000 Hz as the visual max (Music rarely has loud energy above 8kHz)
-    // This dynamically fixes the mapping so columns span the USEFUL audio range automatically
-    int calculatedMaxBin = (int)(8000.0f / binResolution);
+    // Convert UI Frequencies exactly into Matrix Column Bins
+    int startBin = max(1, (int)(musicSync.startFreq / binResolution));
+    int maxBin = min(nyquistLimit, (int)(musicSync.endFreq / binResolution));
 
-    int maxBin = min(calculatedMaxBin, nyquistLimit);
-    if (maxBin <= startBin + 2)
-      maxBin = nyquistLimit; // Failsafe
+    if (maxBin <= startBin)
+      maxBin = startBin + 1; // Failsafe
 
     // Sensitivity
     float gain = (float)musicSync.sensitivity / 50.0f;
@@ -1252,7 +1263,8 @@ void saveDefaultConfiguration() {
   ms["brightness"] = 12;
   ms["fft_samples"] = 128;
   ms["sampling_freq"] = 16000;
-  ms["start_bin"] = 1;
+  ms["start_freq"] = 0;
+  ms["end_freq"] = 8000;
 
   // ---> EXPLICITLY CREATE ZONES SO WEB UI DOESN'T LOSE THEM <---
   JsonArray zonesArr = doc["zones"].to<JsonArray>();
@@ -1381,7 +1393,8 @@ void loadConfiguration() {
     musicSync.autoBrightness = doc["music_sync"]["auto"] | false;
     musicSync.fftSamples = doc["music_sync"]["fft_samples"] | 128;
     musicSync.samplingFreq = doc["music_sync"]["sampling_freq"] | 16000;
-    musicSync.startBin = doc["music_sync"]["start_bin"] | 1;
+    musicSync.startFreq = doc["music_sync"]["start_freq"] | 0;
+    musicSync.endFreq = doc["music_sync"]["end_freq"] | 8000;
 
     if (musicSync.fftSamples > MAX_SUPPORTED_FFT)
       musicSync.fftSamples = MAX_SUPPORTED_FFT;
@@ -1407,7 +1420,7 @@ void loadConfiguration() {
     Serial.printf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
     Serial.printf(" [Audio]     FFT Samples: %d Points\n", musicSync.fftSamples);
     Serial.printf(" [Audio]     Sample Freq: %d Hz\n", musicSync.samplingFreq);
-    Serial.printf(" [Audio]     Start Bin  : %d\n", musicSync.startBin);
+    Serial.printf(" [Audio]     Freq Range : %d Hz to %d Hz\n", musicSync.startFreq, musicSync.endFreq);
     Serial.println("----------------------------------------");
     Serial.printf(" [Visuals]   Target Zone: '%s' (Cols %d to %d)\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
     Serial.printf(" [Visuals]   Animation  : %s\n", musicSync.animation);
