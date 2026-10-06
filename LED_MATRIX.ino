@@ -640,7 +640,20 @@ String processTemplate(const String &tmpl) {
 // ==========================================
 // I2S HARDWARE INITIALIZATION (INMP441)
 // ==========================================
+// Add a tracker variable above the function
+bool i2sInitialized = false;
+
 void initI2S() {
+  // 1. Clean up existing driver if we are updating the config or turning it off
+  if (i2sInitialized) {
+    i2s_driver_uninstall(I2S_PORT);
+    i2sInitialized = false;
+  }
+
+  // 2. Do not start I2S if music sync is disabled (stops I2C interference)
+  if (!musicSync.enabled)
+    return;
+
   const i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = (uint32_t)musicSync.samplingFreq,
@@ -648,7 +661,7 @@ void initI2S() {
       .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
       .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_STAND_I2S),
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 4,
+      .dma_buf_count = 8, // INCREASED from 4 to 8 to prevent audio dropouts
       .dma_buf_len = musicSync.fftSamples,
       .use_apll = false,
       .tx_desc_auto_clear = false,
@@ -673,6 +686,7 @@ void initI2S() {
   }
 
   i2s_start(I2S_PORT);
+  i2sInitialized = true;
   Serial.println("[I2S] INMP441 MEMS microphone initialized successfully.");
 }
 
@@ -907,40 +921,38 @@ void runMusicSyncFrame() {
       waveHistory[i] = waveHistory[i - 1];
     }
 
-    // 2. Inject new energy at the left edge (index 0)
-    float instantEnergy = (rawVol * 0.90f) + (smoothVol * 0.10f); // More raw energy for snap
-    waveHistory[0] = instantEnergy;
-
-    // 3. Phase advancing forward in time
-    static float wavePhase = 0.0f;
-    wavePhase += 0.35f + (smoothVol * 0.50f); // Move wave significantly faster
-
+    // 2. Calculate current audio energy
     float gain = (float)musicSync.sensitivity / 50.0f;
 
-    // 4. Render solid acoustic wave ribbon from peak to center axis
+    // Blend mostly raw volume for sharp attacks, with a little smooth for the tail
+    float instantEnergy = (rawVol * 0.85f) + (smoothVol * 0.15f);
+    float scaledEnergy = constrain(instantEnergy * gain * 1.5f, 0.0f, 1.0f);
+
+    // Exaggerate peaks: Squaring the energy makes quiet parts stay quiet
+    // and loud beats spike sharply. This gives it "punch".
+    waveHistory[0] = scaledEnergy * scaledEnergy;
+
+    // 3. Render the Solid Audio Waveform (SoundCloud Style)
     for (int i = 0; i < zWidth; i++) {
       int c = zStart + i;
 
-      // Amplitude scaling with gain
-      float v = constrain(waveHistory[i] * gain * 1.6f, 0.0f, 1.0f);
-      float amp = powf(v, 0.65f) * 3.8f;
+      // Map the history value directly to an amplitude height (0 to 4)
+      int h = (int)(waveHistory[i] * 4.2f);
+      h = constrain(h, 0, 4);
 
-      // Harmonic ripple formula traveling left-to-right
-      float angle = ((float)i * 0.42f) - wavePhase;
-      float ripple = (sinf(angle) + 0.35f * sinf(angle * 2.0f + 0.5f)) / 1.35f;
+      // Center axis on the matrix is between rows 3 and 4
+      int topY = constrain(4 + h, 4, 7);
+      int botY = constrain(3 - h, 0, 3);
 
-      int topY = 4;
-      int botY = 3;
-
-      if (amp >= 0.35f) {
-        int h = constrain((int)round(fabsf(ripple) * amp), 0, 3);
-        topY = constrain(4 + h, 4, 7);
-        botY = constrain(3 - h, 0, 3);
-      }
-
-      // Fill continuously from botY up to topY (solid fill through the center axis)
-      for (int r = botY; r <= topY; r++) {
-        setVUMatrixPoint(mx, r, c, true);
+      // Render the column
+      if (h == 0) {
+        // Absolute silence draws a crisp 1-pixel thin line through the center
+        setVUMatrixPoint(mx, 4, c, true);
+      } else {
+        // Active audio fills symmetrically from bottom to top
+        for (int r = botY; r <= topY; r++) {
+          setVUMatrixPoint(mx, r, c, true);
+        }
       }
     }
   } else if (strcmp(musicSync.animation, "VU Spectrum") == 0 ||
@@ -1407,6 +1419,8 @@ void loadConfiguration() {
   } else {
     musicSync.enabled = false;
   }
+
+  initI2S();
 
   if (musicSync.enabled) {
     isMusicSyncActive = true;
@@ -2024,7 +2038,6 @@ void setup() {
   initNTP();
   setupWebServer();
   loadConfiguration();
-  initI2S();
 }
 
 // ==========================================
@@ -2037,42 +2050,47 @@ void loop() {
     lastLightCheck = millis();
     float lux = lightMeter.readLightLevel();
 
-    // Map Lux (0-65535) to Brightness (0-15)
-    if (lux < 2.0)
-      currentAutoLuxBrightness = 0;
-    else if (lux < 5.0)
-      currentAutoLuxBrightness = 1;
-    else if (lux < 10.0)
-      currentAutoLuxBrightness = 2;
-    else if (lux < 20.0)
-      currentAutoLuxBrightness = 3;
-    else if (lux < 35.0)
-      currentAutoLuxBrightness = 4;
-    else if (lux < 55.0)
-      currentAutoLuxBrightness = 5;
-    else if (lux < 80.0)
-      currentAutoLuxBrightness = 6;
-    else if (lux < 120.0)
-      currentAutoLuxBrightness = 7;
-    else if (lux < 170.0)
-      currentAutoLuxBrightness = 8;
-    else if (lux < 230.0)
-      currentAutoLuxBrightness = 9;
-    else if (lux < 300.0)
-      currentAutoLuxBrightness = 10;
-    else if (lux < 400.0)
-      currentAutoLuxBrightness = 11;
-    else if (lux < 520.0)
-      currentAutoLuxBrightness = 12;
-    else if (lux < 660.0)
-      currentAutoLuxBrightness = 13;
-    else if (lux < 850.0)
-      currentAutoLuxBrightness = 14;
-    else
-      currentAutoLuxBrightness = 15;
+    // BUG FIX: Ignore negative values! I2S interrupts occasionally cause the I2C
+    // bus to glitch. Previously, a glitch (-1.0) evaluated as "lux < 2.0" and
+    // instantly forced the brightness to 0.
+    if (lux >= 0.0f) {
+      // Map Lux (0-65535) to Brightness (0-15)
+      if (lux < 2.0)
+        currentAutoLuxBrightness = 0;
+      else if (lux < 5.0)
+        currentAutoLuxBrightness = 1;
+      else if (lux < 10.0)
+        currentAutoLuxBrightness = 2;
+      else if (lux < 20.0)
+        currentAutoLuxBrightness = 3;
+      else if (lux < 35.0)
+        currentAutoLuxBrightness = 4;
+      else if (lux < 55.0)
+        currentAutoLuxBrightness = 5;
+      else if (lux < 80.0)
+        currentAutoLuxBrightness = 6;
+      else if (lux < 120.0)
+        currentAutoLuxBrightness = 7;
+      else if (lux < 170.0)
+        currentAutoLuxBrightness = 8;
+      else if (lux < 230.0)
+        currentAutoLuxBrightness = 9;
+      else if (lux < 300.0)
+        currentAutoLuxBrightness = 10;
+      else if (lux < 400.0)
+        currentAutoLuxBrightness = 11;
+      else if (lux < 520.0)
+        currentAutoLuxBrightness = 12;
+      else if (lux < 660.0)
+        currentAutoLuxBrightness = 13;
+      else if (lux < 850.0)
+        currentAutoLuxBrightness = 14;
+      else
+        currentAutoLuxBrightness = 15;
 
-    // Apply the new reading safely to whatever mode is running
-    updateDisplayBrightness();
+      // Apply the new reading safely to whatever mode is running
+      updateDisplayBrightness();
+    }
   }
 
   // 2. Live config update from browser
