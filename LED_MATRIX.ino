@@ -50,7 +50,7 @@ BH1750 lightMeter;
 bool bh1750Found = false;
 unsigned long lastLightCheck = 0 - 2000;
 const unsigned long LIGHT_POLL_INTERVAL = 2000; // 2 seconds
-int currentAutoLuxBrightness = 12;              // Mapped brightness (0-15)
+int currentAutoLuxBrightness = 7;               // Mapped brightness (0-15)
 
 // INMP441 I2S MEMS Microphone Pins
 #define I2S_SCK 14
@@ -138,15 +138,15 @@ struct MusicSyncConfig {
   char zone[32] = "Zone 1";
   int startCol = 0;
   int endCol = 39;
-  char animation[32] = "VU Bar";
-  int sensitivity = 60;
-  char peakDecay[16] = "Medium";
-  uint8_t brightness = 12;
-  bool autoBrightness = false;
-  int fftSamples = 128;
+  char animation[32] = "VU Spectrum Bar";
+  int sensitivity = 20;
+  char peakDecay[16] = "Smooth";
+  uint8_t brightness = 7;
+  bool autoBrightness = true;
+  int fftSamples = 256;
   int samplingFreq = 16000;
-  int startFreq = 0;
-  int endFreq = 8000;
+  int startFreq = 500;
+  int endFreq = 7000;
 };
 
 MusicSyncConfig musicSync;
@@ -460,8 +460,8 @@ struct SceneConfig {
   uint16_t speed = 35;
   uint16_t pause = 0;      // endDelayMs
   uint16_t startDelay = 0; // startDelayMs
-  uint8_t brightness = 12;
-  bool autoBrightness = false;
+  uint8_t brightness = 7;
+  bool autoBrightness = true;
   int repeat = -1;
 };
 
@@ -1269,14 +1269,15 @@ void saveDefaultConfiguration() {
   ms["zone"] = "Music Zone";
   ms["start_col"] = 0;
   ms["end_col"] = 31;
-  ms["animation"] = "VU Spectrum";
+  ms["animation"] = "VU Spectrum Bar";
   ms["sensitivity"] = 20;
-  ms["peak_decay"] = "Fast";
-  ms["brightness"] = 12;
-  ms["fft_samples"] = 128;
+  ms["peak_decay"] = "Smooth";
+  ms["brightness"] = 7;
+  ms["auto"] = true;
+  ms["fft_samples"] = 256;
   ms["sampling_freq"] = 16000;
-  ms["start_freq"] = 0;
-  ms["end_freq"] = 8000;
+  ms["start_freq"] = 500;
+  ms["end_freq"] = 7000;
 
   // ---> EXPLICITLY CREATE ZONES SO WEB UI DOESN'T LOSE THEM <---
   JsonArray zonesArr = doc["zones"].to<JsonArray>();
@@ -1319,7 +1320,8 @@ void saveDefaultConfiguration() {
   a1["endDelayMs"] = 0;
 
   JsonObject d1 = sc1["display"].to<JsonObject>();
-  d1["brightness"] = 12;
+  d1["brightness"] = 7;
+  d1["auto"] = true;
   d1["repeat"] = -1;
 
   // ---> DEFAULT PLAYLIST <---
@@ -1396,17 +1398,17 @@ void loadConfiguration() {
     strncpy(musicSync.zone, zName, sizeof(musicSync.zone) - 1);
     musicSync.startCol = doc["music_sync"]["start_col"] | 0;
     musicSync.endCol = doc["music_sync"]["end_col"] | 39;
-    const char *anim = doc["music_sync"]["animation"] | "VU Bar";
+    const char *anim = doc["music_sync"]["animation"] | "VU Spectrum Bar";
     strncpy(musicSync.animation, anim, sizeof(musicSync.animation) - 1);
-    musicSync.sensitivity = doc["music_sync"]["sensitivity"] | 60;
-    const char *decay = doc["music_sync"]["peak_decay"] | "Medium";
+    musicSync.sensitivity = doc["music_sync"]["sensitivity"] | 20;
+    const char *decay = doc["music_sync"]["peak_decay"] | "Smooth";
     strncpy(musicSync.peakDecay, decay, sizeof(musicSync.peakDecay) - 1);
-    musicSync.brightness = doc["music_sync"]["brightness"] | 12;
-    musicSync.autoBrightness = doc["music_sync"]["auto"] | false;
-    musicSync.fftSamples = doc["music_sync"]["fft_samples"] | 128;
+    musicSync.brightness = doc["music_sync"]["brightness"] | 7;
+    musicSync.autoBrightness = doc["music_sync"]["auto"] | true;
+    musicSync.fftSamples = doc["music_sync"]["fft_samples"] | 256;
     musicSync.samplingFreq = doc["music_sync"]["sampling_freq"] | 16000;
-    musicSync.startFreq = doc["music_sync"]["start_freq"] | 0;
-    musicSync.endFreq = doc["music_sync"]["end_freq"] | 8000;
+    musicSync.startFreq = doc["music_sync"]["start_freq"] | 500;
+    musicSync.endFreq = doc["music_sync"]["end_freq"] | 7000;
 
     if (musicSync.fftSamples > MAX_SUPPORTED_FFT)
       musicSync.fftSamples = MAX_SUPPORTED_FFT;
@@ -1527,8 +1529,8 @@ void loadConfiguration() {
     curScene.startDelay = sc["animation"]["startDelayMs"] | 0;
     curScene.pause = sc["animation"]["endDelayMs"] | 0;
 
-    curScene.brightness = sc["display"]["brightness"] | 12;
-    curScene.autoBrightness = sc["display"]["auto"] | false;
+    curScene.brightness = sc["display"]["brightness"] | 7;
+    curScene.autoBrightness = sc["display"]["auto"] | true;
     curScene.repeat = sc["display"]["repeat"] | -1;
 
     // Static print adjustments: speed must be 0, outEffect must be PA_NO_EFFECT

@@ -714,10 +714,8 @@
                 <option value="VU Bounce">VU Bounce (Dynamic Gravity)</option>
                 <option value="VU Pulse">VU Pulse (Intensity Pulse)</option>
                 <option value="VU Wave">VU Wave (Frequency Ripple)</option>
-                <option value="VU Spectrum" selected>
-                  VU Spectrum (Multi-Band EQ)
-                </option>
-                <option value="VU Spectrum Bar">
+                <option value="VU Spectrum">VU Spectrum (Multi-Band EQ)</option>
+                <option value="VU Spectrum Bar" selected>
                   VU Spectrum Bar (Bars Only)
                 </option>
                 <option value="VU Spectrum Peak">
@@ -742,6 +740,7 @@
                       id="ms-auto-brightness"
                       class="sr-only peer"
                       onchange="handleMusicSyncChange()"
+                      checked
                     />
                     <div
                       class="w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"
@@ -756,7 +755,7 @@
                 <span
                   id="ms-bright-val"
                   class="font-mono-code text-cyan-400 font-bold"
-                  >12 / 15</span
+                  >Sens: 7</span
                 >
               </div>
               <div class="flex-1 flex items-center">
@@ -765,10 +764,8 @@
                   id="ms-brightness"
                   min="0"
                   max="15"
-                  value="12"
+                  value="7"
                   oninput="
-                    document.getElementById('ms-bright-val').innerText =
-                      this.value + ' / 15';
                     handleMusicSyncChange();
                     renderStaticPreview();
                   "
@@ -790,9 +787,9 @@
                 onchange="handleMusicSyncChange()"
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code text-xs focus:border-cyan-400 outline-none transition"
               >
-                <option value="Fast" selected>Fast Drop</option>
-                <option value="Medium" selected>Medium Decay</option>
-                <option value="Smooth">Smooth / Slow Decay</option>
+                <option value="Fast">Fast Drop</option>
+                <option value="Medium">Medium Decay</option>
+                <option value="Smooth" selected>Smooth / Slow Decay</option>
               </select>
             </div>
 
@@ -843,8 +840,8 @@
                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono-code focus:border-cyan-400 outline-none transition"
                 >
                   <option value="64">64 (Legacy)</option>
-                  <option value="128" selected>128 (Standard)</option>
-                  <option value="256">256 (High Res)</option>
+                  <option value="128">128 (Standard)</option>
+                  <option value="256" selected>256 (High Res)</option>
                 </select>
               </div>
               <div>
@@ -873,7 +870,7 @@
                 <input
                   type="number"
                   id="ms-start-freq"
-                  value="0"
+                  value="500"
                   min="0"
                   max="20000"
                   step="50"
@@ -890,7 +887,7 @@
                 <input
                   type="number"
                   id="ms-end-freq"
-                  value="8000"
+                  value="7000"
                   min="500"
                   max="22050"
                   step="50"
@@ -1472,6 +1469,7 @@
                       id="auto-brightness"
                       class="sr-only peer"
                       onchange="handleAutoBrightnessToggle()"
+                      checked
                     />
                     <div
                       class="w-7 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-500"
@@ -1486,7 +1484,7 @@
                 <span
                   id="brightness-badge"
                   class="font-mono-code text-cyan-400 font-bold"
-                  >12 / 15</span
+                  >Sens: 7</span
                 >
               </div>
 
@@ -1496,7 +1494,7 @@
                   id="brightness"
                   min="0"
                   max="15"
-                  value="12"
+                  value="7"
                   oninput="handleBrightnessUpdate(this.value)"
                   class="w-full cursor-pointer"
                 />
@@ -2313,9 +2311,9 @@
 
       let ledColorOn = "#00f2fe";
       let ledColorGlow = "rgba(0, 242, 254, 0.65)";
-      let ledBrightnessLevel = 12;
+      let ledBrightnessLevel = 7;
 
-      let ledAutoBrightness = false;
+      let ledAutoBrightness = true;
 
       let ledSpriteCanvas = null;
       let ledSpriteRadius = 0;
@@ -2396,14 +2394,15 @@
       let musicSyncConfig = {
         enabled: false,
         zone: "Music Zone",
-        animation: "VU Spectrum",
+        animation: "VU Spectrum Bar",
         sensitivity: 20,
-        peakSpeed: "Fast",
-        brightness: 12,
-        fftSamples: 128,
+        peakSpeed: "Smooth",
+        brightness: 7,
+        auto: true,
+        fftSamples: 256,
         samplingFreq: 16000,
-        startFreq: 0,
-        endFreq: 8000,
+        startFreq: 500,
+        endFreq: 7000,
       };
 
       // Remaps 0..15 brightness so level 0 is clearly visible (e.g. 28%) instead of pitch dark
@@ -4323,10 +4322,10 @@
         document.getElementById("start-delay").value = "0";
         document.getElementById("end-delay").value = "0";
         document.getElementById("loop-mode").value = "inf";
-        document.getElementById("auto-brightness").checked = false;
-        ledAutoBrightness = false;
-        document.getElementById("brightness").value = "12";
-        handleBrightnessUpdate(12);
+        document.getElementById("auto-brightness").checked = true;
+        ledAutoBrightness = true;
+        document.getElementById("brightness").value = "7";
+        handleBrightnessUpdate(7);
 
         handleMsgTypeToggle();
         handleLoopModeToggle();
