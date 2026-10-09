@@ -178,6 +178,32 @@
 
             <!-- Controls Group: Stats Button + Zoom Selector -->
             <div class="flex items-center gap-2">
+              <!-- Live Terminal Button -->
+              <button
+                type="button"
+                onclick="openTerminalModal()"
+                title="Live Serial Terminal"
+                class="flex items-center gap-1.5 bg-slate-900/80 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 px-2.5 py-1 rounded-lg border border-slate-700 hover:border-emerald-400/60 shadow-sm transition"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 9l3 3-3 3M13 15h4M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"
+                  />
+                </svg>
+                <span
+                  class="font-mono-code font-bold text-[11px] hidden sm:inline"
+                  >Term</span
+                >
+              </button>
+
               <!-- System Dashboard Button (Graph Icon) -->
               <button
                 type="button"
@@ -1802,6 +1828,61 @@
           </button>
         </div>
       </section>
+
+      <!-- Real-Time Serial Terminal Modal -->
+      <div
+        id="terminal-modal"
+        style="margin: 0px !important"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden"
+      >
+        <div
+          class="glass-panel w-full max-w-4xl rounded-2xl p-5 sm:p-6 border border-slate-700 shadow-2xl flex flex-col h-[80vh]"
+        >
+          <!-- Terminal Header -->
+          <div
+            class="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0 mb-4"
+          >
+            <div class="flex items-center gap-2.5">
+              <div
+                id="term-status-led"
+                class="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]"
+              ></div>
+              <h3 class="text-base font-bold text-white tracking-wide">
+                Serial Monitor
+              </h3>
+              <span
+                id="term-status-text"
+                class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700"
+                >OFFLINE</span
+              >
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                onclick="clearTerminal()"
+                class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded border border-slate-700 transition"
+              >
+                Clear Console
+              </button>
+              <button
+                type="button"
+                onclick="closeTerminalModal()"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- Terminal Output Area -->
+          <div
+            id="terminal-output"
+            class="flex-1 bg-[#050914] border border-slate-800 rounded-xl p-4 overflow-y-auto font-mono-code text-[11px] sm:text-xs text-emerald-400 whitespace-pre-wrap shadow-inner leading-relaxed select-text"
+          >
+            <div class="text-slate-500 italic">Waiting for connection...</div>
+          </div>
+        </div>
+      </div>
 
       <!-- Real-Time System Dashboard Modal -->
       <div
@@ -5410,6 +5491,121 @@
 
         await syncConfigFromHardware();
       };
+
+      // ==========================================
+      // REAL-TIME WEBSOCKET TERMINAL
+      // ==========================================
+      let terminalWs = null;
+      const terminalOutput = document.getElementById("terminal-output");
+      const termStatusLed = document.getElementById("term-status-led");
+      const termStatusText = document.getElementById("term-status-text");
+
+      function openTerminalModal() {
+        document.getElementById("terminal-modal").classList.remove("hidden");
+        document.body.classList.add("overflow-hidden");
+
+        if (!terminalWs || terminalWs.readyState === WebSocket.CLOSED) {
+          terminalOutput.innerHTML =
+            '<div class="text-slate-500 italic">Connecting to ESP32 WebSocket Interface...</div>';
+
+          // Initialize WebSocket connection strictly only when modal opens
+          const wsUrl = `ws://${window.location.host}/ws/terminal`;
+
+          try {
+            terminalWs = new WebSocket(wsUrl);
+
+            terminalWs.onopen = () => {
+              termStatusLed.className =
+                "w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse";
+              termStatusText.innerText = "CONNECTED";
+              termStatusText.className =
+                "text-[10px] font-mono-code px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+              appendTerminalLog(
+                "--- CONNECTION ESTABLISHED ---\n\n",
+                "text-cyan-400 font-bold",
+              );
+            };
+
+            terminalWs.onmessage = (event) => {
+              appendTerminalLog(event.data);
+            };
+
+            terminalWs.onclose = () => {
+              setTerminalDisconnected();
+              appendTerminalLog(
+                "\n--- CONNECTION CLOSED ---\n",
+                "text-rose-400 font-bold",
+              );
+            };
+
+            terminalWs.onerror = (error) => {
+              setTerminalDisconnected();
+              appendTerminalLog(
+                "\n[ERROR] WebSocket failed. Is the device offline?\n",
+                "text-rose-400 font-bold",
+              );
+            };
+          } catch (e) {
+            setTerminalDisconnected();
+            appendTerminalLog(
+              "\n[ERROR] Failed to initialize WebSocket.\n",
+              "text-rose-400 font-bold",
+            );
+          }
+        }
+      }
+
+      function setTerminalDisconnected() {
+        if (termStatusLed)
+          termStatusLed.className =
+            "w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]";
+        if (termStatusText) {
+          termStatusText.innerText = "OFFLINE";
+          termStatusText.className =
+            "text-[10px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700";
+        }
+      }
+
+      function closeTerminalModal() {
+        document.getElementById("terminal-modal").classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
+
+        // STRICT REQUIREMENT: Kill connection entirely when modal closes
+        if (terminalWs) {
+          terminalWs.close();
+          terminalWs = null;
+        }
+        setTerminalDisconnected();
+      }
+
+      function clearTerminal() {
+        if (terminalOutput) {
+          terminalOutput.innerHTML = "";
+        }
+      }
+
+      function appendTerminalLog(msg, colorClass = "text-emerald-400") {
+        if (!terminalOutput) return;
+
+        // Remove placeholder text if it's there
+        const placeholder = terminalOutput.querySelector(
+          ".italic.text-slate-500",
+        );
+        if (placeholder) placeholder.remove();
+
+        const span = document.createElement("span");
+        span.className = colorClass;
+        span.innerText = msg;
+        terminalOutput.appendChild(span);
+
+        // Auto-scroll to the bottom smoothly
+        terminalOutput.scrollTop = terminalOutput.scrollHeight;
+
+        // Memory guard: Limit terminal history to ~400 entries to prevent browser lag
+        while (terminalOutput.childNodes.length > 400) {
+          terminalOutput.removeChild(terminalOutput.firstChild);
+        }
+      }
 
       // ==========================================
       // REAL-TIME SYSTEM TELEMETRY DASHBOARD

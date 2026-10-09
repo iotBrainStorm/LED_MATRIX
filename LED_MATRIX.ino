@@ -70,6 +70,7 @@ MD_Parola *P_ptr = nullptr;
 #define P (*P_ptr)
 Adafruit_AHT10 aht;
 AsyncWebServer server(80);
+AsyncWebSocket wsTerminal("/ws/terminal"); // <-- NEW: WebSocket for Terminal
 char mdnsHostname[32];
 
 const char *ntpServer1 = "pool.ntp.org";
@@ -79,6 +80,50 @@ const int daylightOffset_sec = 0;
 
 bool ahtFound = false;
 volatile bool configUpdated = false;
+
+// ==========================================
+// CUSTOM LOGGING FUNCTION (Dual Output)
+// ==========================================
+void WebLog(const String &msg) {
+  Serial.print(msg);
+  // Only process string and send over network IF a client is actually connected
+  if (wsTerminal.count() > 0) {
+    wsTerminal.textAll(msg);
+  }
+}
+
+void WebLogf(const char *format, ...) {
+  char loc_buf[256];
+  char *temp = loc_buf;
+  va_list arg;
+  va_list copy;
+  va_start(arg, format);
+  va_copy(copy, arg);
+  int len = vsnprintf(temp, sizeof(loc_buf), format, copy);
+  va_end(copy);
+  if (len < 0) {
+    va_end(arg);
+    return;
+  }
+  if (len >= sizeof(loc_buf)) {
+    temp = (char *)malloc(len + 1);
+    if (temp == NULL) {
+      va_end(arg);
+      return;
+    }
+    vsnprintf(temp, len + 1, format, arg);
+  }
+  va_end(arg);
+
+  Serial.print(temp);
+  if (wsTerminal.count() > 0) {
+    wsTerminal.textAll(temp);
+  }
+
+  if (temp != loc_buf) {
+    free(temp);
+  }
+}
 
 // ==========================================
 // STATUS LED TICKER (NON-BLOCKING)
@@ -692,19 +737,19 @@ void initI2S() {
 
   esp_err_t err = i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
   if (err != ESP_OK) {
-    Serial.printf("[I2S] Driver install failed: 0x%x\n", err);
+    WebLogf("[I2S] Driver install failed: 0x%x\n", err);
     return;
   }
 
   err = i2s_set_pin(I2S_PORT, &pin_config);
   if (err != ESP_OK) {
-    Serial.printf("[I2S] Pin configuration failed: 0x%x\n", err);
+    WebLogf("[I2S] Pin configuration failed: 0x%x\n", err);
     return;
   }
 
   i2s_start(I2S_PORT);
   i2sInitialized = true;
-  Serial.println("[I2S] INMP441 MEMS microphone initialized successfully.");
+  WebLog("[I2S] INMP441 MEMS microphone initialized successfully.\n");
 }
 
 inline void setVUMatrixPoint(MD_MAX72XX *mx, int r, int c, bool state) {
@@ -1220,20 +1265,20 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
   if (listIdx >= zones[z].sceneCount) {
     if (zones[z].playlistRepeat == -1) {
       // Infinite playlist loop: Rewind immediately to scene 0!
-      Serial.printf("[Playlist] Zone %u ('%s'): Sequence completed. Restarting infinite loop...\n", z, zones[z].name);
+      WebLogf("[Playlist] Zone %u ('%s'): Sequence completed. Restarting infinite loop...\n", z, zones[z].name);
       listIdx = 0;
     } else {
       zones[z].playlistLoopCounter++;
       if (zones[z].playlistLoopCounter < zones[z].playlistRepeat) {
         // Run next playlist iteration
-        Serial.printf("[Playlist] Zone %u: Sequence iteration %d of %d starting...\n",
-                      z, zones[z].playlistLoopCounter + 1, zones[z].playlistRepeat);
+        WebLogf("[Playlist] Zone %u: Sequence iteration %d of %d starting...\n",
+                z, zones[z].playlistLoopCounter + 1, zones[z].playlistRepeat);
         listIdx = 0;
       } else {
         // All playlist cycles completed: cleanly stop the zone
         zones[z].state = ZSTATE_FINISHED;
         P.displayClear(z);
-        Serial.printf("[Playlist] Zone %u ('%s'): All playlist cycles finished. Zone stopped.\n", z, zones[z].name);
+        WebLogf("[Playlist] Zone %u ('%s'): All playlist cycles finished. Zone stopped.\n", z, zones[z].name);
         return;
       }
     }
@@ -1249,12 +1294,12 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
     zones[z].state = ZSTATE_START_DELAY;
     zones[z].stateStartTime = millis();
     P.displayClear(z);
-    Serial.printf("[Playlist] Zone %u: Scene %u starting with %u ms start delay...\n", z, listIdx, sc.startDelay);
+    WebLogf("[Playlist] Zone %u: Scene %u starting with %u ms start delay...\n", z, listIdx, sc.startDelay);
     triggerStatusBlink(2, 0.1);
   } else {
     zones[z].state = ZSTATE_PLAYING;
     launchSceneOnDisplay(z, sIdx);
-    Serial.printf("[Playlist] Zone %u: Playing scene %u ('%s') [Repeat: %d]\n", z, listIdx, sc.rawMessage, sc.repeat);
+    WebLogf("[Playlist] Zone %u: Playing scene %u ('%s') [Repeat: %d]\n", z, listIdx, sc.rawMessage, sc.repeat);
     triggerStatusBlink(2, 0.1);
   }
 }
@@ -1262,7 +1307,7 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
 void saveDefaultConfiguration() {
   File file = SPIFFS.open(CONFIG_FILE, "w");
   if (!file) {
-    Serial.println("[Config] Failed to create default /config.json");
+    WebLog("[Config] Failed to create default /config.json\n");
     return;
   }
 
@@ -1353,7 +1398,7 @@ void saveDefaultConfiguration() {
 
   serializeJson(doc, file);
   file.close();
-  Serial.println("[Config] Fresh default /config.json created in SPIFFS.");
+  WebLog("[Config] Fresh default /config.json created in SPIFFS.\n");
 }
 
 bool matchScene(uint8_t sIdx, const char *target) {
@@ -1369,13 +1414,13 @@ bool matchScene(uint8_t sIdx, const char *target) {
 
 void loadConfiguration() {
   if (!SPIFFS.exists(CONFIG_FILE)) {
-    Serial.println("[Config] No saved config found in flash. Generating defaults...");
+    WebLog("[Config] No saved config found in flash. Generating defaults...\n");
     saveDefaultConfiguration();
   }
 
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file) {
-    Serial.println("[Config] Failed to open /config.json");
+    WebLog("[Config] Failed to open /config.json\n");
     return;
   }
 
@@ -1389,7 +1434,7 @@ void loadConfiguration() {
   file.close();
 
   if (err) {
-    Serial.printf("[Config] JSON Deserialization error: %s\n", err.c_str());
+    WebLogf("[Config] JSON Deserialization error: %s\n", err.c_str());
     return;
   }
 
@@ -1403,7 +1448,7 @@ void loadConfiguration() {
 
     // Reboot to re-initialize the matrix if modules or hardware type changed
     if (newMax != MAX_DEVICES || strcmp(newHw, hardwareTypeStr) != 0) {
-      Serial.println("[Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...");
+      WebLog("[Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...\n");
 
       // Force a fast beep right before the restart!
       digitalWrite(BUZZER_PIN, HIGH);
@@ -1452,20 +1497,20 @@ void loadConfiguration() {
     P.displayClear();
     updateDisplayBrightness(); // Use the safe unified function
 
-    Serial.println("\n========================================");
-    Serial.println(" 🎵 STARTING MUSIC SYNC MODE");
-    Serial.println("========================================");
-    Serial.printf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
-    Serial.printf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
-    Serial.printf(" [Audio]     FFT Samples: %d Points\n", musicSync.fftSamples);
-    Serial.printf(" [Audio]     Sample Freq: %d Hz\n", musicSync.samplingFreq);
-    Serial.printf(" [Audio]     Freq Range : %d Hz to %d Hz\n", musicSync.startFreq, musicSync.endFreq);
-    Serial.println("----------------------------------------");
-    Serial.printf(" [Visuals]   Target Zone: '%s' (Cols %d to %d)\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
-    Serial.printf(" [Visuals]   Animation  : %s\n", musicSync.animation);
-    Serial.printf(" [Visuals]   Options    : Gain %d%% | %s Decay\n", musicSync.sensitivity, musicSync.peakDecay);
-    Serial.printf(" [Visuals]   Brightness : %u / 15 %s\n", musicSync.brightness, musicSync.autoBrightness ? "(Auto)" : "");
-    Serial.println("========================================\n");
+    WebLog("\n========================================\n");
+    WebLog(" 🎵 STARTING MUSIC SYNC MODE\n");
+    WebLog("========================================\n");
+    WebLogf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
+    WebLogf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
+    WebLogf(" [Audio]     FFT Samples: %d Points\n", musicSync.fftSamples);
+    WebLogf(" [Audio]     Sample Freq: %d Hz\n", musicSync.samplingFreq);
+    WebLogf(" [Audio]     Freq Range : %d Hz to %d Hz\n", musicSync.startFreq, musicSync.endFreq);
+    WebLog("----------------------------------------\n");
+    WebLogf(" [Visuals]   Target Zone: '%s' (Cols %d to %d)\n", musicSync.zone, musicSync.startCol, musicSync.endCol);
+    WebLogf(" [Visuals]   Animation  : %s\n", musicSync.animation);
+    WebLogf(" [Visuals]   Options    : Gain %d%% | %s Decay\n", musicSync.sensitivity, musicSync.peakDecay);
+    WebLogf(" [Visuals]   Brightness : %u / 15 %s\n", musicSync.brightness, musicSync.autoBrightness ? "(Auto)" : "");
+    WebLog("========================================\n\n");
     return;
   }
 
@@ -1473,7 +1518,7 @@ void loadConfiguration() {
 
   JsonArray scenesArr = doc["scenes"].as<JsonArray>();
   if (scenesArr.isNull() || scenesArr.size() == 0) {
-    Serial.println("[Config] 'scenes' array empty or invalid.");
+    WebLog("[Config] 'scenes' array empty or invalid.\n");
     return;
   }
 
@@ -1589,7 +1634,7 @@ void loadConfiguration() {
         zones[targetZone].loopCounter = 0;
         activeZoneCount++;
       } else {
-        Serial.printf("[Config] Max zones (%d) reached! Skipping scene %d\n", MAX_ZONES, s);
+        WebLogf("[Config] Max zones (%d) reached! Skipping scene %d\n", MAX_ZONES, s);
         continue;
       }
     }
@@ -1634,8 +1679,8 @@ void loadConfiguration() {
               for (uint8_t i = 0; i < matchedCount; i++) {
                 zones[z].sceneList[i] = tempSceneList[i];
               }
-              Serial.printf("[Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
-                            pl["name"] | "PL", z, zones[z].sceneCount, plRepeat);
+              WebLogf("[Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
+                      pl["name"] | "PL", z, zones[z].sceneCount, plRepeat);
             }
           }
           break;
@@ -1648,14 +1693,14 @@ void loadConfiguration() {
   // INITIALIZE HARDWARE ZONES & START PLAYLISTS
   // =========================================================================
   P.displayClear();
-  Serial.println("\n========================================");
-  Serial.println(" 📝 STARTING TEXT & SCENE MODE");
-  Serial.println("========================================");
-  Serial.printf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
-  Serial.printf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
-  Serial.printf(" [Setup]     Formed %d Unique Physical Zones\n", activeZoneCount);
-  Serial.printf(" [Content]   %d Total Scenes Loaded to RAM\n", totalScenes);
-  Serial.println("----------------------------------------");
+  WebLog("\n========================================\n");
+  WebLog(" 📝 STARTING TEXT & SCENE MODE\n");
+  WebLog("========================================\n");
+  WebLogf(" [Hardware]  Total Width: %d Columns (%s)\n", (MAX_DEVICES * 8), hardwareTypeStr);
+  WebLogf(" [Hardware]  Max Config : %d Allowed\n", ABSOLUTE_MAX_DEVICES);
+  WebLogf(" [Setup]     Formed %d Unique Physical Zones\n", activeZoneCount);
+  WebLogf(" [Content]   %d Total Scenes Loaded to RAM\n", totalScenes);
+  WebLog("----------------------------------------\n");
 
   // 1. Check if any playlists are actually active
   bool hasActivePlaylists = false;
@@ -1668,8 +1713,7 @@ void loadConfiguration() {
 
   // 2. If no active playlists exist, force a full-screen mDNS scroller fallback
   if (!hasActivePlaylists) {
-
-    Serial.println("[Config] No active playlists. Display will remain blank (OFF).");
+    WebLog("[Config] No active playlists. Display will remain blank (OFF).\n");
     activeZoneCount = 0; // This prevents the ESP from trying to animate anything
   }
 
@@ -1677,10 +1721,10 @@ void loadConfiguration() {
     P.setZone(z, zones[z].startDev, zones[z].endDev);
     startZoneScene(z, 0); // Start scene 0 for this zone
 
-    Serial.printf("  -> Zone %u ('%s'): Modules [%u..%u] | Queued %u Scenes\n",
-                  z, zones[z].name, zones[z].startDev, zones[z].endDev, zones[z].sceneCount);
+    WebLogf("  -> Zone %u ('%s'): Modules [%u..%u] | Queued %u Scenes\n",
+            z, zones[z].name, zones[z].startDev, zones[z].endDev, zones[z].sceneCount);
   }
-  Serial.println("========================================");
+  WebLog("========================================\n");
 
   // Update buzzer status based on loaded playlists
   checkHourlyChimeStatus();
@@ -1695,7 +1739,7 @@ void timeSyncCallback(struct timeval *tv) {
   localtime_r(&now, &timeinfo);
   char buf[32];
   strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S", &timeinfo);
-  Serial.printf("\n[NTP Callback] Synchronized successfully: %s\n", buf);
+  WebLogf("\n[NTP Callback] Synchronized successfully: %s\n", buf);
 }
 
 void initNTP() {
@@ -1710,16 +1754,16 @@ void initNTP() {
 
   sntp_set_time_sync_notification_cb(timeSyncCallback);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
-  Serial.println("[NTP] Background SNTP service started.");
+  WebLog("[NTP] Background SNTP service started.\n");
 }
 
 // ==========================================
 // WIFI SETUP
 // ==========================================
 bool connectToSavedWiFi() {
-  Serial.println("\n==============================");
-  Serial.println("WiFi Connection Started");
-  Serial.println("==============================");
+  WebLog("\n==============================\n");
+  WebLog("WiFi Connection Started\n");
+  WebLog("==============================\n");
 
   WiFiManager wm;
   WiFi.mode(WIFI_STA);
@@ -1730,10 +1774,10 @@ bool connectToSavedWiFi() {
 
   while (attempts < MAX_ATTEMPTS) {
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\n[SUCCESS] Connected to Saved WiFi");
-      Serial.printf("SSID       : %s\n", WiFi.SSID().c_str());
-      Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
-      Serial.println("==============================\n");
+      WebLog("\n[SUCCESS] Connected to Saved WiFi\n");
+      WebLogf("SSID       : %s\n", WiFi.SSID().c_str());
+      WebLogf("IP Address : %s\n", WiFi.localIP().toString().c_str());
+      WebLog("==============================\n\n");
       WiFi.setSleep(false);
       return true;
     }
@@ -1741,11 +1785,11 @@ bool connectToSavedWiFi() {
     attempts++;
   }
 
-  Serial.println("\n[WARNING] No saved WiFi found! Starting Portal...");
+  WebLog("\n[WARNING] No saved WiFi found! Starting Portal...\n");
   wm.setConfigPortalTimeout(180);
 
   wm.setAPCallback([](WiFiManager *myWiFiManager) {
-    Serial.println("[WiFi] Entered AP Portal Mode!");
+    WebLog("[WiFi] Entered AP Portal Mode!\n");
     // Infinite fast blink (0.2s) while waiting for user to connect
     triggerStatusBlink(-1, 0.2);
   });
@@ -1754,13 +1798,13 @@ bool connectToSavedWiFi() {
   stopStatusBlink();
 
   if (success) {
-    Serial.println("\n[SUCCESS] Connected via Portal");
-    Serial.printf("IP Address : %s\n", WiFi.localIP().toString().c_str());
+    WebLog("\n[SUCCESS] Connected via Portal\n");
+    WebLogf("IP Address : %s\n", WiFi.localIP().toString().c_str());
     WiFi.setSleep(false);
     return true;
   }
 
-  Serial.println("\n[INFO] Portal Timeout - Continuing in Offline Mode.");
+  WebLog("\n[INFO] Portal Timeout - Continuing in Offline Mode.\n");
   return false;
 }
 
@@ -1774,10 +1818,10 @@ void initMDNS() {
   snprintf(mdnsHostname, sizeof(mdnsHostname), "ledstudio-%02X%02X", mac[4], mac[5]);
 
   if (MDNS.begin(mdnsHostname)) {
-    Serial.printf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
+    WebLogf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
     MDNS.addService("http", "tcp", 80);
   } else {
-    Serial.println("[mDNS] Error setting up MDNS responder!");
+    WebLog("[mDNS] Error setting up MDNS responder!\n");
   }
 }
 
@@ -1785,6 +1829,9 @@ void initMDNS() {
 // ASYNC HTTP SERVER ROUTING
 // ==========================================
 void setupWebServer() {
+  // --> NEW: Mount WebSocket handler BEFORE standard routes
+  server.addHandler(&wsTerminal);
+
   auto handleIndex = [](AsyncWebServerRequest *request) {
     if (request->hasHeader("If-None-Match")) {
       const AsyncWebHeader *h = request->getHeader("If-None-Match");
@@ -1850,7 +1897,7 @@ void setupWebServer() {
         if (index + len >= total) {
           if (uploadFile) {
             uploadFile.close();
-            Serial.printf("[SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
+            WebLogf("[SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
           }
           configUpdated = true;
         }
@@ -1891,7 +1938,7 @@ void setupWebServer() {
   });
 
   server.begin();
-  Serial.println("[HTTP] AsyncWebServer online.");
+  WebLog("[HTTP] AsyncWebServer online.\n");
 }
 
 // ==========================================
@@ -1909,21 +1956,21 @@ void checkWiFiAndStartServer() {
   bool isConnected = (WiFi.status() == WL_CONNECTED);
 
   if (isConnected && !wasConnected) {
-    Serial.println("\n[WiFi] Reconnected!");
-    Serial.printf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
+    WebLog("\n[WiFi] Reconnected!\n");
+    WebLogf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
     initMDNS();
     wasConnected = true;
   }
 
   if (!isConnected && wasConnected) {
-    Serial.println("\n[WiFi] Disconnected! Background reconnect active.");
+    WebLog("\n[WiFi] Disconnected! Background reconnect active.\n");
     wasConnected = false;
   }
 
   if (!isConnected) {
     if (millis() - lastReconnectAttempt > 15000) {
       lastReconnectAttempt = millis();
-      Serial.println("[WiFi] Reconnect trigger...");
+      WebLog("[WiFi] Reconnect trigger...\n");
       WiFi.reconnect();
     }
   }
@@ -1968,12 +2015,12 @@ void checkHourlyChimeStatus() {
       uint8_t sIdx = zones[z].sceneList[i];
       if (String(scenes[sIdx].rawMessage).indexOf("{HBEEP}") >= 0) {
         hourlyChimeEnabled = true;
-        Serial.println("[Buzzer] Hourly Chime ENABLED by playlist.");
+        WebLog("[Buzzer] Hourly Chime ENABLED by playlist.\n");
         return;
       }
     }
   }
-  Serial.println("[Buzzer] Hourly Chime Disabled (No {HBEEP} found).");
+  WebLog("[Buzzer] Hourly Chime Disabled (No {HBEEP} found).\n");
 }
 
 void handleBuzzer() {
@@ -2030,16 +2077,16 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  Serial.println("\n==============================");
-  Serial.println("ESP32 LED Matrix + Music Sync");
-  Serial.println("==============================");
+  WebLog("\n==============================\n");
+  WebLog("ESP32 LED Matrix + Music Sync\n");
+  WebLog("==============================\n");
 
   buildCustomBoldFont();
 
   if (!SPIFFS.begin(true)) {
-    Serial.println("[FS] SPIFFS mount failed!");
+    WebLog("[FS] SPIFFS mount failed!\n");
   } else {
-    Serial.println("[FS] SPIFFS mounted successfully.");
+    WebLog("[FS] SPIFFS mounted successfully.\n");
   }
 
   delay(250);
@@ -2047,18 +2094,18 @@ void setup() {
   Wire.begin(21, 22);
   // AHT10 Init...
   if (aht.begin()) {
-    Serial.println("[Sensor] AHT10 found & initialized.");
+    WebLog("[Sensor] AHT10 found & initialized.\n");
     ahtFound = true;
   } else {
-    Serial.println("[Sensor] AHT10 not found. Defaulting to virtual readings.");
+    WebLog("[Sensor] AHT10 not found. Defaulting to virtual readings.\n");
   }
 
   // BH1750 Init
   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    Serial.println("[Sensor] BH1750 found & initialized (Continuous Mode).");
+    WebLog("[Sensor] BH1750 found & initialized (Continuous Mode).\n");
     bh1750Found = true;
   } else {
-    Serial.println("[Sensor] BH1750 not found. Falling back to Manual Brightness.");
+    WebLog("[Sensor] BH1750 not found. Falling back to Manual Brightness.\n");
     bh1750Found = false;
   }
 
@@ -2110,6 +2157,9 @@ void setup() {
 // MAIN LOOP
 // ==========================================
 void loop() {
+
+  // --> NEW: Maintain WebSocket connections cleanly
+  wsTerminal.cleanupClients();
 
   // 1. Asynchronous BH1750 Polling (Non-Blocking)
   if (bh1750Found && (millis() - lastLightCheck >= LIGHT_POLL_INTERVAL)) {
