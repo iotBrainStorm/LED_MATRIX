@@ -1140,6 +1140,14 @@
                         <span class="text-sky-300 font-bold">{HUM2}</span>
                         (78.13)
                       </div>
+                      <div
+                        class="col-span-2 border-t border-slate-700/50 pt-1 mt-1"
+                      >
+                        <span class="text-rose-400 font-bold">{HBEEP}</span>
+                        <span class="text-slate-400"
+                          >Hourly Chime (Invisible)</span
+                        >
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1308,6 +1316,14 @@
                 class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono-code text-[11px] border border-slate-700"
               >
                 {HUM2}
+              </button>
+              <button
+                type="button"
+                onclick="insertTag('{HBEEP}')"
+                title="Triggers a 2-second beep exactly at XX:00:00"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-rose-900/50 text-rose-400 font-mono-code text-[11px] border border-slate-700 font-bold transition-colors"
+              >
+                {HBEEP}
               </button>
             </div>
           </div>
@@ -2712,6 +2728,7 @@
         ];
 
         template = template
+          .replace(/{HBEEP}/g, "")
           .replace(/{HH}/g, pad(h24))
           .replace(/{hh}/g, pad(h12))
           .replace(/{mm}/g, pad(now.getMinutes()))

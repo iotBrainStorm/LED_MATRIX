@@ -131,6 +131,20 @@ void stopStatusBlink() {
 }
 
 // ==========================================
+// BUZZER CONFIG & VARIABLES
+// ==========================================
+#define BUZZER_PIN 26 // Connect Active Buzzer + to GPIO 26
+
+bool hourlyChimeEnabled = false;
+unsigned long buzzerTurnOffTime = 0;
+bool isBuzzerOn = false;
+
+// Double beep variables for config saving
+bool doubleBeeping = false;
+uint8_t beepCount = 0;
+unsigned long lastBeepToggle = 0;
+
+// ==========================================
 // MUSIC SYNC CONFIGURATION & FFT STATE
 // ==========================================
 struct MusicSyncConfig {
@@ -586,6 +600,9 @@ String processTemplate(const String &tmpl) {
   }
 
   String out = tmpl;
+
+  // Silently remove the {HBEEP} tag so it doesn't show on the matrix
+  out.replace("{HBEEP}", "");
 
   char sensorBuf[16];
 
@@ -1387,6 +1404,12 @@ void loadConfiguration() {
     // Reboot to re-initialize the matrix if modules or hardware type changed
     if (newMax != MAX_DEVICES || strcmp(newHw, hardwareTypeStr) != 0) {
       Serial.println("[Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...");
+
+      // Force a fast beep right before the restart!
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(500);
+      digitalWrite(BUZZER_PIN, LOW);
+
       delay(500);
       ESP.restart();
     }
@@ -1648,40 +1671,6 @@ void loadConfiguration() {
 
     Serial.println("[Config] No active playlists. Display will remain blank (OFF).");
     activeZoneCount = 0; // This prevents the ESP from trying to animate anything
-
-    // Serial.println("[Config] No active playlists. Starting full-screen mDNS fallback.");
-    // activeZoneCount = 1;
-    // totalScenes = 1;
-
-    // // Force Zone 0 to cover the entire display (Module 0 to Max)
-    // zones[0].inUse = true;
-    // strcpy(zones[0].name, "Fallback Zone");
-    // zones[0].startDev = 0;
-    // zones[0].endDev = MAX_DEVICES - 1;
-    // zones[0].sceneCount = 1;
-    // zones[0].sceneList[0] = 0;
-    // zones[0].playlistRepeat = -1;
-
-    // // Create the dummy scrolling scene
-    // SceneConfig &sc = scenes[0];
-    // strcpy(sc.name, "mDNS Scroll");
-    // sc.startCol = 0;
-    // sc.endCol = (MAX_DEVICES * 8) - 1;
-    // sc.isCustom = false;
-    // sc.isBold = false;
-    // sc.align = PA_CENTER;
-    // sc.inEffect = PA_SCROLL_LEFT;
-    // sc.outEffect = PA_SCROLL_LEFT;
-    // sc.speed = 35;
-    // sc.pause = 0;
-    // sc.startDelay = 0;
-    // sc.brightness = 10;
-    // sc.repeat = -1;
-
-    // // Format the text: "ledstudio-XXXX.local"
-    // String fallbackMsg = String(mdnsHostname) + ".local";
-    // strncpy(sc.rawMessage, fallbackMsg.c_str(), sizeof(sc.rawMessage) - 1);
-    // sc.rawMessage[sizeof(sc.rawMessage) - 1] = '\0';
   }
 
   for (uint8_t z = 0; z < activeZoneCount; z++) {
@@ -1692,6 +1681,9 @@ void loadConfiguration() {
                   z, zones[z].name, zones[z].startDev, zones[z].endDev, zones[z].sceneCount);
   }
   Serial.println("========================================");
+
+  // Update buzzer status based on loaded playlists
+  checkHourlyChimeStatus();
 }
 
 // ==========================================
@@ -1957,6 +1949,75 @@ void scrollStartupText(const char *msg, uint16_t speed = 30) {
 }
 
 // ==========================================
+// BUZZER STATE MACHINE
+// ==========================================
+void triggerConfigBeep() {
+  doubleBeeping = true;
+  beepCount = 0;
+  lastBeepToggle = millis();
+  isBuzzerOn = true;
+  digitalWrite(BUZZER_PIN, HIGH);
+}
+
+void checkHourlyChimeStatus() {
+  hourlyChimeEnabled = false;
+  for (uint8_t z = 0; z < activeZoneCount; z++) {
+    if (!zones[z].inUse || zones[z].sceneCount == 0)
+      continue;
+    for (uint8_t i = 0; i < zones[z].sceneCount; i++) {
+      uint8_t sIdx = zones[z].sceneList[i];
+      if (String(scenes[sIdx].rawMessage).indexOf("{HBEEP}") >= 0) {
+        hourlyChimeEnabled = true;
+        Serial.println("[Buzzer] Hourly Chime ENABLED by playlist.");
+        return;
+      }
+    }
+  }
+  Serial.println("[Buzzer] Hourly Chime Disabled (No {HBEEP} found).");
+}
+
+void handleBuzzer() {
+  unsigned long currentMillis = millis();
+
+  // 1. Handle Config Double-Beep (100ms on/off)
+  if (doubleBeeping) {
+    if (currentMillis - lastBeepToggle >= 100) {
+      lastBeepToggle = currentMillis;
+      isBuzzerOn = !isBuzzerOn;
+      digitalWrite(BUZZER_PIN, isBuzzerOn ? HIGH : LOW);
+
+      if (!isBuzzerOn) {
+        beepCount++;
+        if (beepCount >= 2)
+          doubleBeeping = false; // Stop after 2 beeps
+      }
+    }
+    return;
+  }
+
+  // 2. Handle Hourly Chime Shutoff
+  if (isBuzzerOn && currentMillis >= buzzerTurnOffTime) {
+    digitalWrite(BUZZER_PIN, LOW);
+    isBuzzerOn = false;
+  }
+
+  // 3. Trigger Hourly Chime precisely at XX:00:00
+  static int lastChimeHour = -1;
+  if (hourlyChimeEnabled && !isBuzzerOn) {
+    time_t now = time(nullptr);
+    struct tm t;
+    if (localtime_r(&now, &t)) {
+      if (t.tm_min == 0 && t.tm_sec == 0 && t.tm_hour != lastChimeHour) {
+        lastChimeHour = t.tm_hour;
+        isBuzzerOn = true;
+        digitalWrite(BUZZER_PIN, HIGH);
+        buzzerTurnOffTime = currentMillis + 2000; // Beep for 2 seconds
+      }
+    }
+  }
+}
+
+// ==========================================
 // SETUP
 // ==========================================
 void setup() {
@@ -1965,6 +2026,9 @@ void setup() {
 
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
   Serial.println("\n==============================");
   Serial.println("ESP32 LED Matrix + Music Sync");
@@ -2098,8 +2162,9 @@ void loop() {
   // 2. Live config update from browser
   if (configUpdated) {
     configUpdated = false;
-    triggerStatusBlink(3, 0.1);
-    loadConfiguration();
+    loadConfiguration();        // 1. Do all the heavy file reading and JSON parsing first
+    triggerStatusBlink(3, 0.1); // 2. Flash the LED (Load Complete!)
+    triggerConfigBeep();        // 3. Chirp the buzzer (Load Complete!)
   }
 
   // 3. Music Sync or Multi-Zone Scene Execution
@@ -2205,4 +2270,5 @@ void loop() {
 
   // 4. Non-blocking background network supervisor
   checkWiFiAndStartServer();
+  handleBuzzer(); // Handle non-blocking buzzer states
 }
