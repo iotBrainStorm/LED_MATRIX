@@ -1054,13 +1054,13 @@
               <span
                 id="char-count"
                 class="font-mono-code text-cyan-400 font-bold text-[11px]"
-                >10 / 250</span
+                >0 / 250</span
               >
             </div>
             <input
               type="text"
               id="plain-text-val"
-              value="ESP MATRIX"
+              value=""
               maxlength="250"
               oninput="
                 document.getElementById('char-count').innerText =
@@ -3787,35 +3787,6 @@
         }
 
         const inactiveZonesBuffer = emptyBuffer();
-        zones.forEach((z) => {
-          if (z.isMusic) return;
-          if (activeZone && z.name === activeZone.name) return;
-          const staticScene = scenes.find(
-            (s) => s.config?.zone?.name === z.name,
-          );
-          if (staticScene && staticScene.config) {
-            const zS = Math.max(0, Math.min(z.start, matrixWidth - 1));
-            const zE = Math.max(zS, Math.min(z.end, matrixWidth - 1));
-            const zW = zE - zS + 1;
-            const text = getProcessedMessageText(staticScene.config);
-            const isB = staticScene.config.message?.bold;
-            const { grid: tGrid, width: tCols } = renderTextToBitmap(text, isB);
-            const align = staticScene.config.message?.align || "center";
-            let offset = 0;
-            if (tCols < zW) {
-              if (align === "right") offset = zW - tCols;
-              else if (align === "center") offset = Math.ceil((zW - tCols) / 2);
-            }
-            for (let r = 0; r < 8; r++) {
-              for (let c = 0; c < tCols; c++) {
-                const px = zS + offset + c;
-                if (px >= zS && px <= zE && px < matrixWidth) {
-                  if (tGrid[r][c]) inactiveZonesBuffer[r][px] = 1;
-                }
-              }
-            }
-          }
-        });
 
         currentAnimParams = {
           activeZone,
@@ -4408,7 +4379,7 @@
         editingSceneId = null;
 
         document.getElementById("scene-name").value = "";
-        document.getElementById("plain-text-val").value = "ESP MATRIX";
+        document.getElementById("plain-text-val").value = "";
         document.getElementById("char-count").innerText = "10 / 250";
         document.getElementById("custom-text-val").value =
           "{hh}:{mm}:{ss} {AMPM} | {TEM}{DEG}C {HUM}% | {DD}-{MMM}-{YYYY}";
@@ -4617,17 +4588,25 @@
         const container = document.getElementById("scenes-container");
         container.innerHTML = "";
 
+        const targetSelect = document.getElementById("target-zone");
+        const targetZoneName = targetSelect ? targetSelect.value : "";
+
+        // Filter scenes to ONLY show those belonging to the selected Target Zone
+        const filteredScenes = scenes.filter(
+          (s) => s.config?.zone?.name === targetZoneName,
+        );
+
         // Update Scene Counter
         const countLabel = document.getElementById("scene-count-label");
-        if (countLabel) countLabel.innerText = `${scenes.length} / 100`;
+        if (countLabel) countLabel.innerText = `${filteredScenes.length} / 100`;
 
-        if (scenes.length === 0) {
+        if (filteredScenes.length === 0) {
           container.innerHTML =
-            '<span class="text-[11px] text-slate-500 mt-2.5">No scenes are configured</span>';
+            '<span class="text-[11px] text-slate-500 mt-2.5">No scenes in this zone</span>';
           return;
         }
 
-        scenes.forEach((s) => {
+        filteredScenes.forEach((s) => {
           const isSel = s.id === editingSceneId;
           const chip = document.createElement("div");
 
@@ -4661,10 +4640,9 @@
         const label = document.getElementById("sim-zone-label");
         if (label && zoneName) label.innerText = zoneName;
 
-        // Load the selected zone's brightness into the slider
+        // Load the selected zone's default brightness into the slider
         const z = zones.find((zn) => zn.name === zoneName);
-        const sc = scenes.find((s) => s.config?.zone?.name === zoneName);
-        const b = sc?.config?.display?.brightness ?? z?.brightness ?? 12;
+        const b = z?.brightness ?? 12;
         const bInput = document.getElementById("brightness");
         if (bInput) {
           bInput.value = b;
@@ -4673,7 +4651,8 @@
           if (badge) badge.innerText = `${b} / 15`;
         }
 
-        handleConfigFieldChange();
+        // Completely reset the scene form so the canvas clears and a fresh state is applied for the new zone
+        resetSceneForm();
       }
 
       function handleMsgTypeToggle() {
@@ -5187,9 +5166,6 @@
             config: s,
           }));
           renderScenesUI();
-          if (scenes.length > 0) {
-            selectSceneForEdit(scenes[0].id);
-          }
         }
 
         // 5. Playlists
@@ -5203,7 +5179,9 @@
         }
         populatePlaylistZoneDropdown();
         updatePlaylistSceneDropdown();
-        renderStaticPreview();
+
+        // Force the UI into a clean "Add Mode" with nothing selected
+        resetSceneForm();
       }
 
       async function syncConfigFromHardware() {
