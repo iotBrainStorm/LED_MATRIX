@@ -143,7 +143,6 @@
             <div
               class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700"
             >
-              <span class="text-slate-400 font-medium">Color:</span>
               <button
                 type="button"
                 onclick="setLedTheme('#00f2fe', 'rgba(0, 242, 254, 0.7)')"
@@ -351,7 +350,7 @@
               >
             </div>
             <div>
-              Zone Active:
+              Zone:
               <span id="sim-zone-label" class="text-amber-400 font-bold"
                 >Zone 1</span
               >
@@ -1647,11 +1646,10 @@
                 <h3
                   class="text-xs font-bold text-cyan-300 uppercase tracking-wider"
                 >
-                  Zone Playlists (Required)
+                  Zone Playlists
                 </h3>
                 <p class="text-[10px] text-slate-400">
-                  A playlist MUST be created and turned ON for a zone to display
-                  text animations.
+                  Playlist must be created and turned ON
                 </p>
               </div>
               <button
@@ -1848,7 +1846,7 @@
                 class="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]"
               ></div>
               <h3 class="text-base font-bold text-white tracking-wide">
-                Serial Monitor
+                Terminal
               </h3>
               <span
                 id="term-status-text"
@@ -1862,7 +1860,7 @@
                 onclick="clearTerminal()"
                 class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded border border-slate-700 transition"
               >
-                Clear Console
+                Clear
               </button>
               <button
                 type="button"
@@ -2705,8 +2703,8 @@
                     <div>Hardware Audio Range: <span class="text-slate-400">0 Hz &rarr; ${maxFreq} Hz</span></div>
                     <div>Cropped / Valid Range: <span class="text-emerald-400 font-bold">${Math.round(startBin * binRes)} Hz &rarr; ${Math.round(endBin * binRes)} Hz</span></div>
                     <div>Processing Detail: <span class="text-cyan-400 font-bold">${binRes.toFixed(1)} Hz per slice</span></div>
-                    <div>Calculated Matrix Data: <span class="text-amber-400 font-bold">${usableBins} bins of audio used</span></div>
-                    <div class="mt-2 pt-2 border-t border-cyan-900/50">Recommended Matrix Width for Spectrum: <span class="text-white font-bold px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">${Math.max(8, Math.floor(usableBins * 0.75))} to ${usableBins * 2}</span> columns.</div>
+                    <div>Calculated Matrix Data: <span class="text-amber-400 font-bold">${usableBins} bins</span></div>
+                    <div class="mt-2 pt-2 border-t border-cyan-900/50">Recommended Width: <span class="text-white font-bold px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">${Math.max(8, Math.floor(usableBins * 0.75))} to ${usableBins * 2}</span></div>
                 </div>
             `;
         }
@@ -4605,7 +4603,7 @@
 
         if (scenes.length === 0) {
           container.innerHTML =
-            '<span class="text-[11px] text-slate-500 italic mt-2.5">No scenes configured. Live form values will run as default.</span>';
+            '<span class="text-[11px] text-slate-500 mt-2.5">No scenes are configured</span>';
           return;
         }
 
