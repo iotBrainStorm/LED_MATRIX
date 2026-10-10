@@ -4485,8 +4485,25 @@
           // UPDATE
           const idx = scenes.findIndex((s) => s.id === editingSceneId);
           if (idx >= 0) {
+            const oldName = scenes[idx].name;
             scenes[idx] = { id: editingSceneId, name, config };
             showToast(`Scene "${name}" updated.`);
+
+            // Synchronize the renamed scene across all playlists
+            if (oldName !== name) {
+              playlists.forEach((pl) => {
+                pl.scenes = pl.scenes.map((sName) =>
+                  sName === oldName ? name : sName,
+                );
+              });
+              renderPlaylistsUI();
+
+              // Also update the active playlist queue if the form is currently open
+              activePlaylistScenes = activePlaylistScenes.map((sName) =>
+                sName === oldName ? name : sName,
+              );
+              renderQueuedScenesUI();
+            }
           }
         } else {
           // ADD
@@ -5284,6 +5301,18 @@
         });
       }
 
+      function removeSceneFromQueue(idx) {
+        // Prevent deleting the last scene
+        if (activePlaylistScenes.length <= 1) {
+          showToast(
+            "A playlist must have at least one scene. Delete the playlist instead.",
+          );
+          return;
+        }
+        activePlaylistScenes.splice(idx, 1);
+        renderQueuedScenesUI();
+      }
+
       function renderQueuedScenesUI() {
         const container = document.getElementById("pl-queued-scenes");
         if (!container) return;
@@ -5301,7 +5330,7 @@
             "inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded border border-cyan-800/80 text-cyan-300";
           chip.innerHTML = `
               <span>${idx + 1}. ${name}</span>
-              <button type="button" onclick="activePlaylistScenes.splice(${idx}, 1); renderQueuedScenesUI();" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
+              <button type="button" onclick="removeSceneFromQueue(${idx})" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
             `;
           container.appendChild(chip);
         });
@@ -5438,7 +5467,7 @@
 
         if (playlists.length === 0) {
           container.innerHTML =
-            '<span class="text-[11px] text-slate-500 italic">No playlists created. You MUST create a playlist to display scenes.</span>';
+            '<span class="text-[11px] text-slate-500">No playlists are created</span>';
           return;
         }
 
