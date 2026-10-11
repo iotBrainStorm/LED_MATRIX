@@ -509,8 +509,8 @@ struct SceneConfig {
   char zoneName[32] = "";
   int startCol = 0;
   int endCol = 39;
-  char rawMessage[256] = "";
-  char activeMessage[256] = "";
+  String rawMessage = "";
+  String activeMessage = "";
   bool isCustom = false;
   bool isBold = false;
   textPosition_t align = PA_CENTER;
@@ -533,6 +533,7 @@ enum ZoneAnimState {
 struct ZoneConfig {
   bool inUse = false;
   char name[32] = "";
+  char playlistName[32] = "";
   uint8_t startDev = 0;
   uint8_t endDev = 0;
 
@@ -548,10 +549,11 @@ struct ZoneConfig {
   unsigned long stateStartTime = 0;
 };
 
-SceneConfig scenes[MAX_SCENES];
+// Changed to pointers to save ~65KB of static DRAM!
+SceneConfig *scenes = nullptr;
 uint8_t totalScenes = 0;
 
-ZoneConfig zones[MAX_ZONES];
+ZoneConfig *zones = nullptr;
 uint8_t activeZoneCount = 0;
 
 // ==========================================
@@ -617,6 +619,71 @@ textEffect_t parseEffect(const char *str) {
   if (strcmp(str, "PA_GROW_DOWN") == 0)
     return PA_GROW_DOWN;
   return PA_SCROLL_LEFT;
+}
+
+const char *effectToStr(textEffect_t effect) {
+  switch (effect) {
+  case PA_NO_EFFECT:
+    return "PA_NO_EFFECT";
+  case PA_PRINT:
+    return "PA_PRINT";
+  case PA_SCROLL_LEFT:
+    return "PA_SCROLL_LEFT";
+  case PA_SCROLL_RIGHT:
+    return "PA_SCROLL_RIGHT";
+  case PA_SCROLL_UP:
+    return "PA_SCROLL_UP";
+  case PA_SCROLL_DOWN:
+    return "PA_SCROLL_DOWN";
+  case PA_SCROLL_UP_LEFT:
+    return "PA_SCROLL_UP_LEFT";
+  case PA_SCROLL_UP_RIGHT:
+    return "PA_SCROLL_UP_RIGHT";
+  case PA_SCROLL_DOWN_LEFT:
+    return "PA_SCROLL_DOWN_LEFT";
+  case PA_SCROLL_DOWN_RIGHT:
+    return "PA_SCROLL_DOWN_RIGHT";
+  case PA_SPRITE:
+    return "PA_SPRITE";
+  case PA_SLICE:
+    return "PA_SLICE";
+  case PA_MESH:
+    return "PA_MESH";
+  case PA_FADE:
+    return "PA_FADE";
+  case PA_DISSOLVE:
+    return "PA_DISSOLVE";
+  case PA_BLINDS:
+    return "PA_BLINDS";
+  case PA_RANDOM:
+    return "PA_RANDOM";
+  case PA_WIPE:
+    return "PA_WIPE";
+  case PA_WIPE_CURSOR:
+    return "PA_WIPE_CURSOR";
+  case PA_OPENING:
+    return "PA_OPENING";
+  case PA_OPENING_CURSOR:
+    return "PA_OPENING_CURSOR";
+  case PA_CLOSING:
+    return "PA_CLOSING";
+  case PA_CLOSING_CURSOR:
+    return "PA_CLOSING_CURSOR";
+  case PA_SCAN_HORIZ:
+    return "PA_SCAN_HORIZ";
+  case PA_SCAN_HORIZX:
+    return "PA_SCAN_HORIZX";
+  case PA_SCAN_VERT:
+    return "PA_SCAN_VERT";
+  case PA_SCAN_VERTX:
+    return "PA_SCAN_VERTX";
+  case PA_GROW_UP:
+    return "PA_GROW_UP";
+  case PA_GROW_DOWN:
+    return "PA_GROW_DOWN";
+  default:
+    return "UNKNOWN";
+  }
 }
 
 textPosition_t parseAlign(const char *str) {
@@ -685,7 +752,7 @@ String processTemplate(const String &tmpl) {
   out.replace("{WWWW}", "%A");
   out.replace("{WWW}", "%a");
 
-  char formatted[160];
+  char formatted[350];
   String res = out;
   if (strftime(formatted, sizeof(formatted), out.c_str(), &t) > 0) {
     res = String(formatted);
@@ -1227,6 +1294,23 @@ void updateDisplayBrightness() {
 // ==========================================
 // SCENE PLAYLIST & TRANSITION MANAGEMENT
 // ==========================================
+void refreshCustomText(uint8_t z, uint8_t sIdx) {
+  SceneConfig &sc = scenes[sIdx]; // Grab the struct inside the function instead
+  if (!sc.isCustom)
+    return;
+
+  String resolved = processTemplate(sc.rawMessage);
+  resolved.replace("\xC2\xB0", "\x7F");
+  resolved.replace("°", "\x7F");
+  resolved.replace("{DEG}", "\x7F");
+
+  // Only re-bind to Parola if the text actually changed
+  if (resolved != sc.activeMessage) {
+    sc.activeMessage = resolved;
+    P.displayZoneText(z, sc.activeMessage.c_str(), sc.align, sc.speed, sc.pause, sc.inEffect, sc.outEffect);
+  }
+}
+
 void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
   SceneConfig &sc = scenes[sIdx];
 
@@ -1238,17 +1322,16 @@ void launchSceneOnDisplay(uint8_t z, uint8_t sIdx) {
 
   updateDisplayBrightness();
 
-  String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : String(sc.rawMessage);
+  String resolved = sc.isCustom ? processTemplate(sc.rawMessage) : sc.rawMessage;
 
   resolved.replace("\xC2\xB0", "\x7F");
   resolved.replace("°", "\x7F");
   resolved.replace("{DEG}", "\x7F");
-  strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
-  sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
+  sc.activeMessage = resolved;
 
   P.displayZoneText(
       z,
-      sc.activeMessage,
+      sc.activeMessage.c_str(),
       sc.align,
       sc.speed,
       sc.pause,
@@ -1261,24 +1344,27 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
   if (z >= activeZoneCount || zones[z].sceneCount == 0)
     return;
 
+  // Fallback to "Default" if no playlist name is assigned
+  const char *pName = (strlen(zones[z].playlistName) > 0) ? zones[z].playlistName : "Default";
+
   // Check if current playlist sequence has finished all its scenes
   if (listIdx >= zones[z].sceneCount) {
     if (zones[z].playlistRepeat == -1) {
       // Infinite playlist loop: Rewind immediately to scene 0!
-      WebLogf("[Playlist] Zone %u ('%s'): Sequence completed. Restarting infinite loop...\n", z, zones[z].name);
+      WebLogf("[%s] [%s]: Sequence completed. Restarting infinite loop...\n", pName, zones[z].name);
       listIdx = 0;
     } else {
       zones[z].playlistLoopCounter++;
       if (zones[z].playlistLoopCounter < zones[z].playlistRepeat) {
         // Run next playlist iteration
-        WebLogf("[Playlist] Zone %u: Sequence iteration %d of %d starting...\n",
-                z, zones[z].playlistLoopCounter + 1, zones[z].playlistRepeat);
+        WebLogf("[%s] [%s]: Sequence iteration %d of %d starting...\n",
+                pName, zones[z].name, zones[z].playlistLoopCounter + 1, zones[z].playlistRepeat);
         listIdx = 0;
       } else {
         // All playlist cycles completed: cleanly stop the zone
         zones[z].state = ZSTATE_FINISHED;
         P.displayClear(z);
-        WebLogf("[Playlist] Zone %u ('%s'): All playlist cycles finished. Zone stopped.\n", z, zones[z].name);
+        WebLogf("[%s] [%s]: All playlist cycles finished. Zone stopped.\n", pName, zones[z].name);
         return;
       }
     }
@@ -1290,16 +1376,37 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
   uint8_t sIdx = zones[z].sceneList[listIdx];
   SceneConfig &sc = scenes[sIdx];
 
+  // --- NEW DETAILED LOGGING FORMAT ---
+  char truncMsg[55] = {0};
+  strncpy(truncMsg, sc.rawMessage.c_str(), 45); // Updated to use .c_str()
+  if (sc.rawMessage.length() > 45) {            // Updated to use .length()
+    strcat(truncMsg, "...");
+  }
+
+  char brightStr[8];
+  if (sc.autoBrightness)
+    strcpy(brightStr, "auto");
+  else
+    snprintf(brightStr, sizeof(brightStr), "%d", sc.brightness);
+
+  WebLogf("[%s] [%s %d-%d] [scene %d '%s'] => %s \"%s\" %s %s %d %d %d %s\n",
+          pName,
+          zones[z].name, sc.startCol, sc.endCol,
+          listIdx + 1, sc.name,
+          sc.isCustom ? "dynamic" : "static",
+          truncMsg,
+          effectToStr(sc.inEffect), effectToStr(sc.outEffect),
+          sc.speed, sc.startDelay, sc.pause, brightStr);
+  // -----------------------------------
+
   if (sc.startDelay > 0) {
     zones[z].state = ZSTATE_START_DELAY;
     zones[z].stateStartTime = millis();
     P.displayClear(z);
-    WebLogf("[Playlist] Zone %u: Scene %u starting with %u ms start delay...\n", z, listIdx, sc.startDelay);
     triggerStatusBlink(2, 0.1);
   } else {
     zones[z].state = ZSTATE_PLAYING;
     launchSceneOnDisplay(z, sIdx);
-    WebLogf("[Playlist] Zone %u: Playing scene %u ('%s') [Repeat: %d]\n", z, listIdx, sc.rawMessage, sc.repeat);
     triggerStatusBlink(2, 0.1);
   }
 }
@@ -1404,10 +1511,9 @@ void saveDefaultConfiguration() {
 bool matchScene(uint8_t sIdx, const char *target) {
   if (!target)
     return false;
-  // Matches either the Scene Name ("Scene 1") OR the text message ("Basanti Studio")
   if (strlen(scenes[sIdx].name) > 0 && strcmp(scenes[sIdx].name, target) == 0)
     return true;
-  if (strlen(scenes[sIdx].rawMessage) > 0 && strcmp(scenes[sIdx].rawMessage, target) == 0)
+  if (scenes[sIdx].rawMessage.length() > 0 && scenes[sIdx].rawMessage.equals(target))
     return true;
   return false;
 }
@@ -1421,17 +1527,37 @@ void loadConfiguration() {
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file) {
     WebLog("[Config] Failed to open /config.json\n");
+    // Failsafe allocation if file is totally missing
+    if (!scenes)
+      scenes = new SceneConfig[MAX_SCENES];
+    if (!zones)
+      zones = new ZoneConfig[MAX_ZONES];
     return;
   }
 
+  // 1. FREE THE OLD ARRAYS TEMPORARILY TO GUARANTEE MAX HEAP SPACE FOR JSON PARSER!
+  if (scenes) {
+    delete[] scenes;
+    scenes = nullptr;
+  }
+  if (zones) {
+    delete[] zones;
+    zones = nullptr;
+  }
+
+  // 2. PARSE JSON WITH MAXIMAL FREE MEMORY
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(65536);
+  DynamicJsonDocument doc(100000); // Bumped to 100 KB to comfortably handle 100 scenes full of long quotes
 #endif
 
   DeserializationError err = deserializeJson(doc, file);
   file.close();
+
+  // 3. IMMEDIATELY RE-ALLOCATE THE CLEAN ARRAYS
+  scenes = new SceneConfig[MAX_SCENES];
+  zones = new ZoneConfig[MAX_ZONES];
 
   if (err) {
     WebLogf("[Config] JSON Deserialization error: %s\n", err.c_str());
@@ -1580,8 +1706,7 @@ void loadConfiguration() {
     curScene.isCustom = (strcmp(mType, "custom") == 0);
 
     const char *mContent = sc["message"]["content"] | "ESP";
-    strncpy(curScene.rawMessage, mContent, sizeof(curScene.rawMessage) - 1);
-    curScene.rawMessage[sizeof(curScene.rawMessage) - 1] = '\0';
+    curScene.rawMessage = mContent;
 
     curScene.isBold = sc["message"]["bold"] | false;
     curScene.align = parseAlign(sc["message"]["align"] | "center");
@@ -1676,11 +1801,17 @@ void loadConfiguration() {
               zones[z].sceneCount = matchedCount;
               zones[z].playlistRepeat = plRepeat;
               zones[z].playlistLoopCounter = 0;
+
+              // Extract and save the Playlist name
+              const char *pNameTemp = pl["name"] | "Playlist";
+              strncpy(zones[z].playlistName, pNameTemp, sizeof(zones[z].playlistName) - 1);
+              zones[z].playlistName[sizeof(zones[z].playlistName) - 1] = '\0';
+
               for (uint8_t i = 0; i < matchedCount; i++) {
                 zones[z].sceneList[i] = tempSceneList[i];
               }
               WebLogf("[Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
-                      pl["name"] | "PL", z, zones[z].sceneCount, plRepeat);
+                      zones[z].playlistName, z, zones[z].sceneCount, plRepeat);
             }
           }
           break;
@@ -2013,7 +2144,7 @@ void checkHourlyChimeStatus() {
       continue;
     for (uint8_t i = 0; i < zones[z].sceneCount; i++) {
       uint8_t sIdx = zones[z].sceneList[i];
-      if (String(scenes[sIdx].rawMessage).indexOf("{HBEEP}") >= 0) {
+      if (scenes[sIdx].rawMessage.indexOf("{HBEEP}") >= 0) {
         hourlyChimeEnabled = true;
         WebLog("[Buzzer] Hourly Chime ENABLED by playlist.\n");
         return;
@@ -2070,6 +2201,9 @@ void handleBuzzer() {
 void setup() {
   Serial.begin(115200);
   delay(100);
+
+  scenes = new SceneConfig[MAX_SCENES];
+  zones = new ZoneConfig[MAX_ZONES];
 
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
@@ -2257,29 +2391,18 @@ void loop() {
         // =====================================================================
         if (sc.repeat == -1) {
           // INFINITE LOOP STATIC: Stays forever, never advances
-          if (sc.isCustom && pollCustomTemplates) {
-            String resolved = processTemplate(sc.rawMessage);
-            if (resolved != sc.activeMessage) {
-              strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
-              sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
-              P.displayZoneText(z, sc.activeMessage, sc.align, 0, 0, PA_PRINT, PA_NO_EFFECT);
-              P.displayReset(z);
-            }
+          if (pollCustomTemplates) {
+            refreshCustomText(z, sIdx); // <-- Updated
+            P.displayReset(z);
           }
         } else {
           // FINITE ITERATION STATIC: Holds for pause (endDelayMs) per iteration
           if (P.getZoneStatus(z)) {
             zones[z].loopCounter++;
             if (zones[z].loopCounter >= sc.repeat) {
-              // Iterations done! Advance to next scene in playlist
               startZoneScene(z, zones[z].currentSceneIdx + 1);
             } else {
-              // Reset for next hold iteration
-              if (sc.isCustom) {
-                String resolved = processTemplate(sc.rawMessage);
-                strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
-                sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
-              }
+              refreshCustomText(z, sIdx); // <-- Updated
               P.displayReset(z);
             }
           }
@@ -2290,26 +2413,16 @@ void loop() {
         // =====================================================================
         if (P.getZoneStatus(z)) {
           if (sc.repeat == -1) {
-            // INFINITE LOOP ANIMATION: Never advances to next scene
-            if (sc.isCustom) {
-              String resolved = processTemplate(sc.rawMessage);
-              strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
-              sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
-            }
+            // INFINITE LOOP ANIMATION
+            refreshCustomText(z, sIdx); // <-- Updated
             P.displayReset(z);
           } else {
-            // FINITE LOOP ANIMATION (e.g. repeat = 3)
+            // FINITE LOOP ANIMATION
             zones[z].loopCounter++;
             if (zones[z].loopCounter >= sc.repeat) {
-              // Finished 3 iterations! Advance to next scene in playlist
               startZoneScene(z, zones[z].currentSceneIdx + 1);
             } else {
-              // Continue looping this scene
-              if (sc.isCustom) {
-                String resolved = processTemplate(sc.rawMessage);
-                strncpy(sc.activeMessage, resolved.c_str(), sizeof(sc.activeMessage) - 1);
-                sc.activeMessage[sizeof(sc.activeMessage) - 1] = '\0';
-              }
+              refreshCustomText(z, sIdx); // <-- Updated
               P.displayReset(z);
             }
           }
