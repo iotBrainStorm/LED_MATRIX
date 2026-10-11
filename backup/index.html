@@ -1623,10 +1623,33 @@
             <!-- Scene Chips List -->
             <div>
               <div class="flex justify-between items-center mb-2">
-                <div
-                  class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold"
-                >
-                  Configured Scenes
+                <div class="flex items-center gap-2">
+                  <div
+                    class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold"
+                  >
+                    Configured Scenes
+                  </div>
+                  <button
+                    type="button"
+                    onclick="toggleScenesList()"
+                    class="text-slate-400 hover:text-cyan-300 transition"
+                    title="Expand/Collapse Scenes"
+                  >
+                    <svg
+                      id="scenes-toggle-icon"
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 15l7-7 7 7"
+                      />
+                    </svg>
+                  </button>
                 </div>
                 <!-- Added Scene Counter -->
                 <span
@@ -1873,6 +1896,29 @@
                 ✕
               </button>
             </div>
+          </div>
+
+          <!-- NEW WARNING ALERT -->
+          <div
+            class="mb-3 px-3 py-2 rounded-lg bg-amber-950/40 border border-amber-900/50 text-amber-400 text-[10px] sm:text-xs flex items-start sm:items-center gap-2"
+          >
+            <svg
+              class="w-4 h-4 shrink-0 mt-0.5 sm:mt-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span
+              ><strong>Warning:</strong> opening Live Terminal may effects your
+              router performance due to heavy traffic.</span
+            >
           </div>
 
           <!-- Terminal Output Area -->
@@ -4404,6 +4450,22 @@
         renderStaticPreview();
       }
 
+      function toggleScenesList() {
+        const container = document.getElementById("scenes-container");
+        const icon = document.getElementById("scenes-toggle-icon");
+        container.classList.toggle("hidden");
+
+        if (container.classList.contains("hidden")) {
+          // Down arrow (Collapsed)
+          icon.innerHTML =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />';
+        } else {
+          // Up arrow (Expanded)
+          icon.innerHTML =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />';
+        }
+      }
+
       function updateSceneButtons() {
         const btn = document.getElementById("btn-add-scene");
         if (!btn) return;
@@ -4596,9 +4658,9 @@
           (s) => s.config?.zone?.name === targetZoneName,
         );
 
-        // Update Scene Counter
+        // MODIFIED: Use overall total scenes for the 100 limit display
         const countLabel = document.getElementById("scene-count-label");
-        if (countLabel) countLabel.innerText = `${filteredScenes.length} / 100`;
+        if (countLabel) countLabel.innerText = `${scenes.length} / 100`;
 
         if (filteredScenes.length === 0) {
           container.innerHTML =
@@ -4607,10 +4669,12 @@
         }
 
         filteredScenes.forEach((s) => {
+          // MODIFIED: Fetch the globally synced index/serial number
+          const globalIndex = scenes.indexOf(s) + 1;
+
           const isSel = s.id === editingSceneId;
           const chip = document.createElement("div");
 
-          // Changed to flex instead of inline-flex, and added w-full for grid
           chip.className = `flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
             isSel
               ? "bg-teal-500/20 text-teal-300 border border-teal-400 font-bold"
@@ -4619,10 +4683,10 @@
           chip.title = "Click to edit scene";
           chip.onclick = () => selectSceneForEdit(s.id);
 
-          // Changed to a flex-col layout for two lines
+          // MODIFIED: Appended `${globalIndex}. ` to the scene name
           chip.innerHTML = `
             <div class="flex flex-col overflow-hidden">
-              <span class="truncate leading-tight">${isSel ? "▶&nbsp;&nbsp;" : ""}${s.name}</span>
+              <span class="truncate leading-tight">${isSel ? "▶&nbsp;&nbsp;" : ""}${globalIndex}. ${s.name}</span>
               <span class="text-[10px] text-slate-400 font-normal truncate mt-0.5">${s.config.zone?.name || "Zone"}</span>
             </div>
             <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5 shrink-0">✕</button>
@@ -5268,13 +5332,19 @@
         }
 
         eligibleScenes.forEach((s) => {
+          // MODIFIED: Fetch the globally synced index/serial number
+          const globalIndex = scenes.indexOf(s) + 1;
+
           const opt = document.createElement("option");
-          opt.value = s.name;
+          opt.value = s.name; // Retain just the name as value for JSON generation
+
           const repText =
             s.config?.display?.repeat === -1
               ? "Infinite"
               : `${s.config?.display?.repeat}x`;
-          opt.innerText = `${s.name} (${repText})`;
+
+          // MODIFIED: Appended `${globalIndex}. ` to the visible Dropdown text
+          opt.innerText = `${globalIndex}. ${s.name} (${repText})`;
           drop.appendChild(opt);
         });
       }
