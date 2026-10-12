@@ -5147,9 +5147,12 @@
           }
         });
 
+        let wasPlayingBeforeHide = false; // NEW: Memory flag for animation state
+
         document.addEventListener("visibilitychange", () => {
           if (document.hidden) {
             // 1. Pause local matrix canvas simulation
+            wasPlayingBeforeHide = isPlaying;
             if (isPlaying) {
               pauseSimulation();
             }
@@ -5181,6 +5184,18 @@
             const termModal = document.getElementById("terminal-modal");
             if (termModal && !termModal.classList.contains("hidden")) {
               openTerminalModal();
+            }
+
+            // --- NEW: WAKE UP CANVAS ---
+            // Browsers flush canvas memory to save RAM. Force a background redraw.
+            updateLedSprite();
+            updateBackgroundCanvas();
+
+            // Resume playback if it was running, or just redraw the static frame
+            if (wasPlayingBeforeHide) {
+              togglePlayback();
+            } else {
+              renderStaticPreview();
             }
           }
         });
