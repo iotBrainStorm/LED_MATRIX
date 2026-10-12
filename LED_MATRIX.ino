@@ -756,11 +756,16 @@ String processTemplate(const String &tmpl) {
   out.replace("{AMPM}", "%p");
   out.replace("{DD}", "%d");
   out.replace("{dd}", "%e");
-  out.replace("{MM}", "%m");
+
+  // Longest string tags must be replaced first
   out.replace("{MMMM}", "%B");
   out.replace("{MMM}", "%b");
+  out.replace("{MM}", "%m");
+
   out.replace("{YYYY}", "%Y");
   out.replace("{YY}", "%y");
+
+  // Longest string tags must be replaced first
   out.replace("{WWWW}", "%A");
   out.replace("{WWW}", "%a");
 
@@ -816,19 +821,19 @@ void initI2S() {
 
   esp_err_t err = i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
   if (err != ESP_OK) {
-    WebLogf(" [I2S] Driver install failed: 0x%x\n", err);
+    WebLogf("[I2S] Driver install failed: 0x%x\n", err);
     return;
   }
 
   err = i2s_set_pin(I2S_PORT, &pin_config);
   if (err != ESP_OK) {
-    WebLogf(" [I2S] Pin configuration failed: 0x%x\n", err);
+    WebLogf("[I2S] Pin configuration failed: 0x%x\n", err);
     return;
   }
 
   i2s_start(I2S_PORT);
   i2sInitialized = true;
-  WebLog(" [I2S] INMP441 MEMS microphone initialized successfully.\n");
+  WebLog("[I2S] INMP441 MEMS microphone initialized successfully.\n");
 }
 
 inline void setVUMatrixPoint(MD_MAX72XX *mx, int r, int c, bool state) {
@@ -1517,7 +1522,7 @@ void saveDefaultConfiguration() {
 
   serializeJson(doc, file);
   file.close();
-  WebLog(" [Config] Fresh default /config.json created in SPIFFS.\n");
+  WebLog("[Config] Fresh default /config.json created in SPIFFS.\n");
 }
 
 bool matchScene(uint8_t sIdx, const char *target) {
@@ -1532,13 +1537,13 @@ bool matchScene(uint8_t sIdx, const char *target) {
 
 void loadConfiguration() {
   if (!SPIFFS.exists(CONFIG_FILE)) {
-    WebLog(" [Config] No saved config found in flash. Generating defaults...\n");
+    WebLog("[Config] No saved config found in flash. Generating defaults...\n");
     saveDefaultConfiguration();
   }
 
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file) {
-    WebLog(" [Config] Failed to open /config.json\n");
+    WebLog("[Config] Failed to open /config.json\n");
     // Failsafe allocation if file is totally missing
     if (!scenes)
       scenes = new SceneConfig[MAX_SCENES];
@@ -1586,7 +1591,7 @@ void loadConfiguration() {
 
     // Reboot to re-initialize the matrix if modules or hardware type changed
     if (newMax != MAX_DEVICES || strcmp(newHw, hardwareTypeStr) != 0) {
-      WebLog(" [Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...\n\n");
+      WebLog("[Config] Matrix hardware/size changed! Rebooting ESP memory to apply safely...\n");
 
       // Force a fast beep right before the restart!
       digitalWrite(BUZZER_PIN, HIGH);
@@ -1656,7 +1661,7 @@ void loadConfiguration() {
 
   JsonArray scenesArr = doc["scenes"].as<JsonArray>();
   if (scenesArr.isNull() || scenesArr.size() == 0) {
-    WebLog(" [Config] 'scenes' array empty or invalid.\n");
+    WebLog("[Config] 'scenes' array empty or invalid.\n");
     return;
   }
 
@@ -1771,7 +1776,7 @@ void loadConfiguration() {
         zones[targetZone].loopCounter = 0;
         activeZoneCount++;
       } else {
-        WebLogf(" [Config] Max zones (%d) reached! Skipping scene %d\n", MAX_ZONES, s);
+        WebLogf("[Config] Max zones (%d) reached! Skipping scene %d\n", MAX_ZONES, s);
         continue;
       }
     }
@@ -1822,7 +1827,7 @@ void loadConfiguration() {
               for (uint8_t i = 0; i < matchedCount; i++) {
                 zones[z].sceneList[i] = tempSceneList[i];
               }
-              WebLogf(" [Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
+              WebLogf("[Config] Applied Playlist '%s' to Zone %u (%u scenes, repeat: %d)\n",
                       zones[z].playlistName, z, zones[z].sceneCount, plRepeat);
             }
           }
@@ -1856,7 +1861,7 @@ void loadConfiguration() {
 
   // 2. If no active playlists exist, force a full-screen mDNS scroller fallback
   if (!hasActivePlaylists) {
-    WebLog(" [Config] No active playlists. Display will remain blank (OFF).\n");
+    WebLog("[Config] No active playlists. Display will remain blank (OFF).\n");
     activeZoneCount = 0; // This prevents the ESP from trying to animate anything
   }
 
@@ -1903,7 +1908,7 @@ void initNTP() {
 
   sntp_set_time_sync_notification_cb(timeSyncCallback);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
-  WebLog(" [NTP] Background SNTP service started.\n\n");
+  WebLog("[NTP] Background SNTP service started.\n");
 }
 
 // ==========================================
@@ -1934,11 +1939,11 @@ bool connectToSavedWiFi() {
     attempts++;
   }
 
-  WebLog("\n [WARNING] No saved WiFi found! Starting Portal...\n");
+  WebLog("\n[WARNING] No saved WiFi found! Starting Portal...\n");
   wm.setConfigPortalTimeout(180);
 
   wm.setAPCallback([](WiFiManager *myWiFiManager) {
-    WebLog(" [WiFi] Entered AP Portal Mode!\n");
+    WebLog("[WiFi] Entered AP Portal Mode!\n");
     // Infinite fast blink (0.2s) while waiting for user to connect
     triggerStatusBlink(-1, 0.2);
   });
@@ -1947,13 +1952,13 @@ bool connectToSavedWiFi() {
   stopStatusBlink();
 
   if (success) {
-    WebLog("\n [SUCCESS] Connected via Portal\n");
-    WebLogf(" [IP Address] : %s\n", WiFi.localIP().toString().c_str());
+    WebLog("\n[SUCCESS] Connected via Portal\n");
+    WebLogf("[IP Address] : %s\n", WiFi.localIP().toString().c_str());
     WiFi.setSleep(false);
     return true;
   }
 
-  WebLog("\n [INFO] Portal Timeout - Continuing in Offline Mode.\n");
+  WebLog("\n[INFO] Portal Timeout - Continuing in Offline Mode.\n");
   return false;
 }
 
@@ -1967,10 +1972,10 @@ void initMDNS() {
   snprintf(mdnsHostname, sizeof(mdnsHostname), "ledstudio-%02X%02X", mac[4], mac[5]);
 
   if (MDNS.begin(mdnsHostname)) {
-    WebLogf(" [mDNS] Responder started: http://%s.local\n", mdnsHostname);
+    WebLogf("[mDNS] Responder started: http://%s.local\n", mdnsHostname);
     MDNS.addService("http", "tcp", 80);
   } else {
-    WebLog(" [mDNS] Error setting up MDNS responder!\n");
+    WebLog("[mDNS] Error setting up MDNS responder!\n");
   }
 }
 
@@ -2053,7 +2058,7 @@ void setupWebServer() {
         if (index + len >= total) {
           if (uploadFile) {
             uploadFile.close();
-            WebLogf("\n [SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
+            WebLogf("\n[SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
           }
           configUpdated = true;
         }
@@ -2104,7 +2109,7 @@ void setupWebServer() {
   });
 
   server.begin();
-  WebLog(" [HTTP] AsyncWebServer online.\n");
+  WebLog("[HTTP] AsyncWebServer online.\n");
 }
 
 // ==========================================
@@ -2123,21 +2128,22 @@ void checkWiFiAndStartServer() {
 
   if (isConnected && !wasConnected) {
     WebLog("\n [WiFi] Reconnected!\n");
-    WebLogf(" [WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
+    WebLogf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
     initMDNS();
     wasConnected = true;
   }
 
   if (!isConnected && wasConnected) {
-    WebLog("\n [WiFi] Disconnected! Background reconnect active.\n");
+    WebLog("\n[WiFi] Disconnected! Background reconnect active.\n");
     wasConnected = false;
   }
 
   if (!isConnected) {
     if (millis() - lastReconnectAttempt > 15000) {
       lastReconnectAttempt = millis();
-      WebLog(" [WiFi] Reconnect trigger...\n");
-      WiFi.reconnect();
+      WebLog("[WiFi] Reconnect trigger...\n");
+      WiFi.disconnect();
+      WiFi.begin();
     }
   }
 }
@@ -2181,12 +2187,12 @@ void checkHourlyChimeStatus() {
       uint8_t sIdx = zones[z].sceneList[i];
       if (scenes[sIdx].rawMessage.indexOf("{HBEEP}") >= 0) {
         hourlyChimeEnabled = true;
-        WebLog(" [Buzzer] Hourly Chime ENABLED by playlist.\n");
+        WebLog("[Buzzer] Hourly Chime ENABLED by playlist.\n");
         return;
       }
     }
   }
-  WebLog(" [Buzzer] Hourly Chime Disabled (No {HBEEP} found).\n");
+  WebLog("[Buzzer] Hourly Chime Disabled (No {HBEEP} found).\n");
 }
 
 void handleBuzzer() {
@@ -2253,28 +2259,30 @@ void setup() {
   buildCustomBoldFont();
 
   if (!SPIFFS.begin(true)) {
-    WebLog(" [FS] SPIFFS mount failed!\n");
+    WebLog("[FS] SPIFFS mount failed!\n");
   } else {
-    WebLog(" [FS] SPIFFS mounted successfully.\n");
+    WebLog("[FS] SPIFFS mounted successfully.\n");
   }
 
   delay(250);
 
   Wire.begin(21, 22);
+  Wire.setTimeOut(150); // Abort I2C operations if locked for more than 150ms
+
   // AHT10 Init...
   if (aht.begin()) {
-    WebLog(" [Sensor] AHT10 found & initialized.\n");
+    WebLog("[Sensor] AHT10 found & initialized.\n");
     ahtFound = true;
   } else {
-    WebLog(" [Sensor] AHT10 not found. Defaulting to virtual readings.\n");
+    WebLog("[Sensor] AHT10 not found. Defaulting to virtual readings.\n");
   }
 
   // BH1750 Init
   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    WebLog(" [Sensor] BH1750 found & initialized (Continuous Mode).\n");
+    WebLog("[Sensor] BH1750 found & initialized (Continuous Mode).\n");
     bh1750Found = true;
   } else {
-    WebLog(" [Sensor] BH1750 not found. Falling back to Manual Brightness.\n");
+    WebLog("[Sensor] BH1750 not found. Falling back to Manual Brightness.\n");
     bh1750Found = false;
   }
 
