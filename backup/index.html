@@ -1671,12 +1671,36 @@
           <div class="mt-6 pt-5 border-t border-slate-800">
             <div class="flex items-center justify-between mb-3">
               <div>
-                <h3
-                  class="text-xs font-bold text-cyan-300 uppercase tracking-wider"
-                >
-                  Zone Playlists
-                </h3>
-                <p class="text-[10px] text-slate-400">
+                <!-- Wrapper for Title + Icon -->
+                <div class="flex items-center gap-2">
+                  <h3
+                    class="text-xs font-bold text-cyan-300 uppercase tracking-wider"
+                  >
+                    Zone Playlists
+                  </h3>
+                  <button
+                    type="button"
+                    onclick="togglePlaylistsList()"
+                    class="text-slate-400 hover:text-cyan-300 transition"
+                    title="Expand/Collapse Playlists"
+                  >
+                    <svg
+                      id="playlists-toggle-icon"
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 15l7-7 7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-0.5">
                   Playlist must be created and turned ON
                 </p>
               </div>
@@ -4453,6 +4477,24 @@
       function toggleScenesList() {
         const container = document.getElementById("scenes-container");
         const icon = document.getElementById("scenes-toggle-icon");
+        container.classList.toggle("hidden");
+
+        if (container.classList.contains("hidden")) {
+          // Down arrow (Collapsed)
+          icon.innerHTML =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />';
+        } else {
+          // Up arrow (Expanded)
+          icon.innerHTML =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />';
+        }
+      }
+
+      function togglePlaylistsList() {
+        const container = document.getElementById("playlists-container");
+        const icon = document.getElementById("playlists-toggle-icon");
+        if (!container || !icon) return;
+
         container.classList.toggle("hidden");
 
         if (container.classList.contains("hidden")) {
