@@ -96,8 +96,10 @@ void WebLog(const String &msg) {
 
   Serial.print(cleanMsg);
 
-  // Only process string and send over network IF a client is actually connected
-  if (wsTerminal.count() > 0) {
+  // --- SAFETY GUARD: Only broadcast if client exists AND free RAM is safe ---
+  // If the TCP queue starts eating heap (< 25 KB free), drop the web broadcast
+  // to prioritize Parola matrix display memory.
+  if (wsTerminal.count() > 0 && ESP.getFreeHeap() > 25000) {
     wsTerminal.textAll(cleanMsg);
   }
 }
@@ -1976,7 +1978,14 @@ void initMDNS() {
 // ASYNC HTTP SERVER ROUTING
 // ==========================================
 void setupWebServer() {
-  // --> NEW: Mount WebSocket handler BEFORE standard routes
+
+  // Clean up disconnected or stalled sockets instantly
+  wsTerminal.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    if (type == WS_EVT_DISCONNECT || type == WS_EVT_ERROR) {
+      server->cleanupClients();
+    }
+  });
+
   server.addHandler(&wsTerminal);
 
   auto handleIndex = [](AsyncWebServerRequest *request) {
@@ -2054,6 +2063,12 @@ void setupWebServer() {
   // SYSTEM HEALTH & TELEMETRY REST ENDPOINT
   // ==========================================
   server.on("/api/system/status", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
+    // --- FIX 1: Protect ESP32 from crashing. If heap gets dangerously low, reject the request. ---
+    if (ESP.getFreeHeap() < 15000) {
+      request->send(503, "text/plain", "Low Memory - Dropping Request");
+      return;
+    }
+
 #if ARDUINOJSON_VERSION_MAJOR >= 7
     JsonDocument doc;
 #else
@@ -2081,7 +2096,11 @@ void setupWebServer() {
 
     String res;
     serializeJson(doc, res);
-    request->send(200, "application/json", res);
+
+    // --- FIX 2: Explicitly set "Connection: close" so the browser doesn't hold TCP sockets open in the background ---
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", res);
+    response->addHeader("Connection", "close");
+    request->send(response);
   });
 
   server.begin();

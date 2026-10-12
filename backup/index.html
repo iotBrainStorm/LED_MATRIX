@@ -5148,8 +5148,40 @@
         });
 
         document.addEventListener("visibilitychange", () => {
-          if (document.hidden && isPlaying) {
-            pauseSimulation();
+          if (document.hidden) {
+            // 1. Pause local matrix canvas simulation
+            if (isPlaying) {
+              pauseSimulation();
+            }
+
+            // 2. Stop Stats polling
+            if (sysTelemetryTimer) {
+              clearInterval(sysTelemetryTimer);
+              sysTelemetryTimer = null;
+              isFetchingStats = false;
+            }
+
+            // --- WEBSOCKET FIX: Cleanly sever the connection when hidden ---
+            if (terminalWs) {
+              terminalWs.close();
+              terminalWs = null;
+              setTerminalDisconnected();
+            }
+          } else {
+            // 1. Resume Stats polling if the modal is currently open
+            const sysModal = document.getElementById("sys-dashboard-modal");
+            if (sysModal && !sysModal.classList.contains("hidden")) {
+              fetchSystemStats();
+              if (!sysTelemetryTimer) {
+                sysTelemetryTimer = setInterval(fetchSystemStats, 1500);
+              }
+            }
+
+            // --- WEBSOCKET FIX: Reconnect if Terminal modal is currently open ---
+            const termModal = document.getElementById("terminal-modal");
+            if (termModal && !termModal.classList.contains("hidden")) {
+              openTerminalModal();
+            }
           }
         });
       }
@@ -5761,8 +5793,19 @@
       async function fetchSystemStats() {
         if (isFetchingStats) return;
         isFetchingStats = true;
+
+        // --- FIX 4: Set a strict 1.2-second timeout to kill hanging requests ---
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+
         try {
-          const res = await fetch("/api/system/status", { cache: "no-store" });
+          const res = await fetch("/api/system/status", {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
           if (!res.ok) return;
           const data = await res.json();
 
@@ -5890,6 +5933,7 @@
           document.getElementById("wifi-arc-2").style.opacity = "1.0";
           document.getElementById("wifi-arc-3").style.opacity = "1.0";
         } finally {
+          clearTimeout(timeoutId);
           isFetchingStats = false; // Always unlock when done
         }
       }
