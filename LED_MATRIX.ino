@@ -81,14 +81,24 @@ const int daylightOffset_sec = 0;
 bool ahtFound = false;
 volatile bool configUpdated = false;
 
-// ==========================================
-// CUSTOM LOGGING FUNCTION (Dual Output)
-// ==========================================
 void WebLog(const String &msg) {
-  Serial.print(msg);
+  String cleanMsg = msg;
+
+  // 1. Remove all leading/trailing blank spaces, \n, and \r
+  cleanMsg.trim();
+
+  // 2. Ignore completely empty strings so we don't print blank lines
+  if (cleanMsg.length() == 0)
+    return;
+
+  // 3. Add exactly ONE standard newline at the end
+  cleanMsg += "\n";
+
+  Serial.print(cleanMsg);
+
   // Only process string and send over network IF a client is actually connected
   if (wsTerminal.count() > 0) {
-    wsTerminal.textAll(msg);
+    wsTerminal.textAll(cleanMsg);
   }
 }
 
@@ -101,6 +111,7 @@ void WebLogf(const char *format, ...) {
   va_copy(copy, arg);
   int len = vsnprintf(temp, sizeof(loc_buf), format, copy);
   va_end(copy);
+
   if (len < 0) {
     va_end(arg);
     return;
@@ -115,10 +126,9 @@ void WebLogf(const char *format, ...) {
   }
   va_end(arg);
 
-  Serial.print(temp);
-  if (wsTerminal.count() > 0) {
-    wsTerminal.textAll(temp);
-  }
+  // 4. Pass the formatted string directly to our new WebLog
+  // so it gets automatically cleaned of spaces/newlines!
+  WebLog(String(temp));
 
   if (temp != loc_buf) {
     free(temp);
