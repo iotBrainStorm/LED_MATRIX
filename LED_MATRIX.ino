@@ -2321,7 +2321,7 @@ void setup() {
     scrollStartupText(ipMsg.c_str());
 
     // 2. Scroll mDNS Address (Right-to-Left)
-    String mdnsMsg = String(mdnsHostname) + ".local";
+    String mdnsMsg = "http://" + String(mdnsHostname) + ".local";
     scrollStartupText(mdnsMsg.c_str());
   }
 
