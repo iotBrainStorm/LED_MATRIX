@@ -10,6 +10,7 @@
 #include <HardwareSerial.h>    // Hardware Serial
 #include <MD_MAX72xx.h>        // LED Matrix MAX72XX hardware driver
 #include <MD_Parola.h>         // LED Matrix Parola library
+#include <Preferences.h>       // To save Online/Offline state permanently
 #include <SPI.h>               // SPI communication for LED matrix
 #include <SPIFFS.h>            // Flash File System
 #include <Ticker.h>
@@ -203,6 +204,15 @@ bool isBuzzerOn = false;
 bool doubleBeeping = false;
 uint8_t beepCount = 0;
 unsigned long lastBeepToggle = 0;
+
+// ==========================================
+// MODE TOGGLE & BOOT BUTTON
+// ==========================================
+#define BOOT_BUTTON_PIN 0 // Default BOOT button on ESP32
+Preferences preferences;
+bool isOfflineMode = false;
+bool bootButtonPressed = false;
+unsigned long bootButtonPressTime = 0;
 
 // ==========================================
 // MUSIC SYNC CONFIGURATION & FFT STATE
@@ -2337,27 +2347,82 @@ void setup() {
   P.setSpriteData(pacman1, W_PMAN1, F_PMAN1, pacman2, W_PMAN2, F_PMAN2);
   P.displayClear();
 
-  if (connectToSavedWiFi()) {
-    initMDNS();
+  pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
 
-    // 1. Scroll IP Address (Right-to-Left)
-    String ipMsg = "IP: " + WiFi.localIP().toString();
-    scrollStartupText(ipMsg.c_str());
+  // <-- NEW: Initialize Preferences and check mode -->
+  preferences.begin("system", false);
+  isOfflineMode = preferences.getBool("offline", false); // Default false = Online Mode
 
-    // 2. Scroll mDNS Address (Right-to-Left)
-    String mdnsMsg = "http://" + String(mdnsHostname) + ".local";
-    scrollStartupText(mdnsMsg.c_str());
+  if (isOfflineMode) {
+    WebLog("\n[SYSTEM] Booting in OFFLINE MODE. Network disabled.\n");
+    scrollStartupText("OFFLINE MODE");
+
+    // Set a fallback time so text templates using {HH}:{mm} don't crash or show 1970
+    struct tm tmFallback = {0};
+    tmFallback.tm_year = 2026 - 1900;
+    tmFallback.tm_mon = 0;
+    tmFallback.tm_mday = 1;
+    tmFallback.tm_hour = 12;
+    time_t tFallback = mktime(&tmFallback);
+    struct timeval tvFallback = {.tv_sec = tFallback, .tv_usec = 0};
+    settimeofday(&tvFallback, nullptr);
+
+  } else {
+    WebLog("\n[SYSTEM] Booting in ONLINE MODE. Starting network...\n");
+    if (connectToSavedWiFi()) {
+      initMDNS();
+
+      // 1. Scroll IP Address (Right-to-Left)
+      String ipMsg = "IP: " + WiFi.localIP().toString();
+      scrollStartupText(ipMsg.c_str());
+
+      // 2. Scroll mDNS Address (Right-to-Left)
+      String mdnsMsg = "http://" + String(mdnsHostname) + ".local";
+      scrollStartupText(mdnsMsg.c_str());
+    }
+
+    initNTP();
+    setupWebServer();
   }
 
-  initNTP();
-  setupWebServer();
-  loadConfiguration();
+  loadConfiguration(); // This runs for both modes!
 }
 
 // ==========================================
 // MAIN LOOP
 // ==========================================
 void loop() {
+  // ==========================================
+  // BOOT BUTTON 10-SEC HOLD TO TOGGLE MODE
+  // ==========================================
+  if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
+    if (!bootButtonPressed) {
+      bootButtonPressed = true;
+      bootButtonPressTime = millis();
+    } else if (millis() - bootButtonPressTime >= 10000) {
+      // 10 seconds held! Toggle the mode
+      isOfflineMode = !isOfflineMode;
+      preferences.putBool("offline", isOfflineMode);
+
+      WebLogf("\n[SYSTEM] Mode Switched to %s. Restarting...\n", isOfflineMode ? "OFFLINE" : "ONLINE");
+
+      // Feedback: Buzzer for 3 seconds
+      digitalWrite(BUZZER_PIN, HIGH);
+      if (!isOfflineMode) {
+        digitalWrite(STATUS_LED_PIN, HIGH); // Glow built-in LED if switching to Online
+      }
+
+      delay(3000); // Wait 3 seconds
+
+      digitalWrite(BUZZER_PIN, LOW);
+      digitalWrite(STATUS_LED_PIN, LOW);
+
+      ESP.restart(); // Reboot into the new mode
+    }
+  } else {
+    bootButtonPressed = false; // Reset timer if button is released early
+  }
+  // ==========================================
   if (sysRestartReq) {
     WebLog("\n[SYSTEM] Restarting device via web request...\n");
 
@@ -2558,7 +2623,9 @@ void loop() {
     }
   }
 
-  // 4. Non-blocking background network supervisor
-  checkWiFiAndStartServer();
+  // 4. Non-blocking background network supervisor (ONLINE ONLY)
+  if (!isOfflineMode) {
+    checkWiFiAndStartServer();
+  }
   handleBuzzer(); // Handle non-blocking buzzer states
 }
