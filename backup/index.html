@@ -1904,18 +1904,83 @@
                 >OFFLINE</span
               >
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+              <!-- Timestamp Toggle Icon (Default OFF) -->
+              <button
+                type="button"
+                id="btn-term-timestamp"
+                onclick="toggleTerminalTimestamp()"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700 transition"
+                title="Toggle Timestamps"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+              </button>
+
+              <!-- Auto-scroll Toggle Icon (Default ON) -->
+              <button
+                type="button"
+                id="btn-term-autoscroll"
+                onclick="toggleTerminalAutoScroll()"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-cyan-900/50 text-cyan-300 border border-cyan-700 hover:text-white hover:bg-cyan-800 transition"
+                title="Toggle Auto-Scroll"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  ></path>
+                </svg>
+              </button>
+
+              <!-- Delete/Clear Icon -->
               <button
                 type="button"
                 onclick="clearTerminal()"
-                class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded border border-slate-700 transition"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700 border border-slate-700 transition"
+                title="Clear Terminal Output"
               >
-                Clear
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  ></path>
+                </svg>
               </button>
+
+              <div class="w-px h-4 bg-slate-700 mx-1"></div>
+
+              <!-- Close Modal -->
               <button
                 type="button"
                 onclick="closeTerminalModal()"
-                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700 transition"
+                title="Close"
               >
                 ✕
               </button>
@@ -5666,6 +5731,34 @@
       const terminalOutput = document.getElementById("terminal-output");
       const termStatusLed = document.getElementById("term-status-led");
       const termStatusText = document.getElementById("term-status-text");
+      let terminalAutoScroll = true;
+      let terminalShowTimestamp = false;
+
+      function toggleTerminalAutoScroll() {
+        terminalAutoScroll = !terminalAutoScroll;
+        const btn = document.getElementById("btn-term-autoscroll");
+        if (terminalAutoScroll) {
+          btn.className =
+            "w-7 h-7 flex items-center justify-center rounded-lg bg-cyan-900/50 text-cyan-300 border border-cyan-700 hover:text-white hover:bg-cyan-800 transition";
+          if (terminalOutput)
+            terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        } else {
+          btn.className =
+            "w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700 transition";
+        }
+      }
+
+      function toggleTerminalTimestamp() {
+        terminalShowTimestamp = !terminalShowTimestamp;
+        const btn = document.getElementById("btn-term-timestamp");
+        if (terminalShowTimestamp) {
+          btn.className =
+            "w-7 h-7 flex items-center justify-center rounded-lg bg-amber-900/50 text-amber-300 border border-amber-700 hover:text-white hover:bg-amber-800 transition";
+        } else {
+          btn.className =
+            "w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700 transition";
+        }
+      }
 
       function openTerminalModal() {
         document.getElementById("terminal-modal").classList.remove("hidden");
@@ -5754,21 +5847,38 @@
       function appendTerminalLog(msg, colorClass = "text-emerald-400") {
         if (!terminalOutput) return;
 
-        // Remove placeholder text if it's there
         const placeholder = terminalOutput.querySelector(
           ".italic.text-slate-500",
         );
         if (placeholder) placeholder.remove();
 
-        const span = document.createElement("span");
-        span.className = colorClass;
-        span.innerText = msg;
-        terminalOutput.appendChild(span);
+        const spanWrapper = document.createElement("span");
 
-        // Auto-scroll to the bottom smoothly
-        terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        // Add timestamp if enabled
+        if (terminalShowTimestamp) {
+          const now = new Date();
+          const tsStr = `[${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}] `;
 
-        // Memory guard: Limit terminal history to ~400 entries to prevent browser lag
+          const tsSpan = document.createElement("span");
+          tsSpan.className = "text-yellow-400";
+          tsSpan.innerText = tsStr;
+          spanWrapper.appendChild(tsSpan);
+        }
+
+        // Add actual message
+        const msgSpan = document.createElement("span");
+        msgSpan.className = colorClass;
+        msgSpan.innerText = msg;
+        spanWrapper.appendChild(msgSpan);
+
+        terminalOutput.appendChild(spanWrapper);
+
+        // Auto-scroll logic based on toggle state
+        if (terminalAutoScroll) {
+          terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        }
+
+        // Memory guard: Limit terminal history to ~400 entries
         while (terminalOutput.childNodes.length > 400) {
           terminalOutput.removeChild(terminalOutput.firstChild);
         }
