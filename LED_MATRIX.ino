@@ -1406,7 +1406,7 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
   else
     snprintf(brightStr, sizeof(brightStr), "%d", sc.brightness);
 
-  WebLogf("[%s] [%s %d-%d] [scene %d '%s'] => %s \"%s\" %s %s %d %d %d %s\n",
+  WebLogf("[%s] [%s %d-%d] [scene %d] ['%s'] => %s \"%s\" %s %s %d %d %d %s\n",
           pName,
           zones[z].name, sc.startCol, sc.endCol,
           listIdx + 1, sc.name,
