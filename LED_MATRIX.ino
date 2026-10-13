@@ -1958,6 +1958,9 @@ bool connectToSavedWiFi() {
     WebLog("\n[SUCCESS] Connected via Portal\n");
     WebLogf("[IP Address] : %s\n", WiFi.localIP().toString().c_str());
     WiFi.setSleep(false);
+    delay(500);
+    ESP.restart();
+
     return true;
   }
 
@@ -2357,17 +2360,34 @@ void setup() {
 void loop() {
   if (sysRestartReq) {
     WebLog("\n[SYSTEM] Restarting device via web request...\n");
-    delay(1000); // Give ESP 1s to deliver the HTTP 200 response to the browser
+
+    // 1 Long Beep (1000ms total) while HTTP response sends
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(1000);
+    digitalWrite(BUZZER_PIN, LOW);
+
     ESP.restart();
   }
+
   if (sysForgetWifiReq) {
     WebLog("\n[SYSTEM] Erasing WiFi credentials & restarting...\n");
     WiFiManager wm;
     wm.resetSettings();          // Erase WiFiManager NVS config
     WiFi.disconnect(true, true); // Erase core ESP32 WiFi credentials
-    delay(1000);
+
+    // 2 Fast Beeps (1000ms total to allow HTTP response)
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(150);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(150);
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(150);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(550);
+
     ESP.restart(); // Will reboot straight into the AP Portal Mode
   }
+
   if (sysFactoryResetReq) {
     WebLog("\n========================================\n");
     WebLog("[SYSTEM] CRITICAL: FACTORY RESET INITIATED\n");
@@ -2386,7 +2406,16 @@ void loop() {
     WiFi.disconnect(true, true);
 
     WebLog("-> Wipe complete. Rebooting to factory defaults...\n");
-    delay(1000);
+
+    // 3 Fast Warning Beeps (1000ms total)
+    for (int i = 0; i < 3; i++) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(100);
+      digitalWrite(BUZZER_PIN, LOW);
+      delay(100);
+    }
+    delay(400);
+
     ESP.restart();
   }
 
