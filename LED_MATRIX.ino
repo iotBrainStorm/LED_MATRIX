@@ -82,6 +82,7 @@ bool ahtFound = false;
 volatile bool configUpdated = false;
 volatile bool sysRestartReq = false;
 volatile bool sysForgetWifiReq = false;
+volatile bool sysFactoryResetReq = false;
 
 void WebLog(const String &msg) {
   String cleanMsg = msg;
@@ -2123,6 +2124,11 @@ void setupWebServer() {
     sysForgetWifiReq = true;
   });
 
+  server.on("/api/system/factory-reset", WebRequestMethod::HTTP_POST, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "{\"status\":\"ok\"}");
+    sysFactoryResetReq = true;
+  });
+
   server.begin();
   WebLog("[HTTP] AsyncWebServer online.\n");
 }
@@ -2361,6 +2367,27 @@ void loop() {
     WiFi.disconnect(true, true); // Erase core ESP32 WiFi credentials
     delay(1000);
     ESP.restart(); // Will reboot straight into the AP Portal Mode
+  }
+  if (sysFactoryResetReq) {
+    WebLog("\n========================================\n");
+    WebLog("[SYSTEM] CRITICAL: FACTORY RESET INITIATED\n");
+    WebLog("========================================\n");
+
+    // 1. Safely delete ONLY the configuration file, leaving HTML/UI intact
+    WebLog("-> Erasing user settings (/config.json)...\n");
+    if (SPIFFS.exists(CONFIG_FILE)) {
+      SPIFFS.remove(CONFIG_FILE);
+    }
+
+    // 2. Erase WiFi credentials
+    WebLog("-> Erasing WiFi configurations...\n");
+    WiFiManager wm;
+    wm.resetSettings();
+    WiFi.disconnect(true, true);
+
+    WebLog("-> Wipe complete. Rebooting to factory defaults...\n");
+    delay(1000);
+    ESP.restart();
   }
 
   // --> NEW: Maintain WebSocket connections cleanly
