@@ -80,6 +80,8 @@ const int daylightOffset_sec = 0;
 
 bool ahtFound = false;
 volatile bool configUpdated = false;
+volatile bool sysRestartReq = false;
+volatile bool sysForgetWifiReq = false;
 
 void WebLog(const String &msg) {
   String cleanMsg = msg;
@@ -2108,6 +2110,19 @@ void setupWebServer() {
     request->send(response);
   });
 
+  // ==========================================
+  // SYSTEM ACTIONS (RESTART & FORGET WIFI)
+  // ==========================================
+  server.on("/api/system/restart", WebRequestMethod::HTTP_POST, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "{\"status\":\"ok\"}");
+    sysRestartReq = true;
+  });
+
+  server.on("/api/system/forget-wifi", WebRequestMethod::HTTP_POST, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", "{\"status\":\"ok\"}");
+    sysForgetWifiReq = true;
+  });
+
   server.begin();
   WebLog("[HTTP] AsyncWebServer online.\n");
 }
@@ -2334,6 +2349,19 @@ void setup() {
 // MAIN LOOP
 // ==========================================
 void loop() {
+  if (sysRestartReq) {
+    WebLog("\n[SYSTEM] Restarting device via web request...\n");
+    delay(1000); // Give ESP 1s to deliver the HTTP 200 response to the browser
+    ESP.restart();
+  }
+  if (sysForgetWifiReq) {
+    WebLog("\n[SYSTEM] Erasing WiFi credentials & restarting...\n");
+    WiFiManager wm;
+    wm.resetSettings();          // Erase WiFiManager NVS config
+    WiFi.disconnect(true, true); // Erase core ESP32 WiFi credentials
+    delay(1000);
+    ESP.restart(); // Will reboot straight into the AP Portal Mode
+  }
 
   // --> NEW: Maintain WebSocket connections cleanly
   wsTerminal.cleanupClients();

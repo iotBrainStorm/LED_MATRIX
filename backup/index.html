@@ -2217,14 +2217,49 @@
             </div>
           </div>
 
-          <!-- Close Action -->
-          <div class="pt-2 flex justify-end">
+          <!-- Device Actions (Forget WiFi & Restart) -->
+          <div
+            class="pt-4 mt-2 flex items-center justify-between border-t border-slate-800/80"
+          >
             <button
               type="button"
-              onclick="closeSysDashboard()"
-              class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+              onclick="confirmForgetWifi()"
+              class="px-3.5 py-1.5 bg-rose-950/40 border border-rose-900/50 hover:bg-rose-900/60 text-rose-400 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
             >
-              Close Dashboard
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
+                />
+              </svg>
+              Forget WiFi
+            </button>
+            <button
+              type="button"
+              onclick="confirmRestart()"
+              class="px-3.5 py-1.5 bg-amber-950/40 border border-amber-900/50 hover:bg-amber-900/60 text-amber-400 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Restart
             </button>
           </div>
         </div>
@@ -2312,6 +2347,73 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Action Confirmation Modal -->
+      <div
+        id="action-confirm-modal"
+        style="margin: 0px !important"
+        class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden"
+      >
+        <div
+          class="glass-panel w-full max-w-sm rounded-2xl p-5 border border-slate-700 shadow-2xl text-center space-y-4"
+        >
+          <div
+            id="confirm-icon-wrap"
+            class="w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-rose-500/20 text-rose-400 mb-2"
+          ></div>
+          <h3
+            id="confirm-title"
+            class="text-lg font-bold text-white tracking-wide"
+          >
+            Are you sure?
+          </h3>
+          <p id="confirm-desc" class="text-xs text-slate-400">
+            This action cannot be undone.
+          </p>
+          <div class="flex gap-3 pt-2">
+            <button
+              type="button"
+              onclick="closeConfirmModal()"
+              class="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+            >
+              No, Cancel
+            </button>
+            <button
+              type="button"
+              id="confirm-yes-btn"
+              class="flex-1 px-4 py-2 text-slate-950 text-xs font-bold rounded-lg transition"
+            >
+              Yes, Proceed
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rebooting Blurred Overlay Modal (30s Timer) -->
+      <div
+        id="rebooting-modal"
+        style="margin: 0px !important"
+        class="fixed inset-0 z-[70] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 hidden"
+      >
+        <div
+          class="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-6"
+        ></div>
+        <h2 class="text-2xl font-bold text-white tracking-widest mb-2">
+          REBOOTING
+        </h2>
+        <p class="text-sm text-cyan-300 font-mono-code mb-6">
+          Reconnecting in
+          <span id="reboot-timer" class="font-bold text-xl text-white">30</span
+          >s...
+        </p>
+        <p
+          id="reboot-subtext"
+          class="text-xs text-slate-400 max-w-xs text-center leading-relaxed"
+        >
+          The device is restarting. The page will automatically refresh once the
+          countdown completes.
+        </p>
       </div>
 
       <!-- Notification Toast Box -->
@@ -6061,6 +6163,102 @@
           clearTimeout(timeoutId);
           isFetchingStats = false; // Always unlock when done
         }
+      }
+
+      // ==========================================
+      // DEVICE ACTIONS (RESTART & FORGET WIFI)
+      // ==========================================
+      let confirmActionCallback = null;
+
+      function showConfirmModal(
+        title,
+        desc,
+        btnText,
+        btnClass,
+        iconHtml,
+        callback,
+      ) {
+        document.getElementById("confirm-title").innerText = title;
+        document.getElementById("confirm-desc").innerText = desc;
+        const yesBtn = document.getElementById("confirm-yes-btn");
+        yesBtn.innerText = btnText;
+        yesBtn.className = `flex-1 px-4 py-2 text-slate-950 text-xs font-bold rounded-lg transition ${btnClass}`;
+        document.getElementById("confirm-icon-wrap").innerHTML = iconHtml;
+
+        confirmActionCallback = callback;
+        document
+          .getElementById("action-confirm-modal")
+          .classList.remove("hidden");
+      }
+
+      function closeConfirmModal() {
+        document.getElementById("action-confirm-modal").classList.add("hidden");
+        confirmActionCallback = null;
+      }
+
+      document
+        .getElementById("confirm-yes-btn")
+        .addEventListener("click", () => {
+          if (confirmActionCallback) confirmActionCallback();
+          closeConfirmModal();
+        });
+
+      function confirmRestart() {
+        showConfirmModal(
+          "Restart Device?",
+          "This will reboot the ESP32. The display will pause momentarily.",
+          "Yes, Restart",
+          "bg-amber-500 hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)]",
+          `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>`,
+          () =>
+            executeSystemAction(
+              "/api/system/restart",
+              "The device is restarting. The page will automatically refresh once the countdown completes.",
+            ),
+        );
+      }
+
+      function confirmForgetWifi() {
+        showConfirmModal(
+          "Forget Saved WiFi?",
+          "CRITICAL: This will permanently erase the saved WiFi credentials. The device will reboot into Access Point (AP) mode. You will be disconnected and must manually connect to the 'LED STUDIO' Wi-Fi network to reconfigure.",
+          "Yes, Forget & Reboot",
+          "bg-rose-500 hover:bg-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)]",
+          `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" /></svg>`,
+          () =>
+            executeSystemAction(
+              "/api/system/forget-wifi",
+              "Device is erasing WiFi details and rebooting. Please connect to the 'LED STUDIO' WiFi hotspot to set up the connection again.",
+            ),
+        );
+      }
+
+      function executeSystemAction(endpoint, subtextMsg) {
+        // Issue the request asynchronously and immediately start the timer UI
+        fetch(endpoint, { method: "POST" }).catch((e) =>
+          console.log("Reboot sequence initiated."),
+        );
+        startRebootTimer(subtextMsg);
+      }
+
+      function startRebootTimer(subtextMsg) {
+        closeSysDashboard();
+        const rebootModal = document.getElementById("rebooting-modal");
+        rebootModal.classList.remove("hidden");
+        document.getElementById("reboot-subtext").innerText = subtextMsg;
+        document.body.classList.add("overflow-hidden");
+
+        let timer = 30;
+        const timerEl = document.getElementById("reboot-timer");
+
+        const interval = setInterval(() => {
+          timer--;
+          timerEl.innerText = timer;
+          if (timer <= 0) {
+            clearInterval(interval);
+            window.location.reload(true);
+          }
+        }, 1000);
       }
     </script>
   </body>
