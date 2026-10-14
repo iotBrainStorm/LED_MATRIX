@@ -2010,10 +2010,10 @@ void initMDNS() {
 // ==========================================
 void setupWebServer() {
 
-  // Clean up disconnected or stalled sockets instantly
+  // Clean up old ghost sockets when a new terminal tab connects (max 2 active tabs)
   wsTerminal.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_DISCONNECT || type == WS_EVT_ERROR) {
-      server->cleanupClients();
+    if (type == WS_EVT_CONNECT) {
+      server->cleanupClients(2);
     }
   });
 
@@ -2180,6 +2180,7 @@ void checkWiFiAndStartServer() {
   bool isConnected = (WiFi.status() == WL_CONNECTED);
 
   if (isConnected && !wasConnected) {
+    WiFi.setSleep(false);
     WebLog("\n [WiFi] Reconnected!\n");
     WebLogf("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
     initMDNS();
@@ -2189,6 +2190,7 @@ void checkWiFiAndStartServer() {
   if (!isConnected && wasConnected) {
     WebLog("\n[WiFi] Disconnected! Background reconnect active.\n");
     wasConnected = false;
+    lastReconnectAttempt = millis(); // Start 15s grace timer before forcing hard reset
   }
 
   if (!isConnected) {
@@ -2506,8 +2508,12 @@ void loop() {
     ESP.restart();
   }
 
-  // --> NEW: Maintain WebSocket connections cleanly
-  wsTerminal.cleanupClients();
+  // Maintain WebSocket connections cleanly (every 2s, max 2 clients)
+  static unsigned long lastWsCleanup = 0;
+  if (millis() - lastWsCleanup >= 2000) {
+    lastWsCleanup = millis();
+    wsTerminal.cleanupClients(2);
+  }
 
   // 1. Asynchronous BH1750 Polling (Non-Blocking)
   if (bh1750Found && (millis() - lastLightCheck >= LIGHT_POLL_INTERVAL)) {

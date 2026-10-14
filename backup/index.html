@@ -5363,6 +5363,9 @@
 
             // --- WEBSOCKET FIX: Cleanly sever the connection when hidden ---
             if (terminalWs) {
+              terminalWs.onclose = null;
+              terminalWs.onerror = null;
+              terminalWs.onmessage = null;
               terminalWs.close();
               terminalWs = null;
               setTerminalDisconnected();
@@ -5964,6 +5967,9 @@
 
         // STRICT REQUIREMENT: Kill connection entirely when modal closes
         if (terminalWs) {
+          terminalWs.onclose = null;
+          terminalWs.onerror = null;
+          terminalWs.onmessage = null;
           terminalWs.close();
           terminalWs = null;
         }
@@ -6053,7 +6059,7 @@
 
         // --- FIX 4: Set a strict 1.2-second timeout to kill hanging requests ---
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
 
         try {
           const res = await fetch("/api/system/status", {
@@ -6189,6 +6195,9 @@
           document.getElementById("wifi-arc-1").style.opacity = "1.0";
           document.getElementById("wifi-arc-2").style.opacity = "1.0";
           document.getElementById("wifi-arc-3").style.opacity = "1.0";
+
+          // Cooldown on error/timeout so setInterval doesn't flood ESP32 sockets
+          await new Promise((r) => setTimeout(r, 2500));
         } finally {
           clearTimeout(timeoutId);
           isFetchingStats = false; // Always unlock when done
