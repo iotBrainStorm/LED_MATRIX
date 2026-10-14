@@ -2425,13 +2425,16 @@ void loop() {
 
       WebLogf("\n[SYSTEM] Mode Switched to %s. Restarting...\n", isOfflineMode ? "OFFLINE" : "ONLINE");
 
-      // Feedback: Buzzer for 3 seconds
-      digitalWrite(BUZZER_PIN, HIGH);
-      if (!isOfflineMode) {
-        digitalWrite(STATUS_LED_PIN, HIGH); // Glow built-in LED if switching to Online
-      }
+      // 1. Stop any background LED blink timer so it cannot turn off the LED during delay(3000)
+      stopStatusBlink();
 
-      delay(3000); // Wait 3 seconds
+      // 2. Feedback for 3 seconds:
+      // Online -> Offline (isOfflineMode == true)  : Only Buzzer HIGH, LED LOW
+      // Offline -> Online (isOfflineMode == false) : Both Buzzer HIGH and LED HIGH
+      digitalWrite(BUZZER_PIN, HIGH);
+      digitalWrite(STATUS_LED_PIN, isOfflineMode ? LOW : HIGH);
+
+      delay(3000); // Hold both for the exact same 3 seconds
 
       digitalWrite(BUZZER_PIN, LOW);
       digitalWrite(STATUS_LED_PIN, LOW);
