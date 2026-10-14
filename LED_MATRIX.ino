@@ -1557,13 +1557,23 @@ void loadConfiguration() {
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file) {
     WebLog("[Config] Failed to open /config.json\n");
-    // Failsafe allocation if file is totally missing
     if (!scenes)
       scenes = new SceneConfig[MAX_SCENES];
     if (!zones)
       zones = new ZoneConfig[MAX_ZONES];
     return;
   }
+
+  // --- CRITICAL FIX 1: Stop animations & clear dangling pointers BEFORE deleting arrays ---
+  P.displayClear();
+  for (uint8_t z = 0; z < MAX_ZONES; z++) {
+    P.displayZoneText(z, "", PA_CENTER, 0, 0, PA_PRINT, PA_NO_EFFECT);
+  }
+
+  // --- CRITICAL FIX 2: Reset zone counts so loop() doesn't process garbage if JSON fails ---
+  activeZoneCount = 0;
+  totalScenes = 0;
+  isMusicSyncActive = false;
 
   // 1. FREE THE OLD ARRAYS TEMPORARILY TO GUARANTEE MAX HEAP SPACE FOR JSON PARSER!
   if (scenes) {
@@ -1579,7 +1589,7 @@ void loadConfiguration() {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(100000); // Bumped to 100 KB to comfortably handle 100 scenes full of long quotes
+  DynamicJsonDocument doc(100000); // Bumped to 100 KB
 #endif
 
   DeserializationError err = deserializeJson(doc, file);
@@ -2063,17 +2073,26 @@ void setupWebServer() {
       },
       nullptr,
       [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-        static File uploadFile;
+        // Retrieve the isolated file pointer for this specific connection
+        File *uploadFile = (File *)request->_tempObject;
+
         if (index == 0) {
           if (SPIFFS.exists(CONFIG_FILE))
             SPIFFS.remove(CONFIG_FILE);
-          uploadFile = SPIFFS.open(CONFIG_FILE, "w");
+          // Allocate a new File object securely in the heap
+          uploadFile = new File(SPIFFS.open(CONFIG_FILE, "w"));
+          request->_tempObject = (void *)uploadFile;
         }
-        if (uploadFile)
-          uploadFile.write(data, len);
+
+        if (uploadFile && *uploadFile) {
+          uploadFile->write(data, len);
+        }
+
         if (index + len >= total) {
           if (uploadFile) {
-            uploadFile.close();
+            uploadFile->close();
+            delete uploadFile; // Free the allocated File object
+            request->_tempObject = nullptr;
             WebLogf("\n[SPIFFS] Streamed %u bytes to %s\n", total, CONFIG_FILE);
           }
           configUpdated = true;
