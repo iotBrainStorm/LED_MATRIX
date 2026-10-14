@@ -3276,7 +3276,6 @@
         const startY = 6 + dotGap;
         const spriteOffset = ledSpriteRadius;
 
-        // === NEW FIX: Pre-calculate brightness per column ONCE per frame ===
         const targetZoneName = document.getElementById("target-zone")?.value;
         const bInp = document.getElementById("brightness");
         const targetBrightness = bInp ? parseInt(bInp.value) : 12;
@@ -3289,33 +3288,32 @@
             targetBrightness,
           );
         }
-        // ===================================================================
 
-        for (let r = 0; r < matrixHeight; r++) {
-          const rowBuf = buffer[r];
-          if (!rowBuf) continue;
-          const y = startY + r * pitch + dotRadius;
+        // --- OPTIMIZATION 1: Loop Columns FIRST ---
+        // This ensures the expensive globalAlpha state changes only once per column, not per pixel!
+        for (let c = 0; c < matrixWidth; c++) {
+          const isColumnInActiveZone = activeZone
+            ? c >= activeZone.start && c <= activeZone.end
+            : true;
 
-          for (let c = 0; c < matrixWidth; c++) {
-            if (rowBuf[c]) {
-              const x = startX + c * pitch + dotRadius;
-              const isColumnInActiveZone = activeZone
-                ? c >= activeZone.start && c <= activeZone.end
-                : true;
+          const colBrightness = colBrightnesses[c];
+          const colAlpha = getBrightnessAlpha(colBrightness);
+          const currentAlpha = isColumnInActiveZone
+            ? alphaMultiplier * colAlpha
+            : colAlpha;
 
-              // Use the cached value here!
-              const colBrightness = colBrightnesses[c];
-              const colAlpha = getBrightnessAlpha(colBrightness);
-              const currentAlpha = isColumnInActiveZone
-                ? alphaMultiplier * colAlpha
-                : colAlpha;
+          ctx.globalAlpha = currentAlpha;
 
-              ctx.globalAlpha = currentAlpha;
-              ctx.drawImage(
-                ledSpriteCanvas,
-                x - spriteOffset,
-                y - spriteOffset,
-              );
+          const x = startX + c * pitch + dotRadius;
+          const drawX = Math.round(x - spriteOffset); // OPTIMIZATION 2: Force integer coordinates
+
+          for (let r = 0; r < matrixHeight; r++) {
+            const rowBuf = buffer[r];
+            if (rowBuf && rowBuf[c]) {
+              const y = startY + r * pitch + dotRadius;
+              const drawY = Math.round(y - spriteOffset); // OPTIMIZATION 2: Force integer coordinates
+
+              ctx.drawImage(ledSpriteCanvas, drawX, drawY);
             }
           }
         }
@@ -4067,7 +4065,7 @@
         };
       }
 
-      function advanceAnimationFrame(isStep = false) {
+      function advanceAnimationFrame(isStep = false, doDraw = true) {
         if (!currentAnimParams) setupAnimationParameters();
         const p = currentAnimParams;
 
@@ -4206,7 +4204,15 @@
         if (zoneLabelEl && zoneLabelEl.textContent !== currentZoneLabel) {
           zoneLabelEl.textContent = currentZoneLabel;
         }
-        drawMatrixFrame(renderResult.buffer, renderResult.alpha, p.activeZone);
+
+        // --- OPTIMIZATION 3: Only draw when explicitly requested ---
+        if (doDraw) {
+          drawMatrixFrame(
+            renderResult.buffer,
+            renderResult.alpha,
+            p.activeZone,
+          );
+        }
       }
 
       function renderStaticPreview() {
@@ -4265,9 +4271,13 @@
 
         const speed = currentAnimParams ? currentAnimParams.speed : 35;
 
+        // Process all pending logic frames
         while (timeAccumulator >= speed) {
-          advanceAnimationFrame(false);
           timeAccumulator -= speed;
+
+          // Only physically draw the canvas on the LAST logic tick of this frame cycle
+          const isLastTick = timeAccumulator < speed;
+          advanceAnimationFrame(false, isLastTick);
 
           frameCount++;
           const now = performance.now();
