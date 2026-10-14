@@ -53,7 +53,7 @@ unsigned long lastLightCheck = 0 - 2000;
 const unsigned long LIGHT_POLL_INTERVAL = 2000; // 2 seconds
 int currentAutoLuxBrightness = 7;               // Mapped brightness (0-15)
 
-// INMP441 I2S MEMS Microphone Pins
+// INMP441 I2S MEMS Microphone Pins. L/R pin should be connected with GND for left chanel only
 #define I2S_SCK 14
 #define I2S_WS 15
 #define I2S_SD 32
