@@ -87,23 +87,18 @@ volatile bool sysFactoryResetReq = false;
 
 void WebLog(const String &msg) {
   String cleanMsg = msg;
-
-  // 1. Remove all leading/trailing blank spaces, \n, and \r
   cleanMsg.trim();
-
-  // 2. Ignore completely empty strings so we don't print blank lines
   if (cleanMsg.length() == 0)
     return;
 
-  // 3. Add exactly ONE standard newline at the end
   cleanMsg += "\n";
-
   Serial.print(cleanMsg);
 
-  // --- SAFETY GUARD: Only broadcast if client exists AND free RAM is safe ---
-  // If the TCP queue starts eating heap (< 25 KB free), drop the web broadcast
-  // to prioritize Parola matrix display memory.
-  if (wsTerminal.count() > 0 && ESP.getFreeHeap() > 25000) {
+  // SAFETY GUARD: Check Free Heap, Max Contiguous Block, AND WebSocket Queue space!
+  if (wsTerminal.count() > 0 &&
+      ESP.getFreeHeap() > 25000 &&
+      ESP.getMaxAllocHeap() > 15000 &&
+      wsTerminal.availableForWriteAll()) {
     wsTerminal.textAll(cleanMsg);
   }
 }
@@ -144,48 +139,51 @@ void WebLogf(const char *format, ...) {
 // ==========================================
 // STATUS LED TICKER (NON-BLOCKING)
 // ==========================================
-#define STATUS_LED_PIN 2 // Built-in blue LED on most ESP32 boards
+#define STATUS_LED_PIN 2
 
 Ticker blinkTicker;
 volatile int blinkCounter = 0;
 volatile bool currentLedState = false;
+volatile bool detachBlinkReq = false;
 
-// Hardware Timer Interrupt Function
-void ledToggleISR() {
+void IRAM_ATTR ledToggleISR() {
+  if (blinkCounter == 0) {
+    return; // Waiting for loop() to detach safely
+  }
+
   currentLedState = !currentLedState;
   digitalWrite(STATUS_LED_PIN, currentLedState);
 
   if (blinkCounter > 0) {
     blinkCounter--;
     if (blinkCounter == 0) {
-      blinkTicker.detach();
       currentLedState = false;
       digitalWrite(STATUS_LED_PIN, LOW);
+      detachBlinkReq = true; // Signal loop() to detach
     }
   }
 }
 
-// Helper to trigger blinking
-// blinks = number of times to blink (-1 for infinite)
-// intervalSec = speed of blink (e.g., 0.1 for fast, 0.5 for slow)
 void triggerStatusBlink(int blinks, float intervalSec) {
-  blinkTicker.detach(); // Stop any existing blink
+  blinkTicker.detach();
+  detachBlinkReq = false;
   if (blinks > 0) {
-    blinkCounter = blinks * 2; // *2 because one blink = 1 ON + 1 OFF
+    blinkCounter = blinks * 2;
   } else {
-    blinkCounter = -1; // Infinite loop
+    blinkCounter = -1;
   }
 
   currentLedState = true;
   digitalWrite(STATUS_LED_PIN, HIGH);
   if (blinkCounter > 0)
-    blinkCounter--; // Account for first turn on
+    blinkCounter--;
 
   blinkTicker.attach(intervalSec, ledToggleISR);
 }
 
 void stopStatusBlink() {
   blinkTicker.detach();
+  detachBlinkReq = false;
   currentLedState = false;
   digitalWrite(STATUS_LED_PIN, LOW);
   blinkCounter = 0;
@@ -736,7 +734,10 @@ String processTemplate(const String &tmpl) {
     lastSensorPoll = millis();
   }
 
-  String out = tmpl;
+  // FIX: Pre-reserve 350 bytes so the 26 .replace() calls below never fragment the heap
+  String out;
+  out.reserve(350);
+  out = tmpl;
 
   // Silently remove the {HBEEP} tag so it doesn't show on the matrix
   out.replace("{HBEEP}", "");
@@ -783,9 +784,12 @@ String processTemplate(const String &tmpl) {
   out.replace("{WWW}", "%a");
 
   char formatted[350];
-  String res = out;
+  String res;
+  res.reserve(350); // FIX: Pre-reserve buffer for final formatted string
   if (strftime(formatted, sizeof(formatted), out.c_str(), &t) > 0) {
-    res = String(formatted);
+    res = formatted;
+  } else {
+    res = out;
   }
 
   // Convert 2-byte UTF-8 degree symbol and {DEG} tag to font char 127
@@ -1445,6 +1449,14 @@ void startZoneScene(uint8_t z, uint8_t listIdx) {
   }
 }
 
+uint32_t cachedSpiffsTotal = 0;
+uint32_t cachedSpiffsUsed = 0;
+
+void updateSpiffsStatsCache() {
+  cachedSpiffsTotal = SPIFFS.totalBytes();
+  cachedSpiffsUsed = SPIFFS.usedBytes();
+}
+
 void saveDefaultConfiguration() {
   File file = SPIFFS.open(CONFIG_FILE, "w");
   if (!file) {
@@ -1558,6 +1570,7 @@ void loadConfiguration() {
     WebLog("[Config] No saved config found in flash. Generating defaults...\n");
     saveDefaultConfiguration();
   }
+  updateSpiffsStatsCache();
 
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file) {
@@ -1764,6 +1777,9 @@ void loadConfiguration() {
 
     const char *mContent = sc["message"]["content"] | "ESP";
     curScene.rawMessage = mContent;
+    if (curScene.isCustom) {
+      curScene.activeMessage.reserve(curScene.rawMessage.length() + 32);
+    }
 
     curScene.isBold = sc["message"]["bold"] | false;
     curScene.align = parseAlign(sc["message"]["align"] | "center");
@@ -1927,13 +1943,12 @@ void loadConfiguration() {
 // ==========================================
 // NON-BLOCKING NTP TIME INITIALIZATION
 // ==========================================
+volatile bool ntpSyncPendingLog = false;
+volatile time_t lastNtpSyncTime = 0;
+
 void timeSyncCallback(struct timeval *tv) {
-  time_t now = tv->tv_sec;
-  struct tm timeinfo;
-  localtime_r(&now, &timeinfo);
-  char buf[32];
-  strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S", &timeinfo);
-  WebLogf("\n [NTP Callback] Synchronized successfully: %s\n\n", buf);
+  lastNtpSyncTime = tv->tv_sec;
+  ntpSyncPendingLog = true; // Hand off logging safely to loop() on Core 1
 }
 
 void initNTP() {
@@ -2142,9 +2157,9 @@ void setupWebServer() {
     doc["ram_total"] = totalRam;
     doc["ram_used"] = totalRam - freeRam;
 
-    // 3. SPIFFS Storage in Bytes
-    doc["spiffs_total"] = SPIFFS.totalBytes();
-    doc["spiffs_used"] = SPIFFS.usedBytes();
+    // 3. SPIFFS Storage in Bytes (Served instantly from RAM cache)
+    doc["spiffs_total"] = cachedSpiffsTotal;
+    doc["spiffs_used"] = cachedSpiffsUsed;
 
     // 4. WiFi Link Quality
     bool wifiConnected = (WiFi.status() == WL_CONNECTED);
@@ -2469,6 +2484,12 @@ void loop() {
   } else {
     bootButtonPressed = false; // Reset timer if button is released early
   }
+
+  if (detachBlinkReq) {
+    detachBlinkReq = false;
+    blinkTicker.detach();
+  }
+
   // ==========================================
   if (sysRestartReq) {
     WebLog("\n[SYSTEM] Restarting device via web request...\n");
@@ -2543,46 +2564,51 @@ void loop() {
     lastLightCheck = millis();
     float lux = lightMeter.readLightLevel();
 
-    // BUG FIX: Ignore negative values! I2S interrupts occasionally cause the I2C
-    // bus to glitch. Previously, a glitch (-1.0) evaluated as "lux < 2.0" and
-    // instantly forced the brightness to 0.
-    if (lux >= 0.0f) {
-      // Map Lux (0-65535) to Brightness (0-15)
-      if (lux < 2.0)
-        currentAutoLuxBrightness = 0;
-      else if (lux < 5.0)
-        currentAutoLuxBrightness = 1;
-      else if (lux < 10.0)
-        currentAutoLuxBrightness = 2;
-      else if (lux < 20.0)
-        currentAutoLuxBrightness = 3;
-      else if (lux < 35.0)
-        currentAutoLuxBrightness = 4;
-      else if (lux < 55.0)
-        currentAutoLuxBrightness = 5;
-      else if (lux < 80.0)
-        currentAutoLuxBrightness = 6;
-      else if (lux < 120.0)
-        currentAutoLuxBrightness = 7;
-      else if (lux < 170.0)
-        currentAutoLuxBrightness = 8;
-      else if (lux < 230.0)
-        currentAutoLuxBrightness = 9;
-      else if (lux < 300.0)
-        currentAutoLuxBrightness = 10;
-      else if (lux < 400.0)
-        currentAutoLuxBrightness = 11;
-      else if (lux < 520.0)
-        currentAutoLuxBrightness = 12;
-      else if (lux < 660.0)
-        currentAutoLuxBrightness = 13;
-      else if (lux < 850.0)
-        currentAutoLuxBrightness = 14;
-      else
-        currentAutoLuxBrightness = 15;
+    if (lux < 0.0f) {
+      // I2C bus glitched! Reset I2C peripheral to unstick SDA/SCL
+      Wire.end();
+      Wire.begin(21, 22);
+      Wire.setTimeOut(150);
+      lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
+    } else {
+      if (lux >= 0.0f) {
+        // Map Lux (0-65535) to Brightness (0-15)
+        if (lux < 2.0)
+          currentAutoLuxBrightness = 0;
+        else if (lux < 5.0)
+          currentAutoLuxBrightness = 1;
+        else if (lux < 10.0)
+          currentAutoLuxBrightness = 2;
+        else if (lux < 20.0)
+          currentAutoLuxBrightness = 3;
+        else if (lux < 35.0)
+          currentAutoLuxBrightness = 4;
+        else if (lux < 55.0)
+          currentAutoLuxBrightness = 5;
+        else if (lux < 80.0)
+          currentAutoLuxBrightness = 6;
+        else if (lux < 120.0)
+          currentAutoLuxBrightness = 7;
+        else if (lux < 170.0)
+          currentAutoLuxBrightness = 8;
+        else if (lux < 230.0)
+          currentAutoLuxBrightness = 9;
+        else if (lux < 300.0)
+          currentAutoLuxBrightness = 10;
+        else if (lux < 400.0)
+          currentAutoLuxBrightness = 11;
+        else if (lux < 520.0)
+          currentAutoLuxBrightness = 12;
+        else if (lux < 660.0)
+          currentAutoLuxBrightness = 13;
+        else if (lux < 850.0)
+          currentAutoLuxBrightness = 14;
+        else
+          currentAutoLuxBrightness = 15;
 
-      // Apply the new reading safely to whatever mode is running
-      updateDisplayBrightness();
+        // Apply the new reading safely to whatever mode is running
+        updateDisplayBrightness();
+      }
     }
   }
 
@@ -2675,6 +2701,15 @@ void loop() {
 
   // 4. Non-blocking background network supervisor (ONLINE ONLY)
   if (!isOfflineMode) {
+    if (ntpSyncPendingLog) {
+      ntpSyncPendingLog = false;
+      time_t now = lastNtpSyncTime;
+      struct tm timeinfo;
+      localtime_r(&now, &timeinfo);
+      char buf[32];
+      strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S", &timeinfo);
+      WebLogf("\n [NTP Callback] Synchronized successfully: %s\n\n", buf);
+    }
     checkWiFiAndStartServer();
   }
   handleBuzzer(); // Handle non-blocking buzzer states

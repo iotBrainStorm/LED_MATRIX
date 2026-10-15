@@ -5941,8 +5941,10 @@
         document.body.classList.add("overflow-hidden");
 
         if (!terminalWs || terminalWs.readyState === WebSocket.CLOSED) {
-          terminalOutput.innerHTML =
-            '<div class="text-slate-500 italic">Connecting to ESP32 WebSocket Interface...</div>';
+          if (!terminalOutput.querySelector("span")) {
+            terminalOutput.innerHTML =
+              '<div class="text-slate-500 italic">Connecting to ESP32 WebSocket Interface...</div>';
+          }
 
           // Initialize WebSocket connection strictly only when modal opens
           const wsUrl = `ws://${window.location.host}/ws/terminal`;
@@ -5957,7 +5959,7 @@
               termStatusText.className =
                 "text-[10px] font-mono-code px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
               appendTerminalLog(
-                "--- CONNECTION ESTABLISHED ---\n\n",
+                "--- CONNECTION ESTABLISHED ---\n",
                 "text-cyan-400 font-bold",
               );
             };
@@ -5969,22 +5971,33 @@
             terminalWs.onclose = () => {
               setTerminalDisconnected();
               appendTerminalLog(
-                "\n--- CONNECTION CLOSED ---\n",
+                "--- CONNECTION LOST (Reconnecting in 3s...) ---\n",
                 "text-rose-400 font-bold",
               );
+              const termModal = document.getElementById("terminal-modal");
+              if (termModal && !termModal.classList.contains("hidden")) {
+                setTimeout(() => {
+                  if (
+                    !termModal.classList.contains("hidden") &&
+                    (!terminalWs || terminalWs.readyState === WebSocket.CLOSED)
+                  ) {
+                    openTerminalModal();
+                  }
+                }, 3000);
+              }
             };
 
             terminalWs.onerror = (error) => {
               setTerminalDisconnected();
               appendTerminalLog(
-                "\n[ERROR] WebSocket failed. Is the device offline?\n",
+                "[ERROR] WebSocket failed. Is the device offline?\n",
                 "text-rose-400 font-bold",
               );
             };
           } catch (e) {
             setTerminalDisconnected();
             appendTerminalLog(
-              "\n[ERROR] Failed to initialize WebSocket.\n",
+              "[ERROR] Failed to initialize WebSocket.\n",
               "text-rose-400 font-bold",
             );
           }
@@ -6029,7 +6042,9 @@
         const placeholder = terminalOutput.querySelector(
           ".italic.text-slate-500",
         );
-        if (placeholder) placeholder.remove();
+        if (placeholder) {
+          terminalOutput.innerHTML = "";
+        }
 
         const spanWrapper = document.createElement("span");
 
