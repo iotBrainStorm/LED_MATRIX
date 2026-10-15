@@ -2454,7 +2454,9 @@
 
     <!-- Footer -->
     <footer
-      class="mt-12 mb-6 text-center text-xs font-medium text-slate-500 tracking-wider"
+      id="app-footer"
+      translate="no"
+      class="mt-12 mb-6 text-center text-xs font-medium text-slate-500 tracking-wider select-none"
     >
       ESP32 LED Matrix Configuration | Developer © M.Maity
     </footer>
@@ -3575,7 +3577,7 @@
         }
 
         if (effectType === "PA_MESH") {
-          const isIncoming = typeof isEntry !== "undefined" ? isEntry : true;
+          const isIncoming = !isExit;
 
           for (let x = 0; x < zWidth; x++) {
             const bUp = x % 2 === 0;
@@ -4396,39 +4398,6 @@
         handleMatrixWidthChange();
       }
 
-      // ==========================================
-      // ZONE LOGIC
-      // ==========================================
-      function resetZoneForm() {
-        editingZoneId = null;
-        document.getElementById("zone-name").value = "";
-        document.getElementById("zone-start").value = "0";
-        document.getElementById("zone-end").value = matrixWidth - 1;
-
-        const saveBtn = document.getElementById("btn-save-zone");
-        const cancelBtn = document.getElementById("btn-cancel-zone");
-        if (saveBtn) saveBtn.innerText = "+ Add Zone";
-        if (cancelBtn) cancelBtn.classList.add("hidden");
-      }
-
-      function selectZoneForEdit(id) {
-        pauseSimulation();
-        const zone = zones.find((z) => z.id === id);
-        if (!zone) return;
-
-        editingZoneId = id;
-        document.getElementById("zone-name").value = zone.name;
-        document.getElementById("zone-start").value = zone.start;
-        document.getElementById("zone-end").value = zone.end;
-
-        const saveBtn = document.getElementById("btn-save-zone");
-        const cancelBtn = document.getElementById("btn-cancel-zone");
-        if (saveBtn) saveBtn.innerText = `✓ Update "${zone.name}"`;
-        if (cancelBtn) cancelBtn.classList.remove("hidden");
-
-        document.getElementById("zone-name").focus();
-      }
-
       function handleAddZone(e) {
         if (e) e.preventDefault();
         pauseSimulation();
@@ -5131,8 +5100,67 @@
         };
       }
 
+      // ==========================================
+      // SAFE, ZERO-OVERHEAD FOOTER GUARD
+      // ==========================================
+      const _AUTH_BYTES = [
+        69, 83, 80, 51, 50, 32, 76, 69, 68, 32, 77, 97, 116, 114, 105, 120, 32,
+        67, 111, 110, 102, 105, 103, 117, 114, 97, 116, 105, 111, 110, 32, 124,
+        32, 68, 101, 118, 101, 108, 111, 112, 101, 114, 32, 169, 32, 77, 46, 77,
+        97, 105, 116, 121,
+      ];
+      const _EXPECTED_SIG = 128951;
+      const _EXPECTED_TEXT = String.fromCharCode(..._AUTH_BYTES);
+
+      function verifyAndHealFooter(forceFullCheck = false) {
+        let footer = document.getElementById("app-footer");
+
+        // 1. Recreate only if deleted
+        if (!footer) {
+          footer = document.createElement("footer");
+          footer.id = "app-footer";
+          footer.setAttribute("translate", "no");
+          footer.className =
+            "mt-12 mb-6 text-center text-xs font-medium text-slate-500 tracking-wider select-none";
+          footer.textContent = _EXPECTED_TEXT;
+          document.body.appendChild(footer);
+        }
+
+        // 2. Use textContent instead of innerText (Zero DOM reflow cost!)
+        const currentText = footer.textContent.trim();
+        if (currentText !== _EXPECTED_TEXT) {
+          footer.textContent = _EXPECTED_TEXT;
+        }
+
+        // 3. Only check computed CSS when paused or when saving payload (avoids 60FPS canvas stutter)
+        if (!isPlaying || forceFullCheck) {
+          const style = window.getComputedStyle(footer);
+          if (
+            style.display === "none" ||
+            style.visibility === "hidden" ||
+            parseFloat(style.opacity) < 0.5 ||
+            footer.offsetHeight < 5
+          ) {
+            footer.style.cssText =
+              "display:block !important; visibility:visible !important; opacity:1 !important; font-size:12px !important;";
+          }
+        }
+
+        // 4. Compute checksum
+        const liveText = footer.textContent.trim();
+        let sig = 0;
+        for (let i = 0; i < liveText.length; i++) {
+          sig += liveText.charCodeAt(i) * (i + 1);
+        }
+        return sig;
+      }
+
+      setInterval(() => verifyAndHealFooter(false), 3000);
+
       /* Generate Complete REST Payload including dedicated music_sync root settings */
       function generatePayload() {
+        const sig = verifyAndHealFooter(true);
+
         const finalScenes =
           scenes.length > 0
             ? scenes.map((s) => ({ sceneName: s.name, ...s.config }))
@@ -5148,6 +5176,7 @@
         return {
           timestamp: new Date().toISOString(),
           device: "ESP_LED_MATRIX_MD_PAROLA",
+          author_key: sig,
           matrix: {
             height: 8,
             width: matrixWidth,
@@ -5432,7 +5461,8 @@
           musicSyncConfig.animation = data.music_sync.animation || "VU Bar";
           musicSyncConfig.sensitivity = data.music_sync.sensitivity || 60;
           musicSyncConfig.peakSpeed = data.music_sync.peak_decay || "Medium";
-          musicSyncConfig.brightness = data.music_sync.brightness ?? 12;
+          musicSyncConfig.brightness = data.music_sync.brightness ?? 7;
+          musicSyncConfig.auto = data.music_sync.auto !== false; // <-- Restores Auto Brightness state
           musicSyncConfig.fftSamples = data.music_sync.fft_samples || 128;
           musicSyncConfig.samplingFreq = data.music_sync.sampling_freq || 16000;
           musicSyncConfig.startFreq = data.music_sync.start_freq ?? 0;
@@ -5449,11 +5479,22 @@
 
           updateMusicSyncInfo();
 
+          const msAutoCheck = document.getElementById("ms-auto-brightness");
+          if (msAutoCheck) msAutoCheck.checked = musicSyncConfig.auto;
+
           const msBrightInp = document.getElementById("ms-brightness");
-          if (msBrightInp) msBrightInp.value = musicSyncConfig.brightness;
+          if (msBrightInp) {
+            msBrightInp.value = musicSyncConfig.brightness;
+            msBrightInp.title = musicSyncConfig.auto
+              ? "Adjust Auto Sensitivity (0 = Darker, 15 = Brighter)"
+              : "Manual Brightness";
+          }
           const msBrightLbl = document.getElementById("ms-bright-val");
-          if (msBrightLbl)
-            msBrightLbl.innerText = musicSyncConfig.brightness + " / 15";
+          if (msBrightLbl) {
+            msBrightLbl.innerText = musicSyncConfig.auto
+              ? `Sens: ${musicSyncConfig.brightness}`
+              : `${musicSyncConfig.brightness} / 15`;
+          }
           const toggle = document.getElementById("music-sync-enable");
           if (toggle) toggle.checked = musicSyncConfig.enabled;
           const paramsDiv = document.getElementById("music-sync-params");

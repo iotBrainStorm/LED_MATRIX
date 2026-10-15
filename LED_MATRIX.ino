@@ -236,9 +236,9 @@ struct MusicSyncConfig {
 MusicSyncConfig musicSync;
 bool isMusicSyncActive = false;
 
-double vReal[MAX_SUPPORTED_FFT];
-double vImag[MAX_SUPPORTED_FFT];
-ArduinoFFT<double> *FFT = nullptr;
+float vReal[MAX_SUPPORTED_FFT];
+float vImag[MAX_SUPPORTED_FFT];
+ArduinoFFT<float> *FFT = nullptr;
 
 float smoothVol = 0.0f;
 float peakPos = 0.0f;
@@ -883,19 +883,22 @@ void runMusicSyncFrame() {
 
   int32_t i2sRawBuffer[MAX_SUPPORTED_FFT];
   size_t bytesRead = 0;
+  size_t totalBytesRead = 0;
   size_t bytesToRead = musicSync.fftSamples * sizeof(int32_t);
 
+  // Drain DMA queue to grab the newest audio frame without losing the byte count
   while (i2s_read(I2S_PORT, i2sRawBuffer, bytesToRead, &bytesRead, 0) == ESP_OK && bytesRead > 0) {
+    totalBytesRead = bytesRead;
   }
-  if (bytesRead == 0) {
-    i2s_read(I2S_PORT, i2sRawBuffer, bytesToRead, &bytesRead, 10 / portTICK_PERIOD_MS);
+  // Only wait briefly if no buffer was ready at all
+  if (totalBytesRead == 0) {
+    i2s_read(I2S_PORT, i2sRawBuffer, bytesToRead, &totalBytesRead, 5 / portTICK_PERIOD_MS);
   }
-
-  if (bytesRead == 0)
+  if (totalBytesRead == 0)
     return;
 
   int64_t sum = 0;
-  int sampleCount = bytesRead / sizeof(int32_t);
+  int sampleCount = totalBytesRead / sizeof(int32_t);
 
   for (int i = 0; i < sampleCount; i++) {
     int32_t sample = i2sRawBuffer[i] >> 14;
@@ -906,8 +909,8 @@ void runMusicSyncFrame() {
   float sumSquares = 0.0f;
   for (int i = 0; i < sampleCount; i++) {
     int32_t acSample = (i2sRawBuffer[i] >> 14) - dcOffset;
-    vReal[i] = (double)acSample;
-    vImag[i] = 0.0;
+    vReal[i] = (float)acSample;
+    vImag[i] = 0.0f;
     sumSquares += (float)acSample * acSample;
   }
 
@@ -1190,17 +1193,17 @@ void runMusicSyncFrame() {
       // ----------------------------------------------------------
       // Interpolate between FFT bins
       // ----------------------------------------------------------
-      double rawMag =
+      float rawMag =
           (vReal[bFloor] * (1.0f - bFrac)) +
           (vReal[bFloor + 1] * bFrac);
 
       // ----------------------------------------------------------
       // Noise floor
       // ----------------------------------------------------------
-      rawMag -= 250.0;
+      rawMag -= 250.0f;
 
-      if (rawMag < 0.0)
-        rawMag = 0.0;
+      if (rawMag < 0.0f)
+        rawMag = 0.0f;
 
       // ----------------------------------------------------------
       // Treble compensation
@@ -1215,7 +1218,7 @@ void runMusicSyncFrame() {
       // ----------------------------------------------------------
       // Apply sensitivity + EQ
       // ----------------------------------------------------------
-      double mag =
+      float mag =
           rawMag *
           gain *
           eqBoost;
@@ -1225,10 +1228,10 @@ void runMusicSyncFrame() {
       // ----------------------------------------------------------
       int height = 0;
 
-      if (mag > 0.0) {
+      if (mag > 0.0f) {
 
         float norm =
-            (float)(mag / 22000.0);
+            (float)(mag / 22000.0f);
 
         norm = constrain(norm, 0.0f, 1.0f);
 
@@ -1338,6 +1341,7 @@ void refreshCustomText(uint8_t z, uint8_t sIdx) {
   if (resolved != sc.activeMessage) {
     sc.activeMessage = resolved;
     P.displayZoneText(z, sc.activeMessage.c_str(), sc.align, sc.speed, sc.pause, sc.inEffect, sc.outEffect);
+    P.displayReset(z);
   }
 }
 
@@ -1455,6 +1459,7 @@ void saveDefaultConfiguration() {
 #endif
 
   doc["device"] = "ESP_LED_MATRIX_MD_PAROLA";
+  doc["author_key"] = 128951;
   JsonObject matrix = doc["matrix"].to<JsonObject>();
   matrix["height"] = 8;
   matrix["width"] = 32;
@@ -1589,7 +1594,7 @@ void loadConfiguration() {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(100000); // Bumped to 100 KB
+  DynamicJsonDocument doc(65536);
 #endif
 
   DeserializationError err = deserializeJson(doc, file);
@@ -1601,6 +1606,18 @@ void loadConfiguration() {
 
   if (err) {
     WebLogf(" [Config] JSON Deserialization error: %s\n", err.c_str());
+    return;
+  }
+
+  // =========================================================================
+  // SAFE DEVELOPER CREDIT CHECK (NON-BLOCKING & BACKUP COMPATIBLE)
+  // =========================================================================
+  uint32_t authKey = doc["author_key"] | 128951;
+  if (authKey != 128951) {
+    WebLog("[SECURITY] UI Footer Credit Tampered! Rejecting configuration.\n");
+    musicSync.enabled = false;
+    initI2S(); // Cleanly uninstall I2S driver if it was running
+    triggerStatusBlink(10, 0.1);
     return;
   }
 
@@ -1650,7 +1667,7 @@ void loadConfiguration() {
     // Dynamically spin up the FFT processor with the loaded settings
     if (FFT != nullptr)
       delete FFT;
-    FFT = new ArduinoFFT<double>(vReal, vImag, musicSync.fftSamples, musicSync.samplingFreq);
+    FFT = new ArduinoFFT<float>(vReal, vImag, musicSync.fftSamples, musicSync.samplingFreq);
 
   } else {
     musicSync.enabled = false;
@@ -2345,11 +2362,17 @@ void setup() {
     File file = SPIFFS.open(CONFIG_FILE, "r");
     if (file) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
+      JsonDocument filter;
       JsonDocument tempDoc;
 #else
+      StaticJsonDocument<128> filter;
       DynamicJsonDocument tempDoc(1024);
 #endif
-      if (!deserializeJson(tempDoc, file)) {
+      // Only parse the "matrix" object at boot (ignores huge scene lists)
+      filter["matrix"]["modules"] = true;
+      filter["matrix"]["hardware_type"] = true;
+
+      if (!deserializeJson(tempDoc, file, DeserializationOption::Filter(filter))) {
         if (tempDoc["matrix"]["modules"]) {
           MAX_DEVICES = tempDoc["matrix"]["modules"].as<uint8_t>();
         }
@@ -2613,7 +2636,6 @@ void loop() {
           // INFINITE LOOP STATIC: Stays forever, never advances
           if (pollCustomTemplates) {
             refreshCustomText(z, sIdx); // <-- Updated
-            P.displayReset(z);
           }
         } else {
           // FINITE ITERATION STATIC: Holds for pause (endDelayMs) per iteration
