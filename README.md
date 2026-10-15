@@ -346,3 +346,21 @@ If `/config.json` is missing on boot (or after a factory reset), the firmware au
    - On first boot, connect your phone or PC to the **`LED STUDIO`** WiFi access point.
    - Enter your 2.4 GHz WiFi credentials in the captive portal.
    - Upon reboot, the matrix will scroll its assigned local IP address and mDNS hostname (`http://ledstudio-XXXX.local`).
+
+## 📜 License & Acknowledgments
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for full details.
+
+**Copyright © 2026 Mrinal Maity**
+
+### Third-Party Libraries & Licenses
+
+LED Studio relies on the following open-source libraries, each governed by its respective license:
+
+- **[MD_Parola](https://github.com/MajicDesigns/MD_Parola) & [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX)** by MajicDesigns — _LGPL-2.1 / MIT License_
+- **[ArduinoJson](https://github.com/bblanchon/ArduinoJson)** by Benoit Blanchon — _MIT License_
+- **[ESPAsyncWebServer](https://github.com/mathieucarbou/ESPAsyncWebServer) & [AsyncTCP](https://github.com/mathieucarbou/AsyncTCP)** — _LGPL-3.0 License_
+- **[WiFiManager](https://github.com/tzapu/WiFiManager)** by tzapu — _MIT License_
+- **[arduinoFFT](https://github.com/kosme/arduinoFFT)** by Enrique Condes — _GPL-3.0 License_
+- **[Adafruit AHTX0](https://github.com/adafruit/Adafruit_AHTX0)** by Adafruit — _BSD License_
+- **[BH1750](https://github.com/claws/BH1750)** by Christopher Laws — _MIT License_
