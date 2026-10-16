@@ -3577,7 +3577,7 @@
         }
 
         if (effectType === "PA_MESH") {
-          const isIncoming = !isExit;
+          const isIncoming = typeof isEntry !== "undefined" ? isEntry : true;
 
           for (let x = 0; x < zWidth; x++) {
             const bUp = x % 2 === 0;
