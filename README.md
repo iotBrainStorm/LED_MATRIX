@@ -341,7 +341,7 @@ If `/config.json` is missing on boot (or after a factory reset), the firmware au
    - **Arduino IDE:** Use the _ESP32 Sketch Data Upload_ plugin to flash the `data/` folder to SPIFFS.
    - **PlatformIO:** Run `pio run --target uploadfs`.
 3. **Compile & Flash Firmware:**
-   Select your **ESP32 Dev Module** board (Partition Scheme: _Default 4MB with spiffs_ or _No OTA (2MB APP/2MB SPIFFS)_), set upload speed to `921600`, and flash the sketch.
+   Select your **ESP32 Dev Module** board (Partition Scheme: _Huge APP (3MB No OTA/1MB SPIFFS)_), set upload speed to `921600`, and flash the sketch.
 4. **Connect to WiFi:**
    - On first boot, connect your phone or PC to the **`LED STUDIO`** WiFi access point.
    - Enter your 2.4 GHz WiFi credentials in the captive portal.
