@@ -96,6 +96,13 @@
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.8);
         border: 2px solid #07090e;
       }
+
+      /* Drag-and-Drop Scene Card Highlight */
+      .scene-drag-over {
+        border-color: #00f2fe !important;
+        background-color: rgba(0, 242, 254, 0.15) !important;
+        transform: scale(1.02);
+      }
     </style>
   </head>
   <body
@@ -4854,6 +4861,84 @@
         renderStaticPreview();
       }
 
+      // Track dragged scene ID in browser memory only
+      let draggedSceneId = null;
+
+      // Move a scene Left (-1) or Right (+1) within the current Target Zone
+      function moveScene(sceneId, direction) {
+        pauseSimulation();
+        const targetZoneName =
+          document.getElementById("target-zone")?.value || "";
+
+        // Find all global indices in `scenes` belonging to this zone
+        const zoneGlobalIndices = [];
+        scenes.forEach((s, idx) => {
+          if (s.config?.zone?.name === targetZoneName) {
+            zoneGlobalIndices.push(idx);
+          }
+        });
+
+        const currentLocalIdx = zoneGlobalIndices.findIndex(
+          (gIdx) => scenes[gIdx].id === sceneId,
+        );
+        const targetLocalIdx = currentLocalIdx + direction;
+
+        // Boundary check
+        if (
+          currentLocalIdx === -1 ||
+          targetLocalIdx < 0 ||
+          targetLocalIdx >= zoneGlobalIndices.length
+        ) {
+          return;
+        }
+
+        const fromGlobalIdx = zoneGlobalIndices[currentLocalIdx];
+        const toGlobalIdx = zoneGlobalIndices[targetLocalIdx];
+
+        // Swap the two scenes in the main array
+        const temp = scenes[fromGlobalIdx];
+        scenes[fromGlobalIdx] = scenes[toGlobalIdx];
+        scenes[toGlobalIdx] = temp;
+
+        renderScenesUI();
+        updatePlaylistSceneDropdown();
+      }
+
+      // Drag-and-Drop Reorder Handler (inserts dragged card at target position)
+      function reorderSceneByDrop(fromId, toId) {
+        if (!fromId || !toId || fromId === toId) return;
+        pauseSimulation();
+
+        const targetZoneName =
+          document.getElementById("target-zone")?.value || "";
+
+        // Collect global slots and scene objects for this zone
+        const zoneGlobalIndices = [];
+        const zoneScenes = [];
+        scenes.forEach((s, idx) => {
+          if (s.config?.zone?.name === targetZoneName) {
+            zoneGlobalIndices.push(idx);
+            zoneScenes.push(s);
+          }
+        });
+
+        const fromLocalIdx = zoneScenes.findIndex((s) => s.id === fromId);
+        const toLocalIdx = zoneScenes.findIndex((s) => s.id === toId);
+        if (fromLocalIdx === -1 || toLocalIdx === -1) return;
+
+        // Move the scene to the new position inside the zone's list
+        const [movedScene] = zoneScenes.splice(fromLocalIdx, 1);
+        zoneScenes.splice(toLocalIdx, 0, movedScene);
+
+        // Write reordered zone scenes back into their global slots
+        zoneGlobalIndices.forEach((globalIdx, i) => {
+          scenes[globalIdx] = zoneScenes[i];
+        });
+
+        renderScenesUI();
+        updatePlaylistSceneDropdown();
+      }
+
       function renderScenesUI() {
         const container = document.getElementById("scenes-container");
         container.innerHTML = "";
@@ -4866,7 +4951,7 @@
           (s) => s.config?.zone?.name === targetZoneName,
         );
 
-        // MODIFIED: Use overall total scenes for the 100 limit display
+        // Use overall total scenes for the 100 limit display
         const countLabel = document.getElementById("scene-count-label");
         if (countLabel) countLabel.innerText = `${scenes.length} / 100`;
 
@@ -4876,28 +4961,88 @@
           return;
         }
 
-        filteredScenes.forEach((s) => {
-          // MODIFIED: Fetch the globally synced index/serial number
+        filteredScenes.forEach((s, localIdx) => {
+          // Fetch the globally synced index/serial number
           const globalIndex = scenes.indexOf(s) + 1;
 
           const isSel = s.id === editingSceneId;
-          const chip = document.createElement("div");
+          const isFirst = localIdx === 0;
+          const isLast = localIdx === filteredScenes.length - 1;
 
-          chip.className = `flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
+          const chip = document.createElement("div");
+          chip.draggable = true;
+
+          chip.className = `flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs font-mono-code shadow-sm cursor-pointer transition select-none ${
             isSel
               ? "bg-teal-500/20 text-teal-300 border border-teal-400 font-bold"
               : "bg-slate-800 text-teal-400 border border-slate-700 hover:border-teal-400"
           }`;
-          chip.title = "Click to edit scene";
+          chip.title = "Click to edit, or drag to rearrange";
           chip.onclick = () => selectSceneForEdit(s.id);
 
-          // MODIFIED: Appended `${globalIndex}. ` to the scene name
+          // Native HTML5 Drag-and-Drop Events
+          chip.ondragstart = (e) => {
+            draggedSceneId = s.id;
+            e.dataTransfer.effectAllowed = "move";
+            setTimeout(() => chip.classList.add("opacity-40"), 0);
+          };
+
+          chip.ondragend = () => {
+            draggedSceneId = null;
+            chip.classList.remove("opacity-40");
+            container
+              .querySelectorAll(".scene-drag-over")
+              .forEach((el) => el.classList.remove("scene-drag-over"));
+          };
+
+          chip.ondragover = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (draggedSceneId && draggedSceneId !== s.id) {
+              chip.classList.add("scene-drag-over");
+            }
+          };
+
+          chip.ondragleave = () => {
+            chip.classList.remove("scene-drag-over");
+          };
+
+          chip.ondrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chip.classList.remove("scene-drag-over");
+            if (draggedSceneId && draggedSceneId !== s.id) {
+              reorderSceneByDrop(draggedSceneId, s.id);
+            }
+          };
+
           chip.innerHTML = `
-            <div class="flex flex-col overflow-hidden">
-              <span class="truncate leading-tight">${isSel ? "▶&nbsp;&nbsp;" : ""}${globalIndex}. ${s.name}</span>
+            <div class="flex flex-col overflow-hidden pr-1">
+              <span class="truncate leading-tight">${isSel ? "▶&nbsp;" : ""}${globalIndex}. ${s.name}</span>
               <span class="text-[10px] text-slate-400 font-normal truncate mt-0.5">${s.config.zone?.name || "Zone"}</span>
             </div>
-            <button type="button" onclick="event.stopPropagation(); removeScene('${s.id}')" class="text-slate-400 hover:text-red-400 font-bold ml-1 transition p-0.5 shrink-0">✕</button>
+            <div class="flex items-center gap-0.5 shrink-0" onclick="event.stopPropagation()">
+              <button
+                type="button"
+                onclick="moveScene('${s.id}', -1)"
+                ${isFirst ? "disabled" : ""}
+                title="Move Left"
+                class="text-slate-400 hover:text-cyan-300 disabled:opacity-20 disabled:pointer-events-none px-1 py-0.5 rounded transition text-[10px]"
+              >◀</button>
+              <button
+                type="button"
+                onclick="moveScene('${s.id}', 1)"
+                ${isLast ? "disabled" : ""}
+                title="Move Right"
+                class="text-slate-400 hover:text-cyan-300 disabled:opacity-20 disabled:pointer-events-none px-1 py-0.5 rounded transition text-[10px]"
+              >▶</button>
+              <button
+                type="button"
+                onclick="removeScene('${s.id}')"
+                title="Remove Scene"
+                class="text-slate-400 hover:text-red-400 font-bold pl-1 pr-0.5 py-0.5 transition"
+              >✕</button>
+            </div>
           `;
           container.appendChild(chip);
         });
