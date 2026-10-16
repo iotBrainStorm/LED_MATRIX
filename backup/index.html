@@ -5836,6 +5836,39 @@
         renderQueuedScenesUI();
       }
 
+      let draggedQueueIdx = null;
+
+      // Move a queued scene Left (-1) or Right (+1) inside activePlaylistScenes
+      function moveQueuedScene(idx, direction) {
+        const targetIdx = idx + direction;
+        if (targetIdx < 0 || targetIdx >= activePlaylistScenes.length) return;
+
+        // Swap the two positions in memory
+        const temp = activePlaylistScenes[idx];
+        activePlaylistScenes[idx] = activePlaylistScenes[targetIdx];
+        activePlaylistScenes[targetIdx] = temp;
+
+        renderQueuedScenesUI();
+      }
+
+      // Drag-and-Drop Reorder Handler for Playlist Queue
+      function reorderQueueByDrop(fromIdx, toIdx) {
+        if (fromIdx === null || toIdx === null || fromIdx === toIdx) return;
+        if (
+          fromIdx < 0 ||
+          toIdx < 0 ||
+          fromIdx >= activePlaylistScenes.length ||
+          toIdx >= activePlaylistScenes.length
+        ) {
+          return;
+        }
+
+        const [movedItem] = activePlaylistScenes.splice(fromIdx, 1);
+        activePlaylistScenes.splice(toIdx, 0, movedItem);
+
+        renderQueuedScenesUI();
+      }
+
       function renderQueuedScenesUI() {
         const container = document.getElementById("pl-queued-scenes");
         if (!container) return;
@@ -5848,13 +5881,76 @@
         }
 
         activePlaylistScenes.forEach((name, idx) => {
+          const isFirst = idx === 0;
+          const isLast = idx === activePlaylistScenes.length - 1;
+
           const chip = document.createElement("div");
+          chip.draggable = true;
           chip.className =
-            "inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded border border-cyan-800/80 text-cyan-300";
+            "inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded border border-cyan-800/80 hover:border-cyan-400 text-cyan-300 cursor-grab active:cursor-grabbing select-none transition";
+          chip.title = "Drag to reorder, or use arrows";
+
+          // Native HTML5 Drag-and-Drop Events
+          chip.ondragstart = (e) => {
+            draggedQueueIdx = idx;
+            e.dataTransfer.effectAllowed = "move";
+            setTimeout(() => chip.classList.add("opacity-40"), 0);
+          };
+
+          chip.ondragend = () => {
+            draggedQueueIdx = null;
+            chip.classList.remove("opacity-40");
+            container
+              .querySelectorAll(".scene-drag-over")
+              .forEach((el) => el.classList.remove("scene-drag-over"));
+          };
+
+          chip.ondragover = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (draggedQueueIdx !== null && draggedQueueIdx !== idx) {
+              chip.classList.add("scene-drag-over");
+            }
+          };
+
+          chip.ondragleave = () => {
+            chip.classList.remove("scene-drag-over");
+          };
+
+          chip.ondrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chip.classList.remove("scene-drag-over");
+            if (draggedQueueIdx !== null && draggedQueueIdx !== idx) {
+              reorderQueueByDrop(draggedQueueIdx, idx);
+            }
+          };
+
           chip.innerHTML = `
-              <span>${idx + 1}. ${name}</span>
-              <button type="button" onclick="removeSceneFromQueue(${idx})" class="text-slate-400 hover:text-red-400 font-bold ml-1">✕</button>
-            `;
+            <span class="mr-0.5">${idx + 1}. ${name}</span>
+            <div class="inline-flex items-center gap-0.5 border-l border-slate-700 pl-1.5">
+              <button
+                type="button"
+                onclick="moveQueuedScene(${idx}, -1)"
+                ${isFirst ? "disabled" : ""}
+                title="Move Left"
+                class="text-slate-400 hover:text-cyan-300 disabled:opacity-20 disabled:pointer-events-none px-0.5 transition text-[10px]"
+              >◀</button>
+              <button
+                type="button"
+                onclick="moveQueuedScene(${idx}, 1)"
+                ${isLast ? "disabled" : ""}
+                title="Move Right"
+                class="text-slate-400 hover:text-cyan-300 disabled:opacity-20 disabled:pointer-events-none px-0.5 transition text-[10px]"
+              >▶</button>
+              <button
+                type="button"
+                onclick="removeSceneFromQueue(${idx})"
+                title="Remove from Queue"
+                class="text-slate-400 hover:text-red-400 font-bold pl-1 transition"
+              >✕</button>
+            </div>
+          `;
           container.appendChild(chip);
         });
       }
